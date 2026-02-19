@@ -74,7 +74,7 @@
         char: "A",
         charColor: "#ec4899",
         charDepth: 1,
-        charSize: 10,
+        charSize: 21,
         charFontKey: "Titan One_Regular",
         textOffsetX: 0,
         textOffsetY: 0,

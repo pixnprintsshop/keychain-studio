@@ -79,14 +79,14 @@
     ];
 
     const defaults: Settings = {
-        baseWidth: 40,
+        baseWidth: 50,
         baseHeight: 25,
-        cornerRadius: 10,
+        cornerRadius: 7,
         baseDepth: 2,
         topBorderDepth: 1,
         keyringPosition: "topCenter",
         baseColor: "#000000",
-        accentColor: "#ffffff",
+        accentColor: "#24b6ff",
         textContent: DEFAULT_TEXT,
         textFontKey: FONT_OPTIONS[0]?.key ?? "Titan One_Regular",
         textSize: 8,
