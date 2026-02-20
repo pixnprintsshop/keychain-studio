@@ -25,6 +25,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.95.3",
     "@tailwindcss/vite": "^4.1.18",
+    "@vercel/analytics": "^1.6.1",
     "clipper-lib": "^6.4.2",
     "opencascade.js": "2.0.0-beta.b5ff984",
     "openscad-wasm": "^0.0.4",

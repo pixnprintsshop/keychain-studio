@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { inject } from "@vercel/analytics";
     import type { Session, User } from "@supabase/supabase-js";
     import { onDestroy, onMount } from "svelte";
     import "./app.css";
@@ -150,6 +151,8 @@
             });
             authCleanup = () => subscription.unsubscribe();
         })();
+
+        inject();
     });
 
     onDestroy(() => {
