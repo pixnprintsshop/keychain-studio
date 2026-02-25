@@ -1,7 +1,13 @@
 <script lang="ts">
     interface Props {
         onSelect: (
-            style: "textOutline" | "initial" | "flower" | "bone" | "basicName",
+            style:
+                | "textOutline"
+                | "initial"
+                | "flower"
+                | "bone"
+                | "basicName"
+                | "svgUpload",
         ) => void;
     }
 
@@ -46,8 +52,8 @@
                         Text Only
                     </h2>
                     <p class="mt-1 text-sm leading-relaxed text-slate-500">
-                        3D text with customizable outline. Keyring attaches to
-                        the text outline.
+                        Make a keychain with just your name or favorite
+                        word—simple and fun.
                     </p>
                 </div>
             </div>
@@ -71,8 +77,8 @@
                         Initial + Text
                     </h2>
                     <p class="mt-1 text-sm leading-relaxed text-slate-500">
-                        Big initial letter with text overlay. Keyring attaches
-                        to the large initial.
+                        Perfect for gifts—show off a big letter and a name
+                        together on your keychain.
                     </p>
                 </div>
             </div>
@@ -96,7 +102,8 @@
                         Flower + Initial
                     </h2>
                     <p class="mt-1 text-sm leading-relaxed text-slate-500">
-                        Flower keychain with customizable base and top layers.
+                        Add a colorful flower with your letter for a cute and
+                        cheerful keychain.
                     </p>
                 </div>
             </div>
@@ -120,8 +127,37 @@
                         Basic Name Tag
                     </h2>
                     <p class="mt-1 text-sm leading-relaxed text-slate-500">
-                        Rectangular keychain with rounded corners and name text.
-                        Keyring at top.
+                        Classic name tag style—simple, stylish, and great for
+                        any occasion.
+                    </p>
+                </div>
+            </div>
+
+            <!-- SVG Upload card -->
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div
+                class="group cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:border-indigo-300"
+                onclick={() => onSelect("svgUpload")}
+            >
+                <div class="aspect-4/3 w-full overflow-hidden bg-slate-100">
+                    <div
+                        class="flex h-full w-full items-center justify-center text-slate-400"
+                    >
+                        <img
+                            src="/images/svg-upload.png"
+                            alt="SVG Upload preview"
+                            class="h-full w-full object-cover transition group-hover:scale-105"
+                        />
+                    </div>
+                </div>
+                <div class="p-5">
+                    <h2 class="text-lg font-semibold text-slate-900">
+                        SVG Upload
+                    </h2>
+                    <p class="mt-1 text-sm leading-relaxed text-slate-500">
+                        Want something unique? Upload your drawing or logo to
+                        make your own keychain!
                     </p>
                 </div>
             </div>

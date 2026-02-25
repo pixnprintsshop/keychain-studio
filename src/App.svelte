@@ -11,6 +11,7 @@
     import LoginModal from "./components/LoginModal.svelte";
     import TextOutlineDesigner from "./components/TextOutlineDesigner.svelte";
     import ThankYouDialog from "./components/ThankYouDialog.svelte";
+    import SvgUploadDesigner from "./components/SvgUploadDesigner.svelte";
     import {
         getSession,
         getUser,
@@ -34,7 +35,8 @@
         | "initial"
         | "flower"
         | "bone"
-        | "basicName";
+        | "basicName"
+        | "svgUpload";
     let initialView: ViewName = "home";
     try {
         const stored = localStorage.getItem(STORAGE_KEY_VIEW);
@@ -44,6 +46,7 @@
             stored === "flower" ||
             stored === "bone" ||
             stored === "basicName" ||
+            stored === "svgUpload" ||
             stored === "home"
         ) {
             initialView = stored;
@@ -79,7 +82,13 @@
     }
 
     function handleStyleSelect(
-        style: "textOutline" | "initial" | "flower" | "bone" | "basicName",
+        style:
+            | "textOutline"
+            | "initial"
+            | "flower"
+            | "bone"
+            | "basicName"
+            | "svgUpload",
     ) {
         navigateTo(style);
     }
@@ -442,6 +451,16 @@
     />
 {:else if currentView === "basicName"}
     <BasicNameDesigner
+        {user}
+        {session}
+        {licenseStatus}
+        {licenseModalRef}
+        onBack={handleBack}
+        onRequestLogin={() => (showLoginModal = true)}
+        onShowThankYou={() => (showThankYouDialog = true)}
+    />
+{:else if currentView === "svgUpload"}
+    <SvgUploadDesigner
         {user}
         {session}
         {licenseStatus}
