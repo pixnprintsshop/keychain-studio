@@ -1,17 +1,22 @@
 <script lang="ts">
+    type StyleName =
+        | "textOutline"
+        | "initial"
+        | "flower"
+        | "basicName"
+        | "customSvg"
+        | "charm";
+
     interface Props {
-        onSelect: (
-            style:
-                | "textOutline"
-                | "initial"
-                | "flower"
-                | "basicName"
-                | "svgUpload"
-                | "bead",
-        ) => void;
+        paidOnlyDesigners: ReadonlySet<string>;
+        onSelect: (style: StyleName) => void;
     }
 
-    let { onSelect }: Props = $props();
+    let { paidOnlyDesigners, onSelect }: Props = $props();
+
+    function isPaidDesigner(style: StyleName): boolean {
+        return paidOnlyDesigners.has(style);
+    }
 </script>
 
 <div class="flex min-h-dvh w-dvw items-center justify-center bg-slate-50 p-6">
@@ -37,9 +42,12 @@
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
-                class="group cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:border-indigo-300"
+                class="group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:border-indigo-300"
                 onclick={() => onSelect("textOutline")}
             >
+                {#if isPaidDesigner("textOutline")}
+                    <span class="absolute right-3 top-3 z-10 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Paid</span>
+                {/if}
                 <div class="aspect-4/3 w-full overflow-hidden bg-slate-100">
                     <img
                         src="/images/text-only.png"
@@ -62,19 +70,22 @@
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
-                class="group cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:border-indigo-300"
+                class="group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:border-indigo-300"
                 onclick={() => onSelect("initial")}
             >
+                {#if isPaidDesigner("initial")}
+                    <span class="absolute right-3 top-3 z-10 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Paid</span>
+                {/if}
                 <div class="aspect-4/3 w-full overflow-hidden bg-slate-100">
                     <img
                         src="/images/text+initial.png"
-                        alt="Initial + Text preview"
+                        alt="Text & Initial preview"
                         class="h-full w-full object-cover transition group-hover:scale-105"
                     />
                 </div>
                 <div class="p-5">
                     <h2 class="text-lg font-semibold text-slate-900">
-                        Initial + Text
+                        Text & Initial
                     </h2>
                     <p class="mt-1 text-sm leading-relaxed text-slate-500">
                         Perfect for gifts—show off a big letter and a name
@@ -87,13 +98,16 @@
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
-                class="group cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:border-indigo-300"
+                class="group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:border-indigo-300"
                 onclick={() => onSelect("flower")}
             >
+                {#if isPaidDesigner("flower")}
+                    <span class="absolute right-3 top-3 z-10 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Paid</span>
+                {/if}
                 <div class="aspect-4/3 w-full overflow-hidden bg-slate-100">
                     <img
                         src="/images/flower+initial.png"
-                        alt="Flower preview"
+                        alt="Flower & Initial preview"
                         class="h-full w-full object-cover transition group-hover:scale-105"
                     />
                 </div>
@@ -112,13 +126,16 @@
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
-                class="group cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:border-indigo-300"
+                class="group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:border-indigo-300"
                 onclick={() => onSelect("basicName")}
             >
+                {#if isPaidDesigner("basicName")}
+                    <span class="absolute right-3 top-3 z-10 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Paid</span>
+                {/if}
                 <div class="aspect-4/3 w-full overflow-hidden bg-slate-100">
                     <img
                         src="/images/nametag.png"
-                        alt="Basic Name Keychain preview"
+                        alt="Basic Name Tag preview"
                         class="h-full w-full object-cover transition group-hover:scale-105"
                     />
                 </div>
@@ -133,63 +150,67 @@
                 </div>
             </div>
 
-            <!-- SVG Upload card -->
+            <!-- Custom SVG card -->
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
-                class="group cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:border-indigo-300"
-                onclick={() => onSelect("svgUpload")}
+                class="group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:border-indigo-300"
+                onclick={() => onSelect("customSvg")}
             >
+                {#if isPaidDesigner("customSvg")}
+                    <span class="absolute right-3 top-3 z-10 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Paid</span>
+                {/if}
                 <div class="aspect-4/3 w-full overflow-hidden bg-slate-100">
                     <div
                         class="flex h-full w-full items-center justify-center text-slate-400"
                     >
                         <img
-                            src="/images/svg-upload.png"
-                            alt="SVG Upload preview"
+                            src="/images/custom-svg.png"
+                            alt="Custom SVG Designer preview"
                             class="h-full w-full object-cover transition group-hover:scale-105"
                         />
                     </div>
                 </div>
                 <div class="p-5">
                     <h2 class="text-lg font-semibold text-slate-900">
-                        SVG Upload
+                        Custom SVG
                     </h2>
                     <p class="mt-1 text-sm leading-relaxed text-slate-500">
-                        Want something unique? Upload your drawing or logo to
-                        make your own keychain!
+                        Want something unique? Upload your drawing or logo to create a custom keychain!
                     </p>
                 </div>
             </div>
 
-            <!-- Chunky Bead card -->
+            <!-- Chunky Charm card -->
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <!-- <div
-                class="group cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:border-indigo-300"
-                onclick={() => onSelect("bead")}
+            <div
+                class="group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:border-indigo-300"
+                onclick={() => onSelect("charm")}
             >
+                {#if isPaidDesigner("charm")}
+                    <span class="absolute right-3 top-3 z-10 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Paid</span>
+                {/if}
                 <div class="aspect-4/3 w-full overflow-hidden bg-slate-100">
                     <div
                         class="flex h-full w-full items-center justify-center text-slate-400"
                     >
                         <img
-                            src="/images/bead.png"
-                            alt="Chunky Bead preview"
+                            src="/images/charm.png"
+                            alt="Chunky Charm preview"
                             class="h-full w-full object-cover transition group-hover:scale-105"
                         />
                     </div>
                 </div>
                 <div class="p-5">
                     <h2 class="text-lg font-semibold text-slate-900">
-                        Chunky Bead
+                        Chunky Charm
                     </h2>
                     <p class="mt-1 text-sm leading-relaxed text-slate-500">
-                        Upload an SVG to create a bead with a cord hole—thick
-                        base and flat-top tunnel for easy printing.
+                        Turn your design into a cute charm you can easily thread a cord through.
                     </p>
                 </div>
-            </div> -->
+            </div>
         </div>
 
         <div

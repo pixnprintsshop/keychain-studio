@@ -21,11 +21,13 @@ $$ LANGUAGE plpgsql;
 -- ============================================================================
 -- 2. Licenses Table
 -- ============================================================================
--- Stores license keys and their metadata
+-- Stores license keys and their metadata.
+-- Each license is either 'paid' (purchased) or 'free' (giveaway).
 
 CREATE TABLE IF NOT EXISTS public.licenses (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     license_key text NOT NULL,
+    tier text NOT NULL DEFAULT 'paid' CHECK (tier IN ('free', 'paid')),
     is_active boolean NULL DEFAULT true,
     expires_at timestamp with time zone NULL,
     max_devices integer NULL DEFAULT 3,
@@ -41,6 +43,9 @@ CREATE INDEX IF NOT EXISTS idx_licenses_license_key
 
 CREATE INDEX IF NOT EXISTS idx_licenses_is_active 
     ON public.licenses USING btree (is_active) TABLESPACE pg_default;
+
+CREATE INDEX IF NOT EXISTS idx_licenses_tier 
+    ON public.licenses USING btree (tier) TABLESPACE pg_default;
 
 -- Trigger to auto-update updated_at
 CREATE TRIGGER update_licenses_updated_at 
@@ -138,6 +143,79 @@ BEGIN
 END;
 $$;
 
+-- ----------------------------------------------------------------------------
+-- Paid / Free license identification
+-- ----------------------------------------------------------------------------
+-- Each license row has tier = 'paid' (purchased) or 'free' (giveaway).
+-- user_license_tier: 'paid' if user has at least one valid license with tier='paid';
+--                    'free' if they only have valid giveaway license(s) or trial/none.
+
+CREATE OR REPLACE FUNCTION public.user_license_tier(p_user_id uuid)
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    has_valid_paid boolean;
+BEGIN
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.device_activations da
+        JOIN public.licenses l ON l.id = da.license_id
+        WHERE da.user_id = p_user_id
+          AND l.is_active = true
+          AND l.tier = 'paid'
+          AND (l.expires_at IS NULL OR l.expires_at > now())
+    ) INTO has_valid_paid;
+    
+    IF has_valid_paid THEN
+        RETURN 'paid';
+    ELSE
+        RETURN 'free';
+    END IF;
+END;
+$$;
+
+-- Convenience: true if user has a valid license that is paid (not a giveaway)
+CREATE OR REPLACE FUNCTION public.user_has_paid_license(p_user_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    RETURN public.user_license_tier(p_user_id) = 'paid';
+END;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- Create a license (admin / backend use). Can be free (giveaway) or paid.
+-- Call with service role or restrict to admin in production.
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.create_license(
+    p_license_key text,
+    p_max_devices integer DEFAULT 3,
+    p_expires_at timestamp with time zone DEFAULT NULL,
+    p_tier text DEFAULT 'paid'
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    new_id uuid;
+    tier_val text;
+BEGIN
+    tier_val := lower(trim(p_tier));
+    IF tier_val NOT IN ('free', 'paid') THEN
+        tier_val := 'paid';
+    END IF;
+    INSERT INTO public.licenses (license_key, tier, is_active, max_devices, expires_at)
+    VALUES (trim(p_license_key), tier_val, true, greatest(1, p_max_devices), p_expires_at)
+    RETURNING id INTO new_id;
+    RETURN new_id;
+END;
+$$;
+
 -- ============================================================================
 -- 6. Row Level Security (RLS) Policies
 -- ============================================================================
@@ -206,16 +284,28 @@ GRANT SELECT ON public.licenses TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.device_activations TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.user_trials TO authenticated;
 GRANT EXECUTE ON FUNCTION can_user_start_trial(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.user_license_tier(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.user_has_paid_license(uuid) TO authenticated;
+-- create_license: grant only to service_role for admin/backend use (optional)
+-- GRANT EXECUTE ON FUNCTION public.create_license(text, integer, timestamp with time zone, text) TO service_role;
 
 -- ============================================================================
 -- Notes:
 -- ============================================================================
--- 1. License keys should be created through your admin panel/backend
--- 2. Users can only see and manage their own activations and trials
+-- 1. License keys should be created through your admin panel/backend, or by
+--    calling create_license() with service_role (grant EXECUTE to service_role
+--    and run from backend only).
+-- 2. Users can only see and manage their own activations and trials.
 -- 3. The can_user_start_trial function is SECURITY DEFINER to allow
---    server-side validation even when called from client
+--    server-side validation even when called from client.
 -- 4. device_id column in device_activations is kept for backward compatibility
---    but is optional - the system now primarily uses user_id
--- 5. Make sure to run this script as a database superuser or with appropriate
---    permissions to create functions and set up RLS policies
+--    but is optional - the system now primarily uses user_id.
+-- 5. License tier (per license row): each license is either 'paid' (purchased) or
+--    'free' (giveaway). Giveaway licenses are full licenses, not trials.
+-- 6. User tier: user_license_tier(uid) returns 'paid' only if the user has a
+--    valid license with tier='paid'. If they only have valid 'free' (giveaway)
+--    licenses or trial/none, returns 'free'. Use for gating designers/features.
+-- 7. create_license(key, max_devices, expires_at, tier) creates a license;
+--    tier is 'paid' or 'free'. Restrict to service_role in production.
+-- 8. Run this script as a database superuser or with appropriate permissions.
 -- ============================================================================

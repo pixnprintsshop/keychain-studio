@@ -507,35 +507,20 @@
         class="mx-auto flex h-full w-full max-w-[1600px] flex-col gap-4 lg:flex-row"
     >
         <aside
-            class="flex max-h-[44dvh] w-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/85 shadow-[0_1px_2px_rgba(15,23,42,0.06),0_12px_30px_rgba(15,23,42,0.07)] backdrop-blur lg:max-h-none lg:w-[380px]"
-        >
-            <div class="border-b border-slate-200 p-4">
-                <button
-                    type="button"
-                    class="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
-                    onclick={onBack}
-                >
-                    <svg
-                        class="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        stroke-width="2"
-                    >
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M15 19l-7-7 7-7"
-                        />
-                    </svg>
-                    Back
-                </button>
-                <h2
-                    class="mt-2 text-sm font-semibold tracking-tight text-slate-900"
-                >
-                    Flower Keychain
-                </h2>
-            </div>
+        class="w-full max-w-[360px] min-w-[320px] rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.06),0_12px_30px_rgba(15,23,42,0.07)]"
+    >
+        <div class="mb-4 flex items-center justify-between">
+            <h1 class="text-lg font-semibold tracking-tight text-slate-900">
+                Flower & Initial
+            </h1>
+            <button
+                type="button"
+                class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                onclick={onBack}
+            >
+                Back
+            </button>
+        </div>
 
             <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4">
                 <div class="grid grid-cols-1 gap-4">

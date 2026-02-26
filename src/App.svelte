@@ -1,33 +1,36 @@
 <script lang="ts">
-    import { inject } from "@vercel/analytics";
     import type { Session, User } from "@supabase/supabase-js";
+    import { inject } from "@vercel/analytics";
     import { onDestroy, onMount } from "svelte";
     import "./app.css";
     import BasicNameDesigner from "./components/BasicNameDesigner.svelte";
+    import CharmDesigner from "./components/CharmDesigner.svelte";
     import FlowerDesigner from "./components/FlowerDesigner.svelte";
     import HomeScreen from "./components/HomeScreen.svelte";
     import InitialDesigner from "./components/InitialDesigner.svelte";
     import LicenseModal from "./components/LicenseModal.svelte";
     import LoginModal from "./components/LoginModal.svelte";
+    import CustomSVGDesigner from "./components/CustomSVGDesigner.svelte";
     import TextOutlineDesigner from "./components/TextOutlineDesigner.svelte";
     import ThankYouDialog from "./components/ThankYouDialog.svelte";
-    import SvgUploadDesigner from "./components/SvgUploadDesigner.svelte";
-    import BeadDesigner from "./components/BeadDesigner.svelte";
     import {
-        getSession,
-        getUser,
-        onAuthStateChange,
-        signOut,
+      getSession,
+      getUser,
+      onAuthStateChange,
+      signOut,
     } from "./lib/auth";
     import {
-        type LicenseStatus,
-        checkLicenseStatus,
-        validateDeviceActivation,
+      type LicenseStatus,
+      checkLicenseStatus,
+      validateDeviceActivation,
     } from "./lib/licensing";
 
     // ── Storage keys ────────────────────────────────────────────────────────
     const STORAGE_KEY_WELCOME = "designer-has-seen-welcome";
     const STORAGE_KEY_VIEW = "designer-current-view";
+
+    /** Designers that require a paid license; trial and free-license users see them as locked. */
+    const PAID_ONLY_DESIGNERS = new Set<ViewName>(["charm", "customSvg"]);
 
     // ── View / routing state ────────────────────────────────────────────────
     type ViewName =
@@ -36,8 +39,8 @@
         | "initial"
         | "flower"
         | "basicName"
-        | "svgUpload"
-        | "bead";
+        | "customSvg"
+        | "charm";
     let initialView: ViewName = "home";
     try {
         const stored = localStorage.getItem(STORAGE_KEY_VIEW);
@@ -46,8 +49,8 @@
             stored === "initial" ||
             stored === "flower" ||
             stored === "basicName" ||
-            stored === "svgUpload" ||
-            stored === "bead" ||
+            stored === "customSvg" ||
+            stored === "charm" ||
             stored === "home"
         ) {
             initialView = stored;
@@ -88,8 +91,8 @@
             | "initial"
             | "flower"
             | "basicName"
-            | "svgUpload"
-            | "bead",
+            | "customSvg"
+            | "charm",
     ) {
         navigateTo(style);
     }
@@ -419,7 +422,10 @@
 
 <!-- Router -->
 {#if currentView === "home"}
-    <HomeScreen onSelect={handleStyleSelect} />
+    <HomeScreen
+        paidOnlyDesigners={PAID_ONLY_DESIGNERS}
+        onSelect={handleStyleSelect}
+    />
 {:else if currentView === "textOutline"}
     <TextOutlineDesigner
         {user}
@@ -460,8 +466,8 @@
         onRequestLogin={() => (showLoginModal = true)}
         onShowThankYou={() => (showThankYouDialog = true)}
     />
-{:else if currentView === "svgUpload"}
-    <SvgUploadDesigner
+{:else if currentView === "customSvg"}
+    <CustomSVGDesigner
         {user}
         {session}
         {licenseStatus}
@@ -470,8 +476,8 @@
         onRequestLogin={() => (showLoginModal = true)}
         onShowThankYou={() => (showThankYouDialog = true)}
     />
-{:else if currentView === "bead"}
-    <BeadDesigner
+{:else if currentView === "charm"}
+    <CharmDesigner
         {user}
         {session}
         {licenseStatus}

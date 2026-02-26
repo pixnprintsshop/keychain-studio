@@ -3,7 +3,6 @@
     import ClipperLib from "clipper-lib";
     import { onDestroy, onMount } from "svelte";
     import * as THREE from "three";
-    import { Brush, Evaluator, INTERSECTION, SUBTRACTION } from "three-bvh-csg";
     import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
     import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
     import { SVGLoader } from "three/examples/jsm/loaders/SVGLoader.js";
@@ -11,11 +10,11 @@
     import type { LicenseStatus } from "../lib/licensing";
     import { checkLicenseStatus } from "../lib/licensing";
     import {
-      centerGeometryXY,
-      disposeObject3D,
-      downloadBlob,
-      downloadSnapshot,
-      frameCameraToObject,
+        centerGeometryXY,
+        disposeObject3D,
+        downloadBlob,
+        downloadSnapshot,
+        frameCameraToObject,
     } from "../lib/utils";
     import type LicenseModal from "./LicenseModal.svelte";
 
@@ -52,8 +51,6 @@
     let rafId = 0;
     let ro: ResizeObserver | null = null;
     let didInitFrame = false;
-    let rebuildTimeout: ReturnType<typeof setTimeout> | null = null;
-    const REBUILD_DEBOUNCE_MS = 120;
 
     let uploadName = $state("");
     let svgUrl = $state("");
@@ -62,19 +59,22 @@
     let processError = $state<string | null>(null);
     let processing = $state(false);
     let exportError = $state<string | null>(null);
-    const SCALE_OFFSET = 0.01;
+    const SCALE_OFFSET = 0.05;
     const CLIPPER_SCALE = 1000;
     const TOP_BASE_EMBED = 0.2;
     const DETAIL_AREA_RATIO = 0.08;
     const DETAIL_TOP_EMBED = 0.04;
     let uiScale = $state(1);
-    let thickness = $state(1);
-    let baseThickness = $state(9);
-    let baseOffsetMm = $state(2.5);
-    let holeDiameter = $state(6.5);
-    let holeFlatTopOffset = $state(0.3);
-    let mainColor = $state("#ffffff");
-    let baseColor = $state("#ff9e9e");
+    let thickness = $state(2);
+    let baseThickness = $state(3);
+    let baseOffsetMm = $state(4);
+    let keyringEnabled = $state(true);
+    let keyringOuterMm = $state(8);
+    let keyringHoleMm = $state(4);
+    let keyringOffsetXmm = $state(0);
+    let keyringOffsetYmm = $state(0);
+    let mainColor = $state("#f06f05");
+    let baseColor = $state("#616161");
 
     function resize() {
         if (!renderer || !camera || !hostEl) return;
@@ -175,6 +175,7 @@
                 for (const p of pts) {
                     out.push({
                         X: Math.round(p.x * CLIPPER_SCALE),
+                        // SVG coordinates are Y-down; flip to Y-up for 3D layout/export.
                         Y: Math.round(-p.y * CLIPPER_SCALE),
                     });
                 }
@@ -286,31 +287,114 @@
             roots.forEach(collect);
             return { minX, maxX, minY, maxY };
         };
+        const circleToPath = (
+            cx: number,
+            cy: number,
+            r: number,
+            clockwise: boolean,
+            segs = 64,
+        ) => {
+            const path: { X: number; Y: number }[] = [];
+            for (let i = 0; i < segs; i++) {
+                const t = (i / segs) * Math.PI * 2;
+                path.push({
+                    X: Math.round((cx + r * Math.cos(t)) * CLIPPER_SCALE),
+                    Y: Math.round((cy + r * Math.sin(t)) * CLIPPER_SCALE),
+                });
+            }
+            if (path.length < 3) return null;
+            const isCW = ClipperLib.Clipper.Orientation(path);
+            if (isCW !== clockwise) path.reverse();
+            return path;
+        };
+        let finalBaseTree: any = baseTree;
+        if (keyringEnabled) {
+            const bbox = getTreeBbox(baseTree);
+            if (Number.isFinite(bbox.minX) && Number.isFinite(bbox.maxX)) {
+                const centerX = (bbox.minX + bbox.maxX) / 2 / CLIPPER_SCALE;
+                const topY = bbox.maxY / CLIPPER_SCALE;
+                const kx = centerX + keyringOffsetXmm / effectiveScale;
+                const ky = topY + keyringOffsetYmm / effectiveScale;
+                const outerR = Math.max(
+                    0.5,
+                    keyringOuterMm / effectiveScale / 2,
+                );
+                const innerR = Math.min(
+                    Math.max(0.2, keyringHoleMm / effectiveScale / 2),
+                    outerR - 0.2,
+                );
+                const outerCircle = circleToPath(kx, ky, outerR, true);
+                const innerCircle = circleToPath(kx, ky, innerR, false);
+                if (outerCircle && innerCircle) {
+                    const basePaths: any[] = [];
+                    const roots =
+                        baseTree.Childs?.() ?? baseTree.m_Childs ?? [];
+                    roots.forEach((n: any) => collectOuterPaths(n, basePaths));
+                    const unionTree = new ClipperLib.PolyTree();
+                    const unionC = new ClipperLib.Clipper();
+                    basePaths.forEach((p) =>
+                        unionC.AddPath(p, ClipperLib.PolyType.ptSubject, true),
+                    );
+                    unionC.AddPath(
+                        outerCircle,
+                        ClipperLib.PolyType.ptSubject,
+                        true,
+                    );
+                    unionC.Execute(
+                        ClipperLib.ClipType.ctUnion,
+                        unionTree,
+                        ClipperLib.PolyFillType.pftNonZero,
+                        ClipperLib.PolyFillType.pftNonZero,
+                    );
+                    const diffPaths: any[] = [];
+                    const unionRoots =
+                        unionTree.Childs?.() ?? unionTree.m_Childs ?? [];
+                    unionRoots.forEach((n: any) =>
+                        collectOuterPaths(n, diffPaths),
+                    );
+                    const diffTree = new ClipperLib.PolyTree();
+                    const diffC = new ClipperLib.Clipper();
+                    diffPaths.forEach((p) =>
+                        diffC.AddPath(p, ClipperLib.PolyType.ptSubject, true),
+                    );
+                    diffC.AddPath(
+                        innerCircle,
+                        ClipperLib.PolyType.ptClip,
+                        true,
+                    );
+                    diffC.Execute(
+                        ClipperLib.ClipType.ctDifference,
+                        diffTree,
+                        ClipperLib.PolyFillType.pftNonZero,
+                        ClipperLib.PolyFillType.pftNonZero,
+                    );
+                    finalBaseTree = diffTree;
+                }
+            }
+        }
 
         const polyTreeToThreeShapes = (tree: any) => {
             const out: THREE.Shape[] = [];
             const toVec2 = (pt: { X: number; Y: number }) =>
                 new THREE.Vector2(pt.X / CLIPPER_SCALE, pt.Y / CLIPPER_SCALE);
-            const buildFromOuter = (outerNode: any, includeHoles: boolean): THREE.Shape | null => {
+            const buildFromOuter = (outerNode: any): THREE.Shape | null => {
                 const contour =
                     outerNode.Contour?.() ?? outerNode.m_polygon ?? [];
                 if (!contour || contour.length < 3) return null;
                 const outerPts = contour.map(toVec2);
                 if (THREE.ShapeUtils.isClockWise(outerPts)) outerPts.reverse();
                 const shape = new THREE.Shape(outerPts);
-                if (includeHoles) {
-                    const children =
-                        outerNode.Childs?.() ?? outerNode.m_Childs ?? [];
-                    for (const ch of children) {
-                        const isHole = ch.IsHole?.() ?? ch.m_IsHole;
-                        if (!isHole) continue;
-                        const holeContour = ch.Contour?.() ?? ch.m_polygon ?? [];
-                        if (holeContour.length >= 3) {
-                            const holePts = holeContour.map(toVec2);
-                            if (!THREE.ShapeUtils.isClockWise(holePts))
-                                holePts.reverse();
-                            shape.holes.push(new THREE.Path(holePts));
-                        }
+                const children =
+                    outerNode.Childs?.() ?? outerNode.m_Childs ?? [];
+                for (const ch of children) {
+                    const isHole = ch.IsHole?.() ?? ch.m_IsHole;
+                    if (!isHole) continue;
+                    const holeContour = ch.Contour?.() ?? ch.m_polygon ?? [];
+                    if (holeContour.length >= 3) {
+                        const holePts = holeContour.map(toVec2);
+                        if (!THREE.ShapeUtils.isClockWise(holePts))
+                            holePts.reverse();
+                        shape.holes.push(new THREE.Path(holePts));
                     }
                 }
                 return shape;
@@ -319,34 +403,16 @@
             for (const n of roots) {
                 const isHole = n.IsHole?.() ?? n.m_IsHole;
                 if (isHole) continue;
-                const s = buildFromOuter(n, true);
+                const s = buildFromOuter(n);
                 if (s) out.push(s);
             }
             return out;
         };
 
-        /** Base only: outer contours, no holes — so base is solid (e.g. "O" becomes a filled disc). */
-        const polyTreeToThreeShapesSolid = (tree: any) => {
-            const out: THREE.Shape[] = [];
-            const toVec2 = (pt: { X: number; Y: number }) =>
-                new THREE.Vector2(pt.X / CLIPPER_SCALE, pt.Y / CLIPPER_SCALE);
-            const roots = tree.Childs?.() ?? tree.m_Childs ?? [];
-            for (const n of roots) {
-                const isHole = n.IsHole?.() ?? n.m_IsHole;
-                if (isHole) continue;
-                const contour = n.Contour?.() ?? n.m_polygon ?? [];
-                if (!contour || contour.length < 3) continue;
-                const outerPts = contour.map(toVec2);
-                if (THREE.ShapeUtils.isClockWise(outerPts)) outerPts.reverse();
-                out.push(new THREE.Shape(outerPts));
-            }
-            return out;
-        };
-
         const topShapes = polyTreeToThreeShapes(filledTree);
-        const baseShapes = polyTreeToThreeShapesSolid(baseTree);
+        const baseShapes = polyTreeToThreeShapes(finalBaseTree);
         const topBbox = getTreeBbox(filledTree);
-        const baseBbox2d = getTreeBbox(baseTree);
+        const baseBbox2d = getTreeBbox(finalBaseTree);
         if (topShapes.length === 0 || baseShapes.length === 0) {
             processError = "Failed to build valid base/top shapes";
             return;
@@ -373,6 +439,7 @@
                 for (const p of pts) {
                     minX = Math.min(minX, p.x);
                     maxX = Math.max(maxX, p.x);
+                    // Raw SVG shapes are Y-down, convert to Y-up reference.
                     const yy = -p.y;
                     minY = Math.min(minY, yy);
                     maxY = Math.max(maxY, yy);
@@ -409,15 +476,16 @@
         centerGeometryXY(baseGeo);
         centerGeometryXY(topGeo);
         if (
+            Number.isFinite(topBbox.minX) &&
+            Number.isFinite(topBbox.maxX) &&
             Number.isFinite(baseBbox2d.minX) &&
-            Number.isFinite(baseBbox2d.maxX) &&
-            Number.isFinite(baseBbox2d.minY) &&
-            Number.isFinite(baseBbox2d.maxY)
+            Number.isFinite(baseBbox2d.maxX)
         ) {
             const baseCenterX =
                 (baseBbox2d.minX + baseBbox2d.maxX) / 2 / CLIPPER_SCALE;
             const baseCenterY =
                 (baseBbox2d.minY + baseBbox2d.maxY) / 2 / CLIPPER_SCALE;
+            // Keep main SVG centered while letting keyring extend from base.
             baseGeo.translate(
                 baseCenterX - topCenterX,
                 baseCenterY - topCenterY,
@@ -441,101 +509,20 @@
             roughness: 0.35,
             metalness: 0.1,
         });
-
-        const totalHeight = baseDepth + topDepth - TOP_BASE_EMBED;
-        const holeCenterZ = totalHeight / 2;
-        const holeRadius = Math.max(0.5, holeDiameter / 2);
-        const baseExtentX = baseBb.max.x - baseBb.min.x;
-        const holeLength = Math.max(30, baseExtentX * effectiveScale + 20);
-        const flatCeilingZ =
-            holeCenterZ + holeRadius - Math.max(0.1, holeFlatTopOffset);
-
-        const cylinderGeo = new THREE.CylinderGeometry(
-            holeRadius,
-            holeRadius,
-            holeLength,
-            32,
-        );
-        cylinderGeo.rotateZ(-Math.PI / 2);
-        cylinderGeo.translate(0, 0, holeCenterZ);
-
-        const halfSpaceHeight = flatCeilingZ + 100;
-        const halfSpaceGeo = new THREE.BoxGeometry(
-            holeLength + 20,
-            holeDiameter + 20,
-            halfSpaceHeight,
-        );
-        halfSpaceGeo.translate(0, 0, (flatCeilingZ - 100) / 2);
-
-        const dummyMat = new THREE.MeshBasicMaterial({ color: 0x808080 });
-        const cylinderBrush = new Brush(cylinderGeo.clone(), dummyMat);
-        const halfSpaceBrush = new Brush(halfSpaceGeo.clone(), dummyMat);
-        const evaluatorForHole = new Evaluator();
-        const flatTopHoleTarget = new Brush(
-            new THREE.BufferGeometry(),
-            dummyMat,
-        );
-        evaluatorForHole.evaluate(
-            cylinderBrush,
-            halfSpaceBrush,
-            INTERSECTION,
-            flatTopHoleTarget,
-        );
-        cylinderGeo.dispose();
-        halfSpaceGeo.dispose();
-        cylinderBrush.geometry.dispose();
-        halfSpaceBrush.geometry.dispose();
-        dummyMat.dispose();
-
-        const flatTopHoleGeo = flatTopHoleTarget.geometry;
-        const holeDummyMat = new THREE.MeshBasicMaterial({ color: 0x808080 });
-        const holeBrush = new Brush(flatTopHoleGeo.clone(), holeDummyMat);
-        // Keep hole in "mm" space (radius 2.5, length 200) so it matches base z; base x,y are scaled by effectiveScale so base world size matches hole
-        holeBrush.scale.set(1, 1, 1);
-
-        const baseBrush = new Brush(baseGeo.clone(), baseMat);
-        baseBrush.scale.set(effectiveScale, effectiveScale, 1);
-        const topBrush = new Brush(topGeo.clone(), topMat);
-        topBrush.scale.set(effectiveScale, effectiveScale, 1);
-        topBrush.position.z = baseDepth - TOP_BASE_EMBED;
-
-        baseBrush.updateMatrixWorld(true);
-        topBrush.updateMatrixWorld(true);
-        holeBrush.updateMatrixWorld(true);
-
-        const evaluator = new Evaluator();
-        const resultBaseBrush = new Brush(
-            new THREE.BufferGeometry(),
-            baseMat,
-        );
-        const resultTopBrush = new Brush(new THREE.BufferGeometry(), topMat);
-        try {
-            evaluator.evaluate(baseBrush, holeBrush, SUBTRACTION, resultBaseBrush);
-            evaluator.evaluate(topBrush, holeBrush, SUBTRACTION, resultTopBrush);
-        } catch (err) {
-            console.error("CSG subtract failed:", err);
-            processError = "Failed to cut cord hole (try different hole size)";
-            baseBrush.geometry.dispose();
-            topBrush.geometry.dispose();
-            holeBrush.geometry.dispose();
-            flatTopHoleGeo.dispose();
-            holeDummyMat.dispose();
-            return;
-        }
-
-        const baseMesh = new THREE.Mesh(resultBaseBrush.geometry, baseMat);
-        const topMesh = new THREE.Mesh(resultTopBrush.geometry, topMat);
+        const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+        const topMesh = new THREE.Mesh(topGeo, topMat);
         baseMesh.castShadow = true;
         baseMesh.receiveShadow = true;
         topMesh.castShadow = true;
         topMesh.receiveShadow = true;
-        // CSG result is in hole's local space (= world); top geometry already has correct z, so no position offset
-        baseMesh.scale.set(1, 1, 1);
-        topMesh.scale.set(1, 1, 1);
+        topMesh.position.z = baseDepth - TOP_BASE_EMBED;
+
+        baseMesh.scale.set(effectiveScale, effectiveScale, 1);
+        topMesh.scale.set(effectiveScale, effectiveScale, 1);
         group.add(baseMesh);
         group.add(topMesh);
-
         if (detailShapes.length > 0) {
+            // Match top layer depth so preserved micro-features don't look like thin walls.
             const detailDepth = topDepth;
             const detailGeo = new THREE.ExtrudeGeometry(detailShapes, {
                 depth: detailDepth,
@@ -543,7 +530,9 @@
                 curveSegments: 20,
                 steps: 1,
             });
+            // Raw SVG shapes are Y-down; flip to match Y-up Clipper pipeline.
             detailGeo.scale(1, -1, 1);
+            // Negative scaling flips triangle winding; fix winding so caps render solid.
             if (!detailGeo.index) {
                 const count = detailGeo.attributes.position.count;
                 const index = new THREE.BufferAttribute(
@@ -573,6 +562,7 @@
             ) {
                 const detailCenterX = (detailBbox.minX + detailBbox.maxX) / 2;
                 const detailCenterY = (detailBbox.minY + detailBbox.maxY) / 2;
+                // Align detail islands (eyes) to the same centered frame as topGeo.
                 detailGeo.translate(
                     detailCenterX - topCenterX,
                     detailCenterY - topCenterY,
@@ -582,21 +572,15 @@
             detailGeo.computeBoundingBox();
             const detailBb = detailGeo.boundingBox!;
             detailGeo.translate(0, 0, -detailBb.min.z);
-            detailGeo.scale(effectiveScale, effectiveScale, 1);
             const detailMesh = new THREE.Mesh(detailGeo, topMat);
+            // Keep this layer visually fused with the main top surface.
             detailMesh.castShadow = false;
             detailMesh.receiveShadow = false;
             detailMesh.position.z =
                 baseDepth - TOP_BASE_EMBED - DETAIL_TOP_EMBED;
-            detailMesh.scale.set(1, 1, 1);
+            detailMesh.scale.set(effectiveScale, effectiveScale, 1);
             group.add(detailMesh);
         }
-
-        baseBrush.geometry.dispose();
-        topBrush.geometry.dispose();
-        holeBrush.geometry.dispose();
-        flatTopHoleGeo.dispose();
-        holeDummyMat.dispose();
 
         group.updateWorldMatrix(true, true);
         const box = new THREE.Box3().setFromObject(group);
@@ -630,7 +614,7 @@
             return;
         }
         const status = await checkLicenseStatus(user);
-        if (!status.canExport) {
+        if (!status.canExport || !status.isPaid) {
             licenseModalRef?.open();
             return;
         }
@@ -665,7 +649,7 @@
             return;
         }
         if (geometries.length > 1) geometries.forEach((g) => g.dispose());
-        const welded = BufferGeometryUtils.mergeVertices(merged, 1e-5);
+        const welded = BufferGeometryUtils.mergeVertices(merged, 1e-3);
         if (welded !== merged) merged.dispose();
 
         const exporter = new STLExporter();
@@ -676,14 +660,14 @@
             exportError = "Export produced empty geometry";
             return;
         }
-        const slug = (uploadName || "bead")
+        const slug = (uploadName || "custom-svg")
             .toLowerCase()
             .replace(/\.svg$/i, "")
             .replace(/[^a-z0-9]+/g, "-")
             .replace(/(^-|-$)/g, "");
         const ts = new Date().toISOString().replace(/[:.]/g, "-");
         downloadBlob(
-            `${slug || "bead"}-${ts}.stl`,
+            `${slug || "custom-svg"}-${ts}.stl`,
             new Blob([buffer], { type: "model/stl" }),
         );
         if (status.type === "trial") onShowThankYou();
@@ -695,22 +679,15 @@
         void thickness;
         void baseThickness;
         void baseOffsetMm;
-        void holeDiameter;
-        void holeFlatTopOffset;
+        void keyringEnabled;
+        void keyringOuterMm;
+        void keyringHoleMm;
+        void keyringOffsetXmm;
+        void keyringOffsetYmm;
         void mainColor;
         void baseColor;
         if (!scene || !group) return;
-        if (rebuildTimeout != null) clearTimeout(rebuildTimeout);
-        rebuildTimeout = setTimeout(() => {
-            rebuildTimeout = null;
-            rebuildMeshes();
-        }, REBUILD_DEBOUNCE_MS);
-        return () => {
-            if (rebuildTimeout != null) {
-                clearTimeout(rebuildTimeout);
-                rebuildTimeout = null;
-            }
-        };
+        rebuildMeshes();
     });
 
     onMount(() => {
@@ -720,9 +697,6 @@
         camera = new THREE.PerspectiveCamera(45, 1, 0.1, 2000);
         camera.up.set(0, 0, 1);
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-        renderer.outputColorSpace = THREE.SRGBColorSpace;
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.2;
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -735,8 +709,8 @@
         controls.minDistance = 10;
         controls.maxDistance = 1000;
 
-        scene.add(new THREE.AmbientLight(0xffffff, 0.85));
-        keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        keyLight = new THREE.DirectionalLight(0xffffff, 0.95);
         keyLight.position.set(60, -80, 140);
         keyLight.castShadow = true;
         keyLight.shadow.mapSize.width = 2048;
@@ -798,7 +772,7 @@
         >
             <div class="mb-4 flex items-center justify-between">
                 <h1 class="text-lg font-semibold tracking-tight text-slate-900">
-                    Chunky Bead
+                    Custom SVG
                 </h1>
                 <button
                     type="button"
@@ -809,25 +783,21 @@
                 </button>
             </div>
 
-            <p class="mb-4 text-xs text-slate-500">
-                Upload an SVG to create a bead with a cord hole (flat top for easier printing).
-            </p>
-
             <div
-                class="space-y-4 overflow-y-auto pr-1 max-h-[calc(100dvh-10rem)]"
+                class="space-y-4 overflow-y-auto pr-1 max-h-[calc(100dvh-7rem)]"
             >
                 <div>
                     <label
-                        for="bead-svg-url-input"
+                        for="custom-svg-url-input"
                         class="mb-1 block text-xs font-medium text-slate-700"
                     >
                         SVG URL
                     </label>
                     <div class="flex items-center gap-2">
                         <input
-                            id="bead-svg-url-input"
+                            id="custom- svg-url-input"
                             type="url"
-                            placeholder="https://..."
+                            placeholder="https://api.iconify.design/proicons:accessibility.svg"
                             class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
                             bind:value={svgUrl}
                             disabled={processing}
@@ -847,13 +817,13 @@
 
                 <div>
                     <label
-                        for="bead-svg-upload-input"
+                        for="custom-svg-upload-input"
                         class="mb-1 block text-xs font-medium text-slate-700"
                     >
                         Upload SVG
                     </label>
                     <input
-                        id="bead-svg-upload-input"
+                        id="custom-svg-upload-input"
                         type="file"
                         accept=".svg,image/svg+xml"
                         class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
@@ -873,7 +843,7 @@
                 <div>
                     <div class="mb-1 flex items-center justify-between">
                         <label
-                            for="bead-scale"
+                            for="custom-svg-scale"
                             class="text-xs font-medium text-slate-700"
                             >Scale</label
                         >
@@ -882,7 +852,7 @@
                         >
                     </div>
                     <input
-                        id="bead-scale"
+                        id="custom-svg-scale"
                         type="range"
                         min="0.2"
                         max="10"
@@ -896,19 +866,19 @@
                 <div>
                     <div class="mb-1 flex items-center justify-between">
                         <label
-                            for="bead-thickness"
+                            for="custom-svg-thickness"
                             class="text-xs font-medium text-slate-700"
-                            >Top thickness</label
+                            >Main thickness</label
                         >
                         <span class="text-xs text-slate-500"
                             >{thickness.toFixed(1)} mm</span
                         >
                     </div>
                     <input
-                        id="bead-thickness"
+                        id="custom-svg-thickness"
                         type="range"
                         min="0.5"
-                        max="10"
+                        max="20"
                         step="0.1"
                         bind:value={thickness}
                         class="w-full"
@@ -919,7 +889,7 @@
                 <div>
                     <div class="mb-1 flex items-center justify-between">
                         <label
-                            for="bead-base-thickness"
+                            for="custom-svg-base-thickness"
                             class="text-xs font-medium text-slate-700"
                             >Base thickness</label
                         >
@@ -928,11 +898,11 @@
                         >
                     </div>
                     <input
-                        id="bead-base-thickness"
+                        id="custom-svg-base-thickness"
                         type="range"
-                        min="2"
-                        max="25"
-                        step="0.5"
+                        min="0.5"
+                        max="20"
+                        step="0.1"
                         bind:value={baseThickness}
                         class="w-full"
                         disabled={!optimizedSvg || processing}
@@ -942,7 +912,7 @@
                 <div>
                     <div class="mb-1 flex items-center justify-between">
                         <label
-                            for="bead-base-offset"
+                            for="custom-svg-base-offset"
                             class="text-xs font-medium text-slate-700"
                             >Base expand</label
                         >
@@ -951,7 +921,7 @@
                         >
                     </div>
                     <input
-                        id="bead-base-offset"
+                        id="custom-svg-base-offset"
                         type="range"
                         min="0"
                         max="10"
@@ -963,71 +933,142 @@
                 </div>
 
                 <div
-                    class="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-3"
+                    class="grid grid-cols-1 gap-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-3"
                 >
-                    <div class="text-xs font-semibold tracking-tight text-slate-700">
-                        Cord hole
+                    <div class="flex items-center justify-between">
+                        <div
+                            class="text-xs font-semibold tracking-tight text-slate-700"
+                        >
+                            Keyring
+                        </div>
+                        <label
+                            class="flex items-center gap-2 text-xs text-slate-600"
+                        >
+                            <input
+                                type="checkbox"
+                                bind:checked={keyringEnabled}
+                                class="h-4 w-4 accent-indigo-500"
+                            />
+                            Enabled
+                        </label>
                     </div>
-                    <div>
-                        <div class="mb-1 flex items-center justify-between">
-                            <label for="bead-hole-diameter" class="text-xs font-medium text-slate-700"
-                                >Diameter</label
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="grid gap-1.5">
+                            <div
+                                class="flex items-center justify-between gap-2"
                             >
-                            <span class="text-xs text-slate-500"
-                                >{holeDiameter.toFixed(1)} mm</span
-                            >
+                                <span class="text-xs font-medium text-slate-700"
+                                    >Outer</span
+                                >
+                                <span
+                                    class="text-xs tabular-nums text-slate-600"
+                                    >{keyringOuterMm.toFixed(1)} mm</span
+                                >
                             </div>
                             <input
-                                id="bead-hole-diameter"
                                 class="w-full accent-indigo-500"
                                 type="range"
                                 min="2"
-                                max="12"
-                                step="0.5"
-                                bind:value={holeDiameter}
-                                disabled={!optimizedSvg || processing}
+                                max="20"
+                                step="0.1"
+                                bind:value={keyringOuterMm}
+                                disabled={!optimizedSvg ||
+                                    processing ||
+                                    !keyringEnabled}
                             />
-                        </div>
-                    <div>
-                        <div class="mb-1 flex items-center justify-between">
-                            <label for="bead-hole-flat" class="text-xs font-medium text-slate-700"
-                                >Flat top offset</label
+                        </label>
+                        <label class="grid gap-1.5">
+                            <div
+                                class="flex items-center justify-between gap-2"
                             >
-                            <span class="text-xs text-slate-500"
-                                >{holeFlatTopOffset.toFixed(2)} mm</span
+                                <span class="text-xs font-medium text-slate-700"
+                                    >Hole</span
+                                >
+                                <span
+                                    class="text-xs tabular-nums text-slate-600"
+                                    >{keyringHoleMm.toFixed(1)} mm</span
+                                >
+                            </div>
+                            <input
+                                class="w-full accent-indigo-500"
+                                type="range"
+                                min="1"
+                                max={Math.max(1.5, keyringOuterMm - 1)}
+                                step="0.1"
+                                bind:value={keyringHoleMm}
+                                disabled={!optimizedSvg ||
+                                    processing ||
+                                    !keyringEnabled}
+                            />
+                        </label>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="grid gap-1.5">
+                            <div
+                                class="flex items-center justify-between gap-2"
                             >
-                        </div>
-                        <input
-                            id="bead-hole-flat"
-                            class="w-full accent-indigo-500"
-                            type="range"
-                            min="0.1"
-                            max="2"
-                            step="0.05"
-                            bind:value={holeFlatTopOffset}
-                            disabled={!optimizedSvg || processing}
-                        />
-                        <p class="mt-0.5 text-[10px] text-slate-400">
-                            Cuts curved cap for a flat ceiling (bridge-friendly).
-                        </p>
+                                <span class="text-xs font-medium text-slate-700"
+                                    >Pos X</span
+                                >
+                                <span
+                                    class="text-xs tabular-nums text-slate-600"
+                                    >{keyringOffsetXmm.toFixed(1)} mm</span
+                                >
+                            </div>
+                            <input
+                                class="w-full accent-indigo-500"
+                                type="range"
+                                min="-30"
+                                max="30"
+                                step="0.1"
+                                bind:value={keyringOffsetXmm}
+                                disabled={!optimizedSvg ||
+                                    processing ||
+                                    !keyringEnabled}
+                            />
+                        </label>
+                        <label class="grid gap-1.5">
+                            <div
+                                class="flex items-center justify-between gap-2"
+                            >
+                                <span class="text-xs font-medium text-slate-700"
+                                    >Pos Y</span
+                                >
+                                <span
+                                    class="text-xs tabular-nums text-slate-600"
+                                    >{keyringOffsetYmm.toFixed(1)} mm</span
+                                >
+                            </div>
+                            <input
+                                class="w-full accent-indigo-500"
+                                type="range"
+                                min="-30"
+                                max="30"
+                                step="0.1"
+                                bind:value={keyringOffsetYmm}
+                                disabled={!optimizedSvg ||
+                                    processing ||
+                                    !keyringEnabled}
+                            />
+                        </label>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
-                    <label class="grid gap-1.5" for="bead-main-color-text">
+                    <label class="grid gap-1.5" for="custom-svg-main-color-text">
                         <span class="text-xs font-medium text-slate-700"
-                            >Top color</span
+                            >Main color</span
                         >
                         <div class="flex items-center gap-2">
                             <input
-                                id="bead-main-color"
+                                id="custom-svg-main-color"
                                 class="h-10 w-10 rounded-xl"
                                 type="color"
                                 bind:value={mainColor}
                                 disabled={!optimizedSvg || processing}
                             />
                             <input
-                                id="bead-main-color-text"
+                                id="svg-main-color-text"
                                 class="min-w-0 w-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
                                 type="text"
                                 bind:value={mainColor}
@@ -1035,20 +1076,20 @@
                             />
                         </div>
                     </label>
-                    <label class="grid gap-1.5" for="bead-base-color-text">
+                    <label class="grid gap-1.5" for="svg-base-color-text">
                         <span class="text-xs font-medium text-slate-700"
                             >Base color</span
                         >
                         <div class="flex items-center gap-2">
                             <input
-                                id="bead-base-color"
+                                id="svg-base-color"
                                 class="h-10 w-10 rounded-xl"
                                 type="color"
                                 bind:value={baseColor}
                                 disabled={!optimizedSvg || processing}
                             />
                             <input
-                                id="bead-base-color-text"
+                                id="svg-base-color-text"
                                 class="min-w-0 w-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
                                 type="text"
                                 bind:value={baseColor}
@@ -1083,7 +1124,7 @@
                             renderer,
                             scene,
                             camera,
-                            "bead-designer",
+                            "svg-designer",
                         )}
                     aria-label="Download snapshot"
                     title="Download snapshot"
@@ -1111,14 +1152,17 @@
                     disabled={!optimizedSvg ||
                         processing ||
                         !user ||
-                        licenseStatus?.canExport === false}
+                        licenseStatus?.canExport === false ||
+                        licenseStatus?.isPaid === false}
                     title={!user
                         ? "Sign in to export"
                         : licenseStatus?.canExport === false
                           ? "License required to export"
-                          : "Export STL"}
+                          : licenseStatus?.isPaid === false
+                            ? "Paid license required to export"
+                            : "Export STL"}
                 >
-                    {#if !user || licenseStatus?.canExport === false}
+                    {#if !user || licenseStatus?.canExport === false || licenseStatus?.isPaid === false}
                         <span class="flex items-center gap-2">
                             <svg
                                 class="h-4 w-4"

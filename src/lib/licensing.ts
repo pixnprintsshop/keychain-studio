@@ -10,6 +10,8 @@ const TRIAL_DURATION_DAYS = 7;
 
 export interface LicenseStatus {
     type: "trial" | "licensed" | "expired";
+    /** True only when type === "licensed" (paid license); false for trial, expired, or free/giveaway license. */
+    isPaid: boolean;
     trialDaysRemaining?: number;
     licenseKey?: string;
     expiresAt?: Date;
@@ -21,6 +23,8 @@ export interface LicenseStatus {
 export interface LicenseData {
     id: string;
     license_key: string;
+    /** 'paid' = purchased license, 'free' = giveaway. Used for isPaid and paid-only features. */
+    tier?: string;
     is_active: boolean;
     expires_at: string | null;
     max_devices: number;
@@ -286,6 +290,7 @@ async function restoreLicenseFromServer(
         const licenseData: LicenseData = {
             id: license.id,
             license_key: license.license_key,
+            tier: license.tier ?? "paid",
             is_active: license.is_active,
             expires_at: license.expires_at,
             max_devices: license.max_devices,
@@ -316,6 +321,7 @@ export async function checkLicenseStatus(
     if (!user) {
         return {
             type: "expired",
+            isPaid: false,
             canExport: false,
         };
     }
@@ -345,6 +351,19 @@ export async function checkLicenseStatus(
         // Validate license with Supabase
         const isValid = await validateDeviceActivation(user.id);
         if (isValid) {
+            // If tier is missing from cache (e.g. DB updated after activation), fetch from server
+            if (licenseData.tier === undefined) {
+                const { data: licenseRow } = await supabase
+                    .from("licenses")
+                    .select("tier")
+                    .eq("license_key", licenseKey)
+                    .single();
+                if (licenseRow?.tier != null) {
+                    licenseData = { ...licenseData, tier: licenseRow.tier };
+                    storeLicense(licenseKey, licenseData);
+                }
+            }
+
             const expiresAt = licenseData.expires_at
                 ? new Date(licenseData.expires_at)
                 : null;
@@ -353,14 +372,17 @@ export async function checkLicenseStatus(
             if (isExpired) {
                 return {
                     type: "expired",
+                    isPaid: false,
                     licenseKey,
                     expiresAt: expiresAt || undefined,
                     canExport: false,
                 };
             }
 
+            const isPaidLicense = (licenseData.tier ?? "paid") === "paid";
             return {
                 type: "licensed",
+                isPaid: isPaidLicense,
                 licenseKey,
                 expiresAt: expiresAt || undefined,
                 maxDevices: licenseData.max_devices,
@@ -394,6 +416,7 @@ export async function checkLicenseStatus(
     if (trialExpired) {
         return {
             type: "expired",
+            isPaid: false,
             trialDaysRemaining: 0,
             canExport: false,
         };
@@ -401,6 +424,7 @@ export async function checkLicenseStatus(
 
     return {
         type: "trial",
+        isPaid: false,
         trialDaysRemaining,
         canExport: true, // Trial users can use all features including export
     };
