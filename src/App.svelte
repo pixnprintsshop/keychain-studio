@@ -12,6 +12,7 @@
     import TextOutlineDesigner from "./components/TextOutlineDesigner.svelte";
     import ThankYouDialog from "./components/ThankYouDialog.svelte";
     import SvgUploadDesigner from "./components/SvgUploadDesigner.svelte";
+    import BeadDesigner from "./components/BeadDesigner.svelte";
     import {
         getSession,
         getUser,
@@ -34,9 +35,9 @@
         | "textOutline"
         | "initial"
         | "flower"
-        | "bone"
         | "basicName"
-        | "svgUpload";
+        | "svgUpload"
+        | "bead";
     let initialView: ViewName = "home";
     try {
         const stored = localStorage.getItem(STORAGE_KEY_VIEW);
@@ -44,9 +45,9 @@
             stored === "textOutline" ||
             stored === "initial" ||
             stored === "flower" ||
-            stored === "bone" ||
             stored === "basicName" ||
             stored === "svgUpload" ||
+            stored === "bead" ||
             stored === "home"
         ) {
             initialView = stored;
@@ -86,9 +87,9 @@
             | "textOutline"
             | "initial"
             | "flower"
-            | "bone"
             | "basicName"
-            | "svgUpload",
+            | "svgUpload"
+            | "bead",
     ) {
         navigateTo(style);
     }
@@ -461,6 +462,16 @@
     />
 {:else if currentView === "svgUpload"}
     <SvgUploadDesigner
+        {user}
+        {session}
+        {licenseStatus}
+        {licenseModalRef}
+        onBack={handleBack}
+        onRequestLogin={() => (showLoginModal = true)}
+        onShowThankYou={() => (showThankYouDialog = true)}
+    />
+{:else if currentView === "bead"}
+    <BeadDesigner
         {user}
         {session}
         {licenseStatus}

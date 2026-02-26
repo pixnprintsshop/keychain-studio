@@ -5,9 +5,9 @@
                 | "textOutline"
                 | "initial"
                 | "flower"
-                | "bone"
                 | "basicName"
-                | "svgUpload",
+                | "svgUpload"
+                | "bead",
         ) => void;
     }
 
@@ -161,6 +161,35 @@
                     </p>
                 </div>
             </div>
+
+            <!-- Chunky Bead card -->
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <!-- <div
+                class="group cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:border-indigo-300"
+                onclick={() => onSelect("bead")}
+            >
+                <div class="aspect-4/3 w-full overflow-hidden bg-slate-100">
+                    <div
+                        class="flex h-full w-full items-center justify-center text-slate-400"
+                    >
+                        <img
+                            src="/images/bead.png"
+                            alt="Chunky Bead preview"
+                            class="h-full w-full object-cover transition group-hover:scale-105"
+                        />
+                    </div>
+                </div>
+                <div class="p-5">
+                    <h2 class="text-lg font-semibold text-slate-900">
+                        Chunky Bead
+                    </h2>
+                    <p class="mt-1 text-sm leading-relaxed text-slate-500">
+                        Upload an SVG to create a bead with a cord hole—thick
+                        base and flat-top tunnel for easy printing.
+                    </p>
+                </div>
+            </div> -->
         </div>
 
         <div

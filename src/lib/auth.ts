@@ -46,6 +46,27 @@ export async function signIn(
 }
 
 /**
+ * Sign in with Google (OAuth redirect)
+ */
+export async function signInWithGoogle(): Promise<{ error: Error | null }> {
+    try {
+        const { data, error } = await supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+                redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+            },
+        });
+        if (error) return { error };
+        if (data?.url) {
+            window.location.href = data.url;
+        }
+        return { error: null };
+    } catch (error) {
+        return { error: error as Error };
+    }
+}
+
+/**
  * Sign out
  */
 export async function signOut(): Promise<{ error: Error | null }> {
