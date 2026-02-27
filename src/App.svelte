@@ -12,6 +12,7 @@
     import LoginModal from "./components/LoginModal.svelte";
     import CustomSVGDesigner from "./components/CustomSVGDesigner.svelte";
     import TextOutlineDesigner from "./components/TextOutlineDesigner.svelte";
+    import MaintenancePage from "./components/MaintenancePage.svelte";
     import ThankYouDialog from "./components/ThankYouDialog.svelte";
     import {
       getSession,
@@ -24,6 +25,11 @@
       checkLicenseStatus,
       validateDeviceActivation,
     } from "./lib/licensing";
+
+    /** When true, only the maintenance page is shown. Set via VITE_MAINTENANCE_MODE (e.g. "true" or "1"). */
+    const MAINTENANCE_MODE =
+        import.meta.env.VITE_MAINTENANCE_MODE === "true" ||
+        import.meta.env.VITE_MAINTENANCE_MODE === "1";
 
     // ── Storage keys ────────────────────────────────────────────────────────
     const STORAGE_KEY_WELCOME = "designer-has-seen-welcome";
@@ -177,6 +183,9 @@
     });
 </script>
 
+{#if MAINTENANCE_MODE}
+    <MaintenancePage />
+{:else}
 <!-- Welcome Dialog -->
 {#if showWelcomeDialog}
     <div
@@ -486,4 +495,5 @@
         onRequestLogin={() => (showLoginModal = true)}
         onShowThankYou={() => (showThankYouDialog = true)}
     />
+{/if}
 {/if}
