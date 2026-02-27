@@ -41,6 +41,79 @@
     const PROCESS_URL =
         "https://svg-icon-processor-475432008335.us-central1.run.app/process";
 
+    const CUSTOM_SVG_CACHE_STORAGE = "custom-svg-cache";
+    const CUSTOM_SVG_CURRENT_STORAGE = "custom-svg-current";
+    const MAX_CACHE_ENTRIES = 50;
+
+    function hashString(s: string): string {
+        let h = 0;
+        for (let i = 0; i < s.length; i++) {
+            const c = s.charCodeAt(i);
+            h = (h << 5) - h + c;
+            h = h & h;
+        }
+        return Math.abs(h).toString(36);
+    }
+
+    function getOptimizedCache(): Record<string, string> {
+        try {
+            const raw = localStorage.getItem(CUSTOM_SVG_CACHE_STORAGE);
+            if (raw) return JSON.parse(raw) as Record<string, string>;
+        } catch (_) {}
+        return {};
+    }
+
+    function setOptimizedCache(key: string, optimizedSvg: string) {
+        const cache = getOptimizedCache();
+        cache[key] = optimizedSvg;
+        const keys = Object.keys(cache);
+        if (keys.length > MAX_CACHE_ENTRIES) {
+            for (let i = 0; i < keys.length - MAX_CACHE_ENTRIES; i++) {
+                delete cache[keys[i]];
+            }
+        }
+        try {
+            localStorage.setItem(CUSTOM_SVG_CACHE_STORAGE, JSON.stringify(cache));
+        } catch (_) {}
+    }
+
+    type CustomSvg =
+        | { type: "url"; url: string; optimizedSvg: string }
+        | { type: "upload"; name: string; content: string; optimizedSvg: string };
+
+    function getCurrentCustomSvg(): CustomSvg | null {
+        try {
+            const raw = localStorage.getItem(CUSTOM_SVG_CURRENT_STORAGE);
+            if (raw) return JSON.parse(raw) as CustomSvg;
+        } catch (_) {}
+        return null;
+    }
+
+    function setCurrentCustomSvg(current: CustomSvg) {
+        try {
+            localStorage.setItem(
+                CUSTOM_SVG_CURRENT_STORAGE,
+                JSON.stringify(current),
+            );
+        } catch (_) {}
+    }
+
+    function loadPersistedSvg(): boolean {
+        const current = getCurrentCustomSvg();
+        if (!current?.optimizedSvg) return false;
+        optimizedSvg = current.optimizedSvg;
+        if (current.type === "url") {
+            svgUrl = current.url;
+            uploadName = current.url;
+            sourceSvg = "";
+        } else {
+            uploadName = current.name;
+            sourceSvg = current.content;
+            svgUrl = "";
+        }
+        return true;
+    }
+
     let hostEl: HTMLDivElement | null = null;
     let renderer: THREE.WebGLRenderer | null = null;
     let scene: THREE.Scene | null = null;
@@ -92,12 +165,27 @@
         uploadName = file.name;
         const raw = await file.text();
         sourceSvg = raw;
-        await processSvg(raw);
+        svgUrl = "";
+        await processSvg(raw, file.name);
     }
 
-    async function processSvg(rawSvg: string) {
-        processing = true;
+    async function processSvg(rawSvg: string, uploadFileName?: string) {
         processError = null;
+        const cacheKey = "upload:" + hashString(rawSvg);
+        const cached = getOptimizedCache()[cacheKey];
+        if (cached) {
+            optimizedSvg = cached;
+            if (uploadFileName !== undefined) {
+                setCurrentCustomSvg({
+                    type: "upload",
+                    name: uploadFileName,
+                    content: rawSvg,
+                    optimizedSvg: cached,
+                });
+            }
+            return;
+        }
+        processing = true;
         optimizedSvg = "";
         try {
             const resp = await fetch(PROCESS_URL, {
@@ -115,6 +203,15 @@
             if (!processed.trim())
                 throw new Error("Processor returned empty SVG");
             optimizedSvg = processed;
+            setOptimizedCache(cacheKey, processed);
+            if (uploadFileName !== undefined) {
+                setCurrentCustomSvg({
+                    type: "upload",
+                    name: uploadFileName,
+                    content: rawSvg,
+                    optimizedSvg: processed,
+                });
+            }
         } catch (e) {
             processError =
                 e instanceof Error ? e.message : "Failed to process SVG";
@@ -126,9 +223,17 @@
     async function processSvgFromUrl() {
         const input = svgUrl.trim();
         if (!input) return;
-        processing = true;
         processError = null;
         exportError = null;
+        const cacheKey = "url:" + hashString(input);
+        const cached = getOptimizedCache()[cacheKey];
+        if (cached) {
+            optimizedSvg = cached;
+            uploadName = input;
+            setCurrentCustomSvg({ type: "url", url: input, optimizedSvg: cached });
+            return;
+        }
+        processing = true;
         optimizedSvg = "";
         try {
             const resp = await fetch(
@@ -143,6 +248,8 @@
                 throw new Error("Processor returned empty SVG");
             optimizedSvg = processed;
             uploadName = input;
+            setOptimizedCache(cacheKey, processed);
+            setCurrentCustomSvg({ type: "url", url: input, optimizedSvg: processed });
         } catch (e) {
             processError =
                 e instanceof Error ? e.message : "Failed to process URL";
@@ -691,6 +798,7 @@
     });
 
     onMount(() => {
+        loadPersistedSvg();
         if (!hostEl) return;
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0xffffff);
@@ -1099,9 +1207,6 @@
                     </label>
                 </div>
 
-                {#if processing}
-                    <p class="text-xs text-indigo-600">Processing SVG...</p>
-                {/if}
                 {#if processError}
                     <p class="text-xs text-red-600">{processError}</p>
                 {/if}
@@ -1186,4 +1291,36 @@
             </div>
         </section>
     </div>
+
+    {#if processing}
+        <div
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="custom-svg-processing-loading-title"
+            aria-busy="true"
+        >
+            <div
+                class="relative w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
+            >
+                <div class="flex flex-col items-center gap-4 text-center">
+                    <div
+                        class="h-10 w-10 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"
+                        aria-hidden="true"
+                    ></div>
+                    <div class="space-y-1">
+                        <h2
+                            id="custom-svg-processing-loading-title"
+                            class="text-lg font-semibold text-slate-900"
+                        >
+                            Processing SVG
+                        </h2>
+                        <p class="text-sm text-slate-600">
+                            Preparing your design for the 3D preview…
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {/if}
 </main>
