@@ -991,6 +991,9 @@
             <div
                 class="space-y-4 overflow-y-auto pr-1 max-h-[calc(100dvh-10rem)]"
             >
+                <p class="text-xs text-slate-500">
+                    Some SVGs may produce unexpected results depending on complexity and structure.
+                </p>
                 <div>
                     <label
                         for="charm-svg-url-input"
