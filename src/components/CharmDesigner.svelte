@@ -827,13 +827,36 @@
             if (blob.size < 84) {
                 throw new Error("Export produced empty STL");
             }
-            const slug = (uploadName || "charm")
-                .toLowerCase()
-                .replace(/\.svg$/i, "")
-                .replace(/[^a-z0-9]+/g, "-")
-                .replace(/(^-|-$)/g, "");
+
+            // Derive a clean base name for the STL file
+            let baseName = "charm";
+            if (svgUrl.trim() !== "") {
+                try {
+                    const parsed = new URL(svgUrl.trim());
+                    const path = decodeURIComponent(parsed.pathname);
+                    const lastSegment = path.split("/").filter(Boolean).pop() ?? "";
+                    if (lastSegment) {
+                        baseName = lastSegment
+                            .toLowerCase()
+                            .replace(/\.svg$/i, "")
+                            .replace(/[:]+/g, "-")
+                            .replace(/[^a-z0-9-]+/g, "-")
+                            .replace(/(^-|-$)/g, "");
+                    }
+                } catch {
+                    // Fallback to uploadName below if URL parsing fails
+                }
+            }
+            if (baseName === "charm" && uploadName) {
+                baseName = uploadName
+                    .toLowerCase()
+                    .replace(/\.svg$/i, "")
+                    .replace(/[^a-z0-9]+/g, "-")
+                    .replace(/(^-|-$)/g, "");
+            }
+
             const ts = new Date().toISOString().replace(/[:.]/g, "-");
-            downloadBlob(`${slug || "charm"}-${ts}.stl`, blob);
+            downloadBlob(`${baseName || "charm"}-${ts}.stl`, blob);
             if (status.type === "trial") onShowThankYou();
         } catch (e) {
             exportError =
