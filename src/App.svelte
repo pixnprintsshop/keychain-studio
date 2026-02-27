@@ -11,6 +11,7 @@
     import LicenseModal from "./components/LicenseModal.svelte";
     import LoginModal from "./components/LoginModal.svelte";
     import CustomSVGDesigner from "./components/CustomSVGDesigner.svelte";
+    import KeycapDesigner from "./components/KeycapDesigner.svelte";
     import TextOutlineDesigner from "./components/TextOutlineDesigner.svelte";
     import MaintenancePage from "./components/MaintenancePage.svelte";
     import ThankYouDialog from "./components/ThankYouDialog.svelte";
@@ -24,6 +25,7 @@
       type LicenseStatus,
       checkLicenseStatus,
       validateDeviceActivation,
+      clearLicense,
     } from "./lib/licensing";
 
     /** When true, only the maintenance page is shown. Set via VITE_MAINTENANCE_MODE (e.g. "true" or "1"). */
@@ -36,7 +38,7 @@
     const STORAGE_KEY_VIEW = "designer-current-view";
 
     /** Designers that require a paid license; trial and free-license users see them as locked. */
-    const PAID_ONLY_DESIGNERS = new Set<ViewName>(["charm", "customSvg"]);
+    const PAID_ONLY_DESIGNERS = new Set<ViewName>(["charm", "customSvg", "keycap"]);
 
     // ── View / routing state ────────────────────────────────────────────────
     type ViewName =
@@ -46,7 +48,8 @@
         | "flower"
         | "basicName"
         | "customSvg"
-        | "charm";
+        | "charm"
+        | "keycap";
     let initialView: ViewName = "home";
     try {
         const stored = localStorage.getItem(STORAGE_KEY_VIEW);
@@ -57,6 +60,7 @@
             stored === "basicName" ||
             stored === "customSvg" ||
             stored === "charm" ||
+            stored === "keycap" ||
             stored === "home"
         ) {
             initialView = stored;
@@ -98,7 +102,8 @@
             | "flower"
             | "basicName"
             | "customSvg"
-            | "charm",
+            | "charm"
+            | "keycap",
     ) {
         navigateTo(style);
     }
@@ -112,6 +117,7 @@
         user = null;
         session = null;
         licenseStatus = null;
+        clearLicense();
         showLoginModal = true;
     }
 
@@ -162,6 +168,7 @@
                     await initializeLicense();
                 } else if (event === "SIGNED_OUT") {
                     licenseStatus = null;
+                    clearLicense();
                     if (licenseValidationInterval !== null) {
                         clearInterval(licenseValidationInterval);
                         licenseValidationInterval = null;
@@ -364,70 +371,68 @@
 <!-- Thank You Dialog -->
 <ThankYouDialog bind:isOpen={showThankYouDialog} />
 
-<!-- User & License Status Bar (shown when in a designer) -->
-{#if currentView !== "home"}
-    <div
-        class="fixed top-5 right-5 z-40 flex items-center gap-3 rounded-xl border border-slate-200 bg-white/90 px-4 py-2 shadow-sm backdrop-blur"
-    >
-        {#if user}
-            <div class="flex items-center gap-2">
-                <div
-                    class="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-100 text-xs font-medium text-indigo-600"
-                >
-                    {(user.email || "U")[0].toUpperCase()}
-                </div>
-                <span
-                    class="text-xs font-medium text-slate-700 truncate max-w-[160px]"
-                >
-                    {user.email}
-                </span>
+<!-- User & License Status Bar (home and designers) -->
+<div
+    class="fixed top-5 right-5 z-40 flex items-center gap-3 rounded-xl border border-slate-200 bg-white/90 px-4 py-2 shadow-sm backdrop-blur"
+>
+    {#if user}
+        <div class="flex items-center gap-2">
+            <div
+                class="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-100 text-xs font-medium text-indigo-600"
+            >
+                {(user.email || "U")[0].toUpperCase()}
             </div>
-            {#if licenseStatus}
-                {#if licenseStatus.type === "trial"}
-                    <span
-                        class="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800"
-                    >
-                        Trial &middot; {licenseStatus.trialDaysRemaining}d
-                    </span>
-                {:else if licenseStatus.type === "licensed"}
-                    <span
-                        class="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800"
-                    >
-                        Licensed
-                    </span>
-                {:else}
-                    <span
-                        class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800"
-                    >
-                        Expired
-                    </span>
-                {/if}
+            <span
+                class="text-xs font-medium text-slate-700 truncate max-w-[160px]"
+            >
+                {user.email}
+            </span>
+        </div>
+        {#if licenseStatus}
+            {#if licenseStatus.type === "trial"}
+                <span
+                    class="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800"
+                >
+                    Trial &middot; {licenseStatus.trialDaysRemaining}d
+                </span>
+            {:else if licenseStatus.type === "licensed"}
+                <span
+                    class="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800"
+                >
+                    Licensed
+                </span>
+            {:else}
+                <span
+                    class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800"
+                >
+                    Expired
+                </span>
             {/if}
-            <button
-                type="button"
-                class="text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
-                onclick={() => licenseModalRef?.open()}
-            >
-                {licenseStatus?.type === "licensed" ? "Manage" : "License"}
-            </button>
-            <button
-                type="button"
-                class="text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
-                onclick={handleSignOut}
-            >
-                Sign Out
-            </button>
-        {:else}
-            <button
-                type="button"
-                class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 transition-colors"
-                onclick={() => (showLoginModal = true)}
-            >
-                Sign In
-            </button>
         {/if}
-    </div>
-{/if}
+        <button
+            type="button"
+            class="text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
+            onclick={() => licenseModalRef?.open()}
+        >
+            {licenseStatus?.type === "licensed" ? "Manage" : "License"}
+        </button>
+        <button
+            type="button"
+            class="text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
+            onclick={handleSignOut}
+        >
+            Sign Out
+        </button>
+    {:else}
+        <button
+            type="button"
+            class="rounded-lg cursor-pointer bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 transition-colors"
+            onclick={() => (showLoginModal = true)}
+        >
+            Sign In
+        </button>
+    {/if}
+</div>
 
 <!-- Router -->
 {#if currentView === "home"}
@@ -487,6 +492,16 @@
     />
 {:else if currentView === "charm"}
     <CharmDesigner
+        {user}
+        {session}
+        {licenseStatus}
+        {licenseModalRef}
+        onBack={handleBack}
+        onRequestLogin={() => (showLoginModal = true)}
+        onShowThankYou={() => (showThankYouDialog = true)}
+    />
+{:else if currentView === "keycap"}
+    <KeycapDesigner
         {user}
         {session}
         {licenseStatus}

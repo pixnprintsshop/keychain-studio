@@ -478,22 +478,12 @@ export async function validateDeviceActivation(
                 .from("device_activations")
                 .update({ last_validated_at: new Date().toISOString() })
                 .eq("id", activation.id);
+            return true;
         } else {
-            // Create activation if it doesn't exist
-            const deviceName = `${navigator.platform} - ${navigator.userAgent.split(" ")[0]}`;
-            await supabase
-                .from("device_activations")
-                .insert({
-                    license_id: license.id,
-                    user_id: userId,
-                    device_id: null,
-                    device_name: deviceName,
-                    activated_at: new Date().toISOString(),
-                    last_validated_at: new Date().toISOString(),
-                });
+            // No activation for this user: this license is not valid for them.
+            // Activations should only be created explicitly via activateLicense().
+            return false;
         }
-
-        return true;
     } catch (error) {
         console.error("Error validating device activation:", error);
         return false;
