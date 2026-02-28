@@ -151,6 +151,22 @@
     let mainColor = $state("#f06f05");
     let baseColor = $state("#616161");
 
+    // Committed values for 3D rebuild — only updated after user stops changing (debounced).
+    // Keeps slider/input handling on the main thread without triggering heavy rebuilds.
+    let committed = $state({
+        uiScale: 1,
+        thickness: 2,
+        baseThickness: 3,
+        baseOffsetMm: 4,
+        keyringEnabled: true,
+        keyringOuterMm: 8,
+        keyringHoleMm: 4,
+        keyringOffsetXmm: 0,
+        keyringOffsetYmm: 0,
+        mainColor: "#f06f05",
+        baseColor: "#616161",
+    });
+
     function resize() {
         if (!renderer || !camera || !hostEl) return;
         const rect = hostEl.getBoundingClientRect();
@@ -334,8 +350,8 @@
             );
         }
 
-        const effectiveScale = Math.max(0.02, uiScale * SCALE_OFFSET);
-        const offsetSvgUnits = baseOffsetMm / effectiveScale;
+        const effectiveScale = Math.max(0.02, committed.uiScale * SCALE_OFFSET);
+        const offsetSvgUnits = committed.baseOffsetMm / effectiveScale;
         const baseTree = new ClipperLib.PolyTree();
         if (offsetSvgUnits > 0) {
             const co = new ClipperLib.ClipperOffset(2, 2);
@@ -414,19 +430,19 @@
             return path;
         };
         let finalBaseTree: any = baseTree;
-        if (keyringEnabled) {
+        if (committed.keyringEnabled) {
             const bbox = getTreeBbox(baseTree);
             if (Number.isFinite(bbox.minX) && Number.isFinite(bbox.maxX)) {
                 const centerX = (bbox.minX + bbox.maxX) / 2 / CLIPPER_SCALE;
                 const topY = bbox.maxY / CLIPPER_SCALE;
-                const kx = centerX + keyringOffsetXmm / effectiveScale;
-                const ky = topY + keyringOffsetYmm / effectiveScale;
+                const kx = centerX + committed.keyringOffsetXmm / effectiveScale;
+                const ky = topY + committed.keyringOffsetYmm / effectiveScale;
                 const outerR = Math.max(
                     0.5,
-                    keyringOuterMm / effectiveScale / 2,
+                    committed.keyringOuterMm / effectiveScale / 2,
                 );
                 const innerR = Math.min(
-                    Math.max(0.2, keyringHoleMm / effectiveScale / 2),
+                    Math.max(0.2, committed.keyringHoleMm / effectiveScale / 2),
                     outerR - 0.2,
                 );
                 const outerCircle = circleToPath(kx, ky, outerR, true);
@@ -565,8 +581,8 @@
         const topCenterX = (topBbox.minX + topBbox.maxX) / 2 / CLIPPER_SCALE;
         const topCenterY = (topBbox.minY + topBbox.maxY) / 2 / CLIPPER_SCALE;
 
-        const baseDepth = Math.max(0.2, baseThickness);
-        const topDepth = Math.max(0.2, thickness);
+        const baseDepth = Math.max(0.2, committed.baseThickness);
+        const topDepth = Math.max(0.2, committed.thickness);
         const baseGeo = new THREE.ExtrudeGeometry(baseShapes, {
             depth: baseDepth,
             bevelEnabled: false,
@@ -606,12 +622,12 @@
         topGeo.translate(0, 0, -topBb.min.z);
 
         const baseMat = new THREE.MeshStandardMaterial({
-            color: baseColor,
+            color: committed.baseColor,
             roughness: 0.85,
             metalness: 0.05,
         });
         const topMat = new THREE.MeshStandardMaterial({
-            color: mainColor,
+            color: committed.mainColor,
             roughness: 0.35,
             metalness: 0.1,
         });
@@ -779,8 +795,13 @@
         if (status.type === "trial") onShowThankYou();
     }
 
+    let copyTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let prevOptimizedSvg = "";
+    const COMMIT_DEBOUNCE_MS = 350;
+
+    // Copy live UI state → committed only after user stops changing (debounced).
+    // Sliders only touch live state, so the main thread stays free; no rebuild runs during drag.
     $effect(() => {
-        void optimizedSvg;
         void uiScale;
         void thickness;
         void baseThickness;
@@ -792,6 +813,61 @@
         void keyringOffsetYmm;
         void mainColor;
         void baseColor;
+        void optimizedSvg;
+
+        const sync = () => {
+            committed = {
+                uiScale,
+                thickness,
+                baseThickness,
+                baseOffsetMm,
+                keyringEnabled,
+                keyringOuterMm,
+                keyringHoleMm,
+                keyringOffsetXmm,
+                keyringOffsetYmm,
+                mainColor,
+                baseColor,
+            };
+        };
+
+        if (optimizedSvg !== prevOptimizedSvg) {
+            prevOptimizedSvg = optimizedSvg;
+            if (copyTimeoutId !== null) {
+                clearTimeout(copyTimeoutId);
+                copyTimeoutId = null;
+            }
+            sync();
+        } else {
+            if (copyTimeoutId !== null) clearTimeout(copyTimeoutId);
+            copyTimeoutId = setTimeout(() => {
+                copyTimeoutId = null;
+                sync();
+            }, COMMIT_DEBOUNCE_MS);
+        }
+
+        return () => {
+            if (copyTimeoutId !== null) {
+                clearTimeout(copyTimeoutId);
+                copyTimeoutId = null;
+            }
+        };
+    });
+
+    // Rebuild 3D only when committed values or SVG change — not on every slider tick.
+    $effect(() => {
+        void optimizedSvg;
+        void committed.uiScale;
+        void committed.thickness;
+        void committed.baseThickness;
+        void committed.baseOffsetMm;
+        void committed.keyringEnabled;
+        void committed.keyringOuterMm;
+        void committed.keyringHoleMm;
+        void committed.keyringOffsetXmm;
+        void committed.keyringOffsetYmm;
+        void committed.mainColor;
+        void committed.baseColor;
         if (!scene || !group) return;
         rebuildMeshes();
     });

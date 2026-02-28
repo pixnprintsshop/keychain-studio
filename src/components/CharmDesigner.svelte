@@ -126,8 +126,6 @@
     let rafId = 0;
     let ro: ResizeObserver | null = null;
     let didInitFrame = false;
-    let rebuildTimeout: ReturnType<typeof setTimeout> | null = null;
-    const REBUILD_DEBOUNCE_MS = 250;
 
     let uploadName = $state("");
     let svgUrl = $state("");
@@ -149,6 +147,16 @@
     let holeOrientation = $state<"horizontal" | "vertical">("horizontal");
     let mainColor = $state("#ffffff");
     let baseColor = $state("#ff9e9e");
+
+    let committed = $state({
+        sizeMm: 20,
+        thickness: 1,
+        baseThickness: 9,
+        baseOffsetMm: 2,
+        holeDiameter: 6,
+        holeFlatTopOffset: 0.3,
+        holeOrientation: "horizontal" as "horizontal" | "vertical",
+    });
 
     function resize() {
         if (!renderer || !camera || !hostEl) return;
@@ -366,9 +374,9 @@
             (topBbox.maxX - topBbox.minX) / CLIPPER_SCALE,
             (topBbox.maxY - topBbox.minY) / CLIPPER_SCALE,
         );
-        const shapeScaleMm = sizeMm / maxExtentNorm;
+        const shapeScaleMm = committed.sizeMm / maxExtentNorm;
         const offsetInClipper =
-            (baseOffsetMm / shapeScaleMm) * CLIPPER_SCALE;
+            (committed.baseOffsetMm / shapeScaleMm) * CLIPPER_SCALE;
 
         const baseTree = new ClipperLib.PolyTree();
         if (offsetInClipper > 0) {
@@ -509,8 +517,8 @@
         const topCenterX = (topBbox.minX + topBbox.maxX) / 2 / CLIPPER_SCALE;
         const topCenterY = (topBbox.minY + topBbox.maxY) / 2 / CLIPPER_SCALE;
 
-        const baseDepth = Math.max(0.2, baseThickness);
-        const topDepth = Math.max(0.2, thickness);
+        const baseDepth = Math.max(0.2, committed.baseThickness);
+        const topDepth = Math.max(0.2, committed.thickness);
         const baseGeo = new THREE.ExtrudeGeometry(baseShapes, {
             depth: baseDepth,
             bevelEnabled: false,
@@ -560,10 +568,10 @@
 
         const totalHeight = baseDepth + topDepth;
         const holeCenterZ = baseDepth / 2;
-        const holeRadius = Math.max(0.5, holeDiameter / 2);
+        const holeRadius = Math.max(0.5, committed.holeDiameter / 2);
         const holeLength = Math.max(30, 50);
         const flatCeilingZ =
-            holeCenterZ + holeRadius - Math.max(0.1, holeFlatTopOffset);
+            holeCenterZ + holeRadius - Math.max(0.1, committed.holeFlatTopOffset);
 
         const cylinderGeo = new THREE.CylinderGeometry(
             holeRadius,
@@ -571,7 +579,7 @@
             holeLength,
             32,
         );
-        const holeHorizontal = holeOrientation === "horizontal";
+        const holeHorizontal = committed.holeOrientation === "horizontal";
         if (holeHorizontal) {
             cylinderGeo.rotateZ(-Math.PI / 2);
         }
@@ -579,8 +587,8 @@
 
         const boxHeight = flatCeilingZ + 100;
         const halfSpaceGeo = new THREE.BoxGeometry(
-            holeHorizontal ? holeLength + 20 : holeDiameter + 20,
-            holeHorizontal ? holeDiameter + 20 : holeLength + 20,
+            holeHorizontal ? holeLength + 20 : committed.holeDiameter + 20,
+            holeHorizontal ? committed.holeDiameter + 20 : holeLength + 20,
             boxHeight,
         );
         halfSpaceGeo.translate(0, 0, (flatCeilingZ - 100) / 2);
@@ -868,6 +876,10 @@
         }
     }
 
+    let copyTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let prevOptimizedSvg = "";
+    const COMMIT_DEBOUNCE_MS = 350;
+
     $effect(() => {
         void optimizedSvg;
         void sizeMm;
@@ -877,18 +889,53 @@
         void holeDiameter;
         void holeFlatTopOffset;
         void holeOrientation;
-        if (!scene || !group) return;
-        if (rebuildTimeout != null) clearTimeout(rebuildTimeout);
-        rebuildTimeout = setTimeout(() => {
-            rebuildTimeout = null;
-            rebuildMeshes();
-        }, REBUILD_DEBOUNCE_MS);
+
+        const sync = () => {
+            committed = {
+                sizeMm,
+                thickness,
+                baseThickness,
+                baseOffsetMm,
+                holeDiameter,
+                holeFlatTopOffset,
+                holeOrientation,
+            };
+        };
+
+        if (optimizedSvg !== prevOptimizedSvg) {
+            prevOptimizedSvg = optimizedSvg;
+            if (copyTimeoutId !== null) {
+                clearTimeout(copyTimeoutId);
+                copyTimeoutId = null;
+            }
+            sync();
+        } else {
+            if (copyTimeoutId !== null) clearTimeout(copyTimeoutId);
+            copyTimeoutId = setTimeout(() => {
+                copyTimeoutId = null;
+                sync();
+            }, COMMIT_DEBOUNCE_MS);
+        }
+
         return () => {
-            if (rebuildTimeout != null) {
-                clearTimeout(rebuildTimeout);
-                rebuildTimeout = null;
+            if (copyTimeoutId !== null) {
+                clearTimeout(copyTimeoutId);
+                copyTimeoutId = null;
             }
         };
+    });
+
+    $effect(() => {
+        void optimizedSvg;
+        void committed.sizeMm;
+        void committed.thickness;
+        void committed.baseThickness;
+        void committed.baseOffsetMm;
+        void committed.holeDiameter;
+        void committed.holeFlatTopOffset;
+        void committed.holeOrientation;
+        if (!scene || !group) return;
+        rebuildMeshes();
     });
 
     // Color-only updates should not trigger an expensive rebuild.

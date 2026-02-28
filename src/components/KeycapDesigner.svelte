@@ -146,6 +146,13 @@
     let keycapColor = $state("#ffffff");
     let logoColor = $state("#3898ff");
 
+    let committed = $state({
+        logoDepth: 0.5,
+        logoScale: 0.6,
+        keycapColor: "#ffffff",
+        logoColor: "#3898ff",
+    });
+
     function centerAndNormalizeKeycap(geo: THREE.BufferGeometry) {
         geo.computeBoundingBox();
         const bb = geo.boundingBox!;
@@ -381,7 +388,7 @@
         const logoShapes = polyTreeToThreeShapes(filledTree);
         if (logoShapes.length === 0) return null;
 
-        const depth = Math.max(0.05, logoDepth);
+        const depth = Math.max(0.05, committed.logoDepth);
         const logoGeo = new THREE.ExtrudeGeometry(logoShapes, {
             depth,
             bevelEnabled: false,
@@ -406,7 +413,7 @@
 
         if (keycapGeometry) {
             const keycapMat = new THREE.MeshStandardMaterial({
-                color: keycapColor,
+                color: committed.keycapColor,
                 roughness: 0.7,
                 metalness: 0.1,
             });
@@ -430,15 +437,15 @@
                 const logoW = Math.max(0.01, logoBb.max.x - logoBb.min.x);
                 const logoH = Math.max(0.01, logoBb.max.y - logoBb.min.y);
                 const scale = Math.min(
-                    (keycapW * logoScale) / logoW,
-                    (keycapH * logoScale) / logoH,
+                    (keycapW * committed.logoScale) / logoW,
+                    (keycapH * committed.logoScale) / logoH,
                 );
                 logoGeo.scale(scale, scale, 1);
                 logoGeo.computeBoundingBox();
 
-                const depth = Math.max(0.05, logoDepth);
+                const depth = Math.max(0.05, committed.logoDepth);
                 const logoMat = new THREE.MeshStandardMaterial({
-                    color: logoColor,
+                    color: committed.logoColor,
                     roughness: 0.4,
                     metalness: 0.1,
                 });
@@ -456,7 +463,7 @@
             const logoGeo = buildLogoGeometry();
             if (logoGeo) {
                 const logoMat = new THREE.MeshStandardMaterial({
-                    color: logoColor,
+                    color: committed.logoColor,
                     roughness: 0.4,
                     metalness: 0.1,
                 });
@@ -569,6 +576,11 @@
         }
     }
 
+    let copyTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let prevOptimizedSvg = "";
+    let prevKeycapGeometry: THREE.BufferGeometry | null = null;
+    const COMMIT_DEBOUNCE_MS = 350;
+
     $effect(() => {
         void keycapGeometry;
         void optimizedSvg;
@@ -576,6 +588,50 @@
         void logoScale;
         void keycapColor;
         void logoColor;
+
+        const sync = () => {
+            committed = {
+                logoDepth,
+                logoScale,
+                keycapColor,
+                logoColor,
+            };
+        };
+
+        if (
+            optimizedSvg !== prevOptimizedSvg ||
+            keycapGeometry !== prevKeycapGeometry
+        ) {
+            prevOptimizedSvg = optimizedSvg;
+            prevKeycapGeometry = keycapGeometry;
+            if (copyTimeoutId !== null) {
+                clearTimeout(copyTimeoutId);
+                copyTimeoutId = null;
+            }
+            sync();
+        } else {
+            if (copyTimeoutId !== null) clearTimeout(copyTimeoutId);
+            copyTimeoutId = setTimeout(() => {
+                copyTimeoutId = null;
+                sync();
+            }, COMMIT_DEBOUNCE_MS);
+        }
+
+        return () => {
+            if (copyTimeoutId !== null) {
+                clearTimeout(copyTimeoutId);
+                copyTimeoutId = null;
+            }
+        };
+    });
+
+    $effect(() => {
+        void keycapGeometry;
+        void optimizedSvg;
+        void committed.logoDepth;
+        void committed.logoScale;
+        void committed.keycapColor;
+        void committed.logoColor;
         if (!scene || !group) return;
         rebuildMeshes();
     });
