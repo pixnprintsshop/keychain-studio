@@ -904,7 +904,7 @@
         group = new THREE.Group();
         scene.add(group);
 
-        const grid = new THREE.GridHelper(240, 24, 0xd1d5db, 0xe5e7eb);
+        const grid = new THREE.GridHelper(250, 25, 0xcbd5e1, 0xe2e8f0);
         grid.rotateX(Math.PI / 2);
         grid.position.z = -0.01;
         scene.add(grid);
