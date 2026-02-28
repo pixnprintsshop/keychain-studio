@@ -17,10 +17,8 @@
     }
 
     /** Designers temporarily disabled (under maintenance). */
-    const DESIGNERS_UNDER_MAINTENANCE = new Set<StyleName>(["charm", "customSvg","keycap"]);
+    const DESIGNERS_UNDER_MAINTENANCE = new Set<StyleName>([]);
 
-    /** Email for refund/cancellation requests (maintenance notice). */
-    const SUPPORT_REFUND_EMAIL = "support@pixnprints.com";
 
     const DESIGNERS: DesignerItem[] = [
         {

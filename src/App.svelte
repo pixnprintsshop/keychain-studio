@@ -41,7 +41,7 @@
     const PAID_ONLY_DESIGNERS = new Set<ViewName>(["charm", "customSvg", "keycap"]);
 
     /** Designers under maintenance; not accessible from home and redirect to home if selected. */
-    const MAINTENANCE_VIEWS = new Set<ViewName>(["charm", "customSvg"]);
+    const MAINTENANCE_VIEWS = new Set<ViewName>([]);
 
     // ── View / routing state ────────────────────────────────────────────────
     type ViewName =

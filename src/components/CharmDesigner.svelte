@@ -8,6 +8,7 @@
     import { SVGLoader } from "three/examples/jsm/loaders/SVGLoader.js";
     import type { LicenseStatus } from "../lib/licensing";
     import { checkLicenseStatus } from "../lib/licensing";
+    import { uploadSvgToSupabase } from "../lib/svgUpload";
     import {
       centerGeometryXY,
       disposeObject3D,
@@ -134,6 +135,7 @@
     let optimizedSvg = $state("");
     let processError = $state<string | null>(null);
     let processing = $state(false);
+    let showSvgInfoModal = $state(true);
     let exportError = $state<string | null>(null);
     let exportLoading = $state(false);
     const CLIPPER_SCALE = 1000;
@@ -186,13 +188,10 @@
         processing = true;
         optimizedSvg = "";
         try {
-            const resp = await fetch(PROCESS_URL, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "image/svg+xml",
-                },
-                body: rawSvg,
-            });
+            const publicUrl = await uploadSvgToSupabase(rawSvg);
+            const resp = await fetch(
+                `${PROCESS_URL}?url=${encodeURIComponent(publicUrl)}`,
+            );
             if (!resp.ok) {
                 const text = await resp.text();
                 throw new Error(text || `Processor failed (${resp.status})`);
@@ -1378,6 +1377,51 @@
             </div>
         </section>
     </div>
+
+    {#if showSvgInfoModal}
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="charm-svg-info-modal-title"
+            onclick={() => (showSvgInfoModal = false)}
+            onkeydown={(e) => e.key === "Escape" && (showSvgInfoModal = false)}
+            tabindex="-1"
+        >
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div
+                class="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
+                onclick={(e) => e.stopPropagation()}
+            >
+                <h2
+                    id="charm-svg-info-modal-title"
+                    class="text-lg font-semibold text-slate-900"
+                >
+                    Before you start
+                </h2>
+                <p class="mt-1 text-sm text-slate-600">
+                    For the best results with custom SVGs, please keep these in mind:
+                </p>
+                <ul class="mt-3 list-inside list-disc space-y-2 text-sm text-slate-600">
+                    <li><strong>Compatibility:</strong> Not every SVG will work—complex paths, filters, or unsupported features may cause issues.</li>
+                    <li><strong>Format:</strong> Use black-and-white artwork only, and keep file size under 1 MB.</li>
+                    <li><strong>Extrusion:</strong> We extrude a single flat layer from your paths; grays, gradients, and shading are ignored—only the outline shape is used.</li>
+                </ul>
+                <div class="mt-5 flex justify-end">
+                    <button
+                        type="button"
+                        class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                        onclick={() => (showSvgInfoModal = false)}
+                    >
+                        Got it
+                    </button>
+                </div>
+            </div>
+        </div>
+    {/if}
 
     {#if processing}
         <div
