@@ -82,7 +82,7 @@
             id: "whistle",
             title: "Custom Whistle",
             description:
-                "Add your name or message on top of a whistle. Perfect for coaches and referees.",
+                "Add your name or message to a personal whistle.",
             imageSrc: "/images/whistle.png",
             imageAlt: "Custom Whistle preview",
         },
