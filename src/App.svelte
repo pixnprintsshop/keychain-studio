@@ -40,6 +40,9 @@
     /** Designers that require a paid license; trial and free-license users see them as locked. */
     const PAID_ONLY_DESIGNERS = new Set<ViewName>(["charm", "customSvg", "keycap"]);
 
+    /** Designers under maintenance; not accessible from home and redirect to home if selected. */
+    const MAINTENANCE_VIEWS = new Set<ViewName>(["charm", "customSvg"]);
+
     // ── View / routing state ────────────────────────────────────────────────
     type ViewName =
         | "home"
@@ -63,7 +66,7 @@
             stored === "keycap" ||
             stored === "home"
         ) {
-            initialView = stored;
+            initialView = MAINTENANCE_VIEWS.has(stored as ViewName) ? "home" : (stored as ViewName);
         }
     } catch (_) {}
     let currentView = $state<ViewName>(initialView);
@@ -90,6 +93,13 @@
         } catch (_) {}
     });
 
+    // Redirect away from views under maintenance
+    $effect(() => {
+        if (MAINTENANCE_VIEWS.has(currentView)) {
+            currentView = "home";
+        }
+    });
+
     // ── Handlers ────────────────────────────────────────────────────────────
     function navigateTo(view: ViewName) {
         currentView = view;
@@ -105,6 +115,7 @@
             | "charm"
             | "keycap",
     ) {
+        if (MAINTENANCE_VIEWS.has(style)) return;
         navigateTo(style);
     }
 

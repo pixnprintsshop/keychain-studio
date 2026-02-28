@@ -16,6 +16,12 @@
         imageAlt: string;
     }
 
+    /** Designers temporarily disabled (under maintenance). */
+    const DESIGNERS_UNDER_MAINTENANCE = new Set<StyleName>(["charm", "customSvg","keycap"]);
+
+    /** Email for refund/cancellation requests (maintenance notice). */
+    const SUPPORT_REFUND_EMAIL = "support@pixnprints.com";
+
     const DESIGNERS: DesignerItem[] = [
         {
             id: "textOutline",
@@ -85,6 +91,15 @@
     function isPaidDesigner(style: StyleName): boolean {
         return paidOnlyDesigners.has(style);
     }
+
+    function isUnderMaintenance(style: StyleName): boolean {
+        return DESIGNERS_UNDER_MAINTENANCE.has(style);
+    }
+
+    function handleCardClick(designer: DesignerItem) {
+        if (isUnderMaintenance(designer.id)) return;
+        onSelect(designer.id);
+    }
 </script>
 
 <div class="flex min-h-dvh w-dvw items-center justify-center bg-slate-50 p-6">
@@ -105,15 +120,41 @@
             </p>
         </div>
 
+        {#if DESIGNERS_UNDER_MAINTENANCE.size > 0}
+            <div
+                class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                role="status"
+            >
+                <p class="font-medium">Some designers are under maintenance</p>
+                <p class="mt-1 text-amber-800">
+                    Chunky Charm, Custom SVG, and Keycap Maker are temporarily unavailable. You can keep using the other designers, or
+                    <a
+                    target="_blank"
+                        href="http://m.me/arabis.aldrin"
+                        class="font-medium underline hover:no-underline"
+                        >cancel your subscription and request a refund</a
+                    >
+                    if you prefer.
+                </p>
+            </div>
+        {/if}
+
         <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {#each DESIGNERS as designer (designer.id)}
                 <!-- svelte-ignore a11y_click_events_have_key_events -->
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div
-                    class="group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:border-indigo-300"
-                    onclick={() => onSelect(designer.id)}
+                    class="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition {isUnderMaintenance(designer.id)
+                        ? 'cursor-not-allowed opacity-60'
+                        : 'cursor-pointer hover:-translate-y-1 hover:shadow-lg hover:border-indigo-300'}"
+                    onclick={() => handleCardClick(designer)}
                 >
-                    {#if isPaidDesigner(designer.id)}
+                    {#if isUnderMaintenance(designer.id)}
+                        <span
+                            class="absolute right-3 top-3 z-10 rounded-md bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600"
+                            >Maintenance</span
+                        >
+                    {:else if isPaidDesigner(designer.id)}
                         <span
                             class="absolute right-3 top-3 z-10 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
                             >PLUS</span
@@ -123,7 +164,7 @@
                         <img
                             src={designer.imageSrc}
                             alt={designer.imageAlt}
-                            class="h-full w-full object-cover transition group-hover:scale-105"
+                            class="h-full w-full object-cover transition {isUnderMaintenance(designer.id) ? '' : 'group-hover:scale-105'}"
                         />
                     </div>
                     <div class="p-5">
