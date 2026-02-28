@@ -6,7 +6,8 @@
         | "basicName"
         | "customSvg"
         | "charm"
-        | "keycap";
+        | "keycap"
+        | "whistle";
 
     interface DesignerItem {
         id: StyleName;
@@ -76,6 +77,14 @@
                 "Upload your keycap base (STL) and add a centered icon on top.",
             imageSrc: "/images/keycap-maker.png",
             imageAlt: "Keycap Maker preview",
+        },
+        {
+            id: "whistle",
+            title: "Custom Whistle",
+            description:
+                "Add your name or message on top of a whistle. Perfect for coaches and referees.",
+            imageSrc: "/images/whistle.png",
+            imageAlt: "Custom Whistle preview",
         },
     ];
 

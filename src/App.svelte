@@ -12,6 +12,7 @@
     import LoginModal from "./components/LoginModal.svelte";
     import CustomSVGDesigner from "./components/CustomSVGDesigner.svelte";
     import KeycapDesigner from "./components/KeycapDesigner.svelte";
+    import WhistleDesigner from "./components/WhistleDesigner.svelte";
     import TextOutlineDesigner from "./components/TextOutlineDesigner.svelte";
     import MaintenancePage from "./components/MaintenancePage.svelte";
     import ThankYouDialog from "./components/ThankYouDialog.svelte";
@@ -52,7 +53,8 @@
         | "basicName"
         | "customSvg"
         | "charm"
-        | "keycap";
+        | "keycap"
+        | "whistle";
     let initialView: ViewName = "home";
     try {
         const stored = localStorage.getItem(STORAGE_KEY_VIEW);
@@ -64,6 +66,7 @@
             stored === "customSvg" ||
             stored === "charm" ||
             stored === "keycap" ||
+            stored === "whistle" ||
             stored === "home"
         ) {
             initialView = MAINTENANCE_VIEWS.has(stored as ViewName) ? "home" : (stored as ViewName);
@@ -113,7 +116,8 @@
             | "basicName"
             | "customSvg"
             | "charm"
-            | "keycap",
+            | "keycap"
+            | "whistle",
     ) {
         if (MAINTENANCE_VIEWS.has(style)) return;
         navigateTo(style);
@@ -513,6 +517,16 @@
     />
 {:else if currentView === "keycap"}
     <KeycapDesigner
+        {user}
+        {session}
+        {licenseStatus}
+        {licenseModalRef}
+        onBack={handleBack}
+        onRequestLogin={() => (showLoginModal = true)}
+        onShowThankYou={() => (showThankYouDialog = true)}
+    />
+{:else if currentView === "whistle"}
+    <WhistleDesigner
         {user}
         {session}
         {licenseStatus}
