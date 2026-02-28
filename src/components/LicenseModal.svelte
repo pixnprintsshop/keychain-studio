@@ -178,9 +178,25 @@
                                     Trial or license has expired
                                 </span>
                             </div>
-                        {/if}
-                    </div>
                 {/if}
+                </div>
+                {/if}
+
+                <!-- How to obtain a license -->
+                <div class="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <div class="text-sm font-medium text-slate-700 mb-2">
+                        How to obtain or buy a license
+                    </div>
+                    <p class="text-xs text-slate-600 space-y-2">
+                        For now, license purchase is manual while we work on an integrated payment option.
+                    </p>
+                    <ol class="mt-2 list-decimal list-inside text-xs text-slate-600 space-y-1.5">
+                        <li>Contact us via <a href="https://m.me/PixnPrints" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline font-medium">Facebook Messenger</a>.</li>
+                        <li>We’ll send you a payment QR code.</li>
+                        <li>After payment, we’ll send you your license code.</li>
+                        <li>Enter the code below and click <strong>Activate License</strong> to use it in the app.</li>
+                    </ol>
+                </div>
 
                 <!-- License Key Input -->
                 <div class="mb-4">

@@ -16,6 +16,9 @@
     import TextOutlineDesigner from "./components/TextOutlineDesigner.svelte";
     import MaintenancePage from "./components/MaintenancePage.svelte";
     import ThankYouDialog from "./components/ThankYouDialog.svelte";
+    import TermsPage from "./components/TermsPage.svelte";
+    import PrivacyPage from "./components/PrivacyPage.svelte";
+    import LicenseInfoPage from "./components/LicenseInfoPage.svelte";
     import {
       getSession,
       getUser,
@@ -54,7 +57,10 @@
         | "customSvg"
         | "charm"
         | "keycap"
-        | "whistle";
+        | "whistle"
+        | "terms"
+        | "privacy"
+        | "licenseInfo";
     let initialView: ViewName = "home";
     try {
         const stored = localStorage.getItem(STORAGE_KEY_VIEW);
@@ -67,6 +73,9 @@
             stored === "charm" ||
             stored === "keycap" ||
             stored === "whistle" ||
+            stored === "terms" ||
+            stored === "privacy" ||
+            stored === "licenseInfo" ||
             stored === "home"
         ) {
             initialView = MAINTENANCE_VIEWS.has(stored as ViewName) ? "home" : (stored as ViewName);
@@ -125,6 +134,13 @@
 
     function handleBack() {
         navigateTo("home");
+    }
+
+    function openLegal(view: "terms" | "privacy") {
+        currentView = view;
+    }
+    function openLicenseInfo() {
+        currentView = "licenseInfo";
     }
 
     async function handleSignOut() {
@@ -454,6 +470,8 @@
     <HomeScreen
         paidOnlyDesigners={PAID_ONLY_DESIGNERS}
         onSelect={handleStyleSelect}
+        onOpenLegal={openLegal}
+        onOpenLicenseInfo={openLicenseInfo}
     />
 {:else if currentView === "textOutline"}
     <TextOutlineDesigner
@@ -535,5 +553,11 @@
         onRequestLogin={() => (showLoginModal = true)}
         onShowThankYou={() => (showThankYouDialog = true)}
     />
+{:else if currentView === "terms"}
+    <TermsPage onBack={handleBack as never} />
+{:else if currentView === "privacy"}
+    <PrivacyPage onBack={handleBack as never} />
+{:else if currentView === "licenseInfo"}
+    <LicenseInfoPage onBack={handleBack as never} />
 {/if}
 {/if}
