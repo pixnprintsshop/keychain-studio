@@ -17,6 +17,8 @@
         downloadBlob,
         downloadSnapshot,
         frameCameraToObject,
+        getFont,
+        FONT_OPTIONS,
     } from "../lib/utils";
     import type LicenseModal from "./LicenseModal.svelte";
     import defaultKeycapStlUrl from "../assets/stl/keycap.stl?url";
@@ -145,6 +147,9 @@
     let logoScale = $state(0.6);
     let keycapColor = $state("#ffffff");
     let logoColor = $state("#3898ff");
+    let logoMode = $state<"text" | "icon">("icon");
+    let logoChar = $state("A");
+    let logoFontKey = $state(FONT_OPTIONS[0].key);
 
     function centerAndNormalizeKeycap(geo: THREE.BufferGeometry) {
         geo.computeBoundingBox();
@@ -394,6 +399,28 @@
         return logoGeo;
     }
 
+    const LOGO_TEXT_FONT_SIZE = 24;
+
+    function buildLogoGeometryFromText(): THREE.BufferGeometry | null {
+        const char = (logoChar ?? "").trim();
+        if (!char) return null;
+        const font = getFont(logoFontKey);
+        if (!font) return null;
+        const shapes = font.generateShapes(char, LOGO_TEXT_FONT_SIZE);
+        if (shapes.length === 0) return null;
+        const depth = Math.max(0.05, logoDepth);
+        const geo = new THREE.ExtrudeGeometry(shapes, {
+            depth,
+            bevelEnabled: false,
+            curveSegments: 12,
+            steps: 1,
+        });
+        geo.computeVertexNormals();
+        centerGeometryXY(geo);
+        geo.computeBoundingBox();
+        return geo;
+    }
+
     function rebuildMeshes() {
         if (!group) return;
         disposeObject3D(group);
@@ -416,8 +443,14 @@
             group.add(keycapMesh);
         }
 
-        if (optimizedSvg.trim() && keycapGeometry?.boundingBox) {
-            const logoGeo = buildLogoGeometry();
+        const hasTextLogo = logoMode === "text" && (logoChar ?? "").trim() !== "";
+        const hasIconLogo = logoMode === "icon" && optimizedSvg.trim() !== "";
+
+        if ((hasTextLogo || hasIconLogo) && keycapGeometry?.boundingBox) {
+            const logoGeo =
+                logoMode === "text"
+                    ? buildLogoGeometryFromText()
+                    : buildLogoGeometry();
             if (logoGeo) {
                 const bb = keycapGeometry.boundingBox;
                 const keycapMaxZ = bb.max.z;
@@ -436,7 +469,6 @@
                 logoGeo.scale(scale, scale, 1);
                 logoGeo.computeBoundingBox();
 
-                const depth = Math.max(0.05, logoDepth);
                 const logoMat = new THREE.MeshStandardMaterial({
                     color: logoColor,
                     roughness: 0.4,
@@ -452,7 +484,7 @@
                 );
                 group.add(logoMesh);
             }
-        } else if (optimizedSvg.trim()) {
+        } else if (hasIconLogo) {
             const logoGeo = buildLogoGeometry();
             if (logoGeo) {
                 const logoMat = new THREE.MeshStandardMaterial({
@@ -572,6 +604,9 @@
     $effect(() => {
         void keycapGeometry;
         void optimizedSvg;
+        void logoMode;
+        void logoChar;
+        void logoFontKey;
         void logoDepth;
         void logoScale;
         void keycapColor;
@@ -725,12 +760,73 @@
                 <div class="h-px bg-slate-200"></div>
 
                 <div>
-                    <label
-                        for="keycap-svg-url-input"
-                        class="mb-1 block text-xs font-medium text-slate-700"
-                    >
-                        Icon SVG URL
-                    </label>
+                    <span class="mb-1 block text-xs font-medium text-slate-700">
+                        Text or Icon
+                    </span>
+                    <div class="flex rounded-xl border border-slate-200 p-0.5">
+                        <button
+                            type="button"
+                            class="flex-1 rounded-lg px-3 py-2 text-xs font-medium transition {logoMode === "text"
+                                ? "bg-slate-200 text-slate-900"
+                                : "text-slate-600 hover:bg-slate-50"}"
+                            onclick={() => (logoMode = "text")}
+                        >
+                            Text
+                        </button>
+                        <button
+                            type="button"
+                            class="flex-1 rounded-lg px-3 py-2 text-xs font-medium transition {logoMode === "icon"
+                                ? "bg-slate-200 text-slate-900"
+                                : "text-slate-600 hover:bg-slate-50"}"
+                            onclick={() => (logoMode = "icon")}
+                        >
+                            Icon
+                        </button>
+                    </div>
+                </div>
+
+                {#if logoMode === "text"}
+                    <div>
+                        <label
+                            for="keycap-logo-char"
+                            class="mb-1 block text-xs font-medium text-slate-700"
+                        >
+                            Character / symbol
+                        </label>
+                        <input
+                            id="keycap-logo-char"
+                            type="text"
+                            maxlength="2"
+                            placeholder="A"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-lg text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
+                            bind:value={logoChar}
+                        />
+                    </div>
+                    <div>
+                        <label
+                            for="keycap-logo-font"
+                            class="mb-1 block text-xs font-medium text-slate-700"
+                        >
+                            Font
+                        </label>
+                        <select
+                            id="keycap-logo-font"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
+                            bind:value={logoFontKey}
+                        >
+                            {#each FONT_OPTIONS as opt}
+                                <option value={opt.key}>{opt.label}</option>
+                            {/each}
+                        </select>
+                    </div>
+                {:else}
+                    <div>
+                        <label
+                            for="keycap-svg-url-input"
+                            class="mb-1 block text-xs font-medium text-slate-700"
+                        >
+                            Icon SVG URL
+                        </label>
                     <div class="flex items-center gap-2">
                         <input
                             id="keycap-svg-url-input"
@@ -749,34 +845,35 @@
                             Process
                         </button>
                     </div>
-                </div>
+                    </div>
 
-                <div>
-                    <label
-                        for="keycap-svg-upload-input"
-                        class="mb-1 block text-xs font-medium text-slate-700"
-                    >
-                        Upload icon SVG
-                    </label>
-                    <input
-                        id="keycap-svg-upload-input"
-                        type="file"
-                        accept=".svg,image/svg+xml"
-                        class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                        onchange={(e) => {
-                            const input = e.currentTarget as HTMLInputElement;
-                            const file = input.files?.[0];
-                            if (file) void onSvgSelected(file);
-                        }}
-                    />
-                    {#if uploadName}
-                        <p class="mt-1 text-xs text-slate-500 truncate">
-                            {uploadName}
-                        </p>
-                    {/if}
-                </div>
+                    <div>
+                        <label
+                            for="keycap-svg-upload-input"
+                            class="mb-1 block text-xs font-medium text-slate-700"
+                        >
+                            Upload icon SVG
+                        </label>
+                        <input
+                            id="keycap-svg-upload-input"
+                            type="file"
+                            accept=".svg,image/svg+xml"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
+                            onchange={(e) => {
+                                const input = e.currentTarget as HTMLInputElement;
+                                const file = input.files?.[0];
+                                if (file) void onSvgSelected(file);
+                            }}
+                        />
+                        {#if uploadName}
+                            <p class="mt-1 text-xs text-slate-500 truncate">
+                                {uploadName}
+                            </p>
+                        {/if}
+                    </div>
+                {/if}
 
-                {#if keycapGeometry && optimizedSvg}
+                {#if keycapGeometry && ((logoMode === "text" && logoChar.trim()) || (logoMode === "icon" && optimizedSvg))}
                     <div>
                         <div class="mb-1 flex items-center justify-between">
                             <label
@@ -797,7 +894,7 @@
                             step="0.05"
                             bind:value={logoScale}
                             class="w-full"
-                            disabled={!optimizedSvg || processing}
+                            disabled={processing}
                         />
                     </div>
 
@@ -821,7 +918,7 @@
                             step="0.05"
                             bind:value={logoDepth}
                             class="w-full"
-                            disabled={!optimizedSvg || processing}
+                            disabled={processing}
                         />
                     </div>
 
@@ -857,14 +954,14 @@
                                     class="h-10 w-10 rounded-xl"
                                     type="color"
                                     bind:value={logoColor}
-                                    disabled={!optimizedSvg || processing}
+                                    disabled={processing}
                                 />
                                 <input
                                     id="keycap-logo-color-text"
                                     class="min-w-0 w-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
                                     type="text"
                                     bind:value={logoColor}
-                                    disabled={!optimizedSvg || processing}
+                                    disabled={processing}
                                 />
                             </div>
                         </label>
@@ -918,7 +1015,7 @@
                     type="button"
                     onclick={exportStl}
                     disabled={!keycapGeometry ||
-                        !optimizedSvg ||
+                        ((logoMode === "icon" && !optimizedSvg) || (logoMode === "text" && !logoChar.trim())) ||
                         processing ||
                         exportLoading ||
                         !user ||
