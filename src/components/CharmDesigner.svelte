@@ -126,7 +126,7 @@
     let ro: ResizeObserver | null = null;
     let didInitFrame = false;
     let rebuildTimeout: ReturnType<typeof setTimeout> | null = null;
-    const REBUILD_DEBOUNCE_MS = 120;
+    const REBUILD_DEBOUNCE_MS = 250;
 
     let uploadName = $state("");
     let svgUrl = $state("");
@@ -638,12 +638,14 @@
         }
 
         const baseMesh = new THREE.Mesh(resultBaseBrush.geometry, baseMat);
+        baseMesh.name = "base";
         baseMesh.scale.set(1, 1, 1);
         baseMesh.castShadow = true;
         baseMesh.receiveShadow = true;
         group.add(baseMesh);
 
         const topMesh = new THREE.Mesh(resultTopBrush.geometry, topMat);
+        topMesh.name = "top";
         topMesh.scale.set(1, 1, 1);
         topMesh.castShadow = true;
         topMesh.receiveShadow = true;
@@ -705,6 +707,7 @@
             const detailBb = detailGeo.boundingBox!;
             detailGeo.translate(0, 0, -detailBb.min.z);
             const detailMesh = new THREE.Mesh(detailGeo, topMat);
+            detailMesh.name = "detail";
             detailMesh.castShadow = false;
             detailMesh.receiveShadow = false;
             detailMesh.position.z = baseDepth;
@@ -875,8 +878,6 @@
         void holeDiameter;
         void holeFlatTopOffset;
         void holeOrientation;
-        void mainColor;
-        void baseColor;
         if (!scene || !group) return;
         if (rebuildTimeout != null) clearTimeout(rebuildTimeout);
         rebuildTimeout = setTimeout(() => {
@@ -889,6 +890,30 @@
                 rebuildTimeout = null;
             }
         };
+    });
+
+    // Color-only updates should not trigger an expensive rebuild.
+    $effect(() => {
+        void mainColor;
+        void baseColor;
+        if (!group) return;
+        for (const child of group.children) {
+            const mesh = child as THREE.Mesh;
+            if (!(mesh as any).isMesh) continue;
+            const mats = Array.isArray(mesh.material)
+                ? mesh.material
+                : [mesh.material];
+            for (const m of mats) {
+                const mat = m as THREE.MeshStandardMaterial;
+                if (!(mat as any)?.color) continue;
+                if (mesh.name === "base") {
+                    mat.color.set(baseColor);
+                } else {
+                    mat.color.set(mainColor);
+                }
+                mat.needsUpdate = true;
+            }
+        }
     });
 
     onMount(() => {
