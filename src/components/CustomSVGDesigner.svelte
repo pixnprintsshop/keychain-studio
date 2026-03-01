@@ -8,7 +8,6 @@
     import { SVGLoader } from "three/examples/jsm/loaders/SVGLoader.js";
     import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
     import type { LicenseStatus } from "../lib/licensing";
-    import { checkLicenseStatus } from "../lib/licensing";
     import { uploadSvgToSupabase } from "../lib/svgUpload";
     import {
         centerGeometryXY,
@@ -738,8 +737,7 @@
             onRequestLogin();
             return;
         }
-        const status = await checkLicenseStatus(user);
-        if (!status.canExport || !status.isPaid) {
+        if (!licenseStatus?.canExport || !licenseStatus?.isPaid) {
             licenseModalRef?.open();
             return;
         }
@@ -795,7 +793,7 @@
             `${slug || "custom-svg"}-${ts}.stl`,
             new Blob([buffer], { type: "model/stl" }),
         );
-        if (status.type === "trial") onShowThankYou();
+        if (licenseStatus?.type === "trial") onShowThankYou();
     }
 
     let copyTimeoutId: ReturnType<typeof setTimeout> | null = null;

@@ -8,6 +8,10 @@ const STORAGE_LICENSE_DATA = "keychain-studio-license-data";
 // Trial duration in days
 const TRIAL_DURATION_DAYS = 7;
 
+// Cache checkLicenseStatus result to avoid many requests to license/user_trials/device_activation
+const LICENSE_STATUS_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+let licenseStatusCache: { userId: string; status: LicenseStatus; expiresAt: number } | null = null;
+
 export interface LicenseStatus {
     type: "trial" | "licensed" | "expired";
     /** True only when type === "licensed" (paid license); false for trial, expired, or free/giveaway license. */
@@ -77,6 +81,7 @@ export function storeLicense(
 ): void {
     localStorage.setItem(STORAGE_LICENSE_KEY, licenseKey);
     localStorage.setItem(STORAGE_LICENSE_DATA, JSON.stringify(licenseData));
+    licenseStatusCache = null; // next checkLicenseStatus will refetch
 }
 
 /**
@@ -85,6 +90,7 @@ export function storeLicense(
 export function clearLicense(): void {
     localStorage.removeItem(STORAGE_LICENSE_KEY);
     localStorage.removeItem(STORAGE_LICENSE_DATA);
+    licenseStatusCache = null;
 }
 
 /**
@@ -314,6 +320,7 @@ async function restoreLicenseFromServer(
 
 /**
  * Check license status (trial, licensed, or expired)
+ * Results are cached for 2 minutes to avoid many requests to license/user_trials/device_activation.
  */
 export async function checkLicenseStatus(
     user: User | null,
@@ -325,6 +332,20 @@ export async function checkLicenseStatus(
             canExport: false,
         };
     }
+
+    const now = Date.now();
+    if (licenseStatusCache?.userId === user.id && licenseStatusCache.expiresAt > now) {
+        return licenseStatusCache.status;
+    }
+
+    const setCacheAndReturn = (status: LicenseStatus): LicenseStatus => {
+        licenseStatusCache = {
+            userId: user.id,
+            status,
+            expiresAt: Date.now() + LICENSE_STATUS_CACHE_TTL_MS,
+        };
+        return status;
+    };
 
     // Initialize trial if needed (this will create trial if user doesn't have one)
     const trialInitialized = await initializeTrial(user.id);
@@ -370,24 +391,24 @@ export async function checkLicenseStatus(
             const isExpired = expiresAt ? expiresAt < new Date() : false;
 
             if (isExpired) {
-                return {
+                return setCacheAndReturn({
                     type: "expired",
                     isPaid: false,
                     licenseKey,
                     expiresAt: expiresAt || undefined,
                     canExport: false,
-                };
+                });
             }
 
             const isPaidLicense = (licenseData.tier ?? "paid") === "paid";
-            return {
+            return setCacheAndReturn({
                 type: "licensed",
                 isPaid: isPaidLicense,
                 licenseKey,
                 expiresAt: expiresAt || undefined,
                 maxDevices: licenseData.max_devices,
                 canExport: true,
-            };
+            });
         } else {
             // License validation failed, clear it
             clearLicense();
@@ -414,20 +435,20 @@ export async function checkLicenseStatus(
     const trialExpired = trialDaysRemaining === 0;
 
     if (trialExpired) {
-        return {
+        return setCacheAndReturn({
             type: "expired",
             isPaid: false,
             trialDaysRemaining: 0,
             canExport: false,
-        };
+        });
     }
 
-    return {
+    return setCacheAndReturn({
         type: "trial",
         isPaid: false,
         trialDaysRemaining,
         canExport: true, // Trial users can use all features including export
-    };
+    });
 }
 
 /**

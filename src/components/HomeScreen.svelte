@@ -20,7 +20,7 @@
     }
 
     /** Designers temporarily disabled (under maintenance). */
-    const DESIGNERS_UNDER_MAINTENANCE = new Set<StyleName>(["charm"]);
+    const DESIGNERS_UNDER_MAINTENANCE = new Set<StyleName>([]);
 
 
     const DESIGNERS: DesignerItem[] = [

@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onDestroy, onMount } from "svelte";
-    import { type LicenseStatus, checkLicenseStatus } from "../lib/licensing";
+    import type { LicenseStatus } from "../lib/licensing";
     import type { User, Session } from "@supabase/supabase-js";
     import type LicenseModal from "./LicenseModal.svelte";
     import * as THREE from "three";
@@ -308,8 +308,7 @@
             onRequestLogin();
             return;
         }
-        const status = await checkLicenseStatus(user);
-        if (!status.canExport) {
+        if (!licenseStatus?.canExport) {
             licenseModalRef?.open();
             return;
         }
@@ -343,7 +342,7 @@
             const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
             downloadBlob(`flower-${timestamp}.stl`, blob);
         }
-        if (status.type === "trial") onShowThankYou();
+        if (licenseStatus?.type === "trial") onShowThankYou();
     }
 
     // ── Lifecycle ───────────────────────────────────────────────────────────

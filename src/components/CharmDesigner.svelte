@@ -7,7 +7,6 @@
     import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
     import { SVGLoader } from "three/examples/jsm/loaders/SVGLoader.js";
     import type { LicenseStatus } from "../lib/licensing";
-    import { checkLicenseStatus } from "../lib/licensing";
     import { uploadSvgToSupabase } from "../lib/svgUpload";
     import {
       centerGeometryXY,
@@ -798,8 +797,7 @@
             onRequestLogin();
             return;
         }
-        const status = await checkLicenseStatus(user);
-        if (!status.canExport || !status.isPaid) {
+        if (!licenseStatus?.canExport || !licenseStatus?.isPaid) {
             licenseModalRef?.open();
             return;
         }
@@ -870,7 +868,7 @@
 
             const ts = new Date().toISOString().replace(/[:.]/g, "-");
             downloadBlob(`${baseName || "charm"}-${ts}.stl`, blob);
-            if (status.type === "trial") onShowThankYou();
+            if (licenseStatus?.type === "trial") onShowThankYou();
         } catch (e) {
             exportError =
                 e instanceof Error ? e.message : "Export failed";

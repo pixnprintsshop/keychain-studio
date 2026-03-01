@@ -28,7 +28,6 @@
     import {
       type LicenseStatus,
       checkLicenseStatus,
-      validateDeviceActivation,
       clearLicense,
     } from "./lib/licensing";
 
@@ -45,7 +44,7 @@
     const PAID_ONLY_DESIGNERS = new Set<ViewName>(["charm", "customSvg", "keycap"]);
 
     /** Designers under maintenance; not accessible from home and redirect to home if selected. */
-    const MAINTENANCE_VIEWS = new Set<ViewName>(["charm"]);
+    const MAINTENANCE_VIEWS = new Set<ViewName>([]);
 
     // ── View / routing state ────────────────────────────────────────────────
     type ViewName =
@@ -94,7 +93,6 @@
     // ── Licensing state ─────────────────────────────────────────────────────
     let licenseStatus: LicenseStatus | null = $state(null);
     let licenseModalRef: LicenseModal | null = $state(null);
-    let licenseValidationInterval: number | null = null;
     let showThankYouDialog = $state(false);
     let authCleanup: (() => void) | null = null;
 
@@ -163,24 +161,10 @@
         const hasSeenWelcome = localStorage.getItem(STORAGE_KEY_WELCOME);
         if (!hasSeenWelcome) showWelcomeDialog = true;
 
-        // License initialization helper
+        // License: check once on sign-in; no periodic polling to avoid many requests
         async function initializeLicense() {
             if (!user) return;
             licenseStatus = await checkLicenseStatus(user);
-            if (licenseValidationInterval !== null)
-                clearInterval(licenseValidationInterval);
-            licenseValidationInterval = window.setInterval(
-                async () => {
-                    if (!user) return;
-                    try {
-                        await validateDeviceActivation(user.id);
-                        licenseStatus = await checkLicenseStatus(user);
-                    } catch (error) {
-                        console.error("License validation error:", error);
-                    }
-                },
-                5 * 60 * 1000,
-            );
         }
 
         // Auth initialization
@@ -200,10 +184,6 @@
                 } else if (event === "SIGNED_OUT") {
                     licenseStatus = null;
                     clearLicense();
-                    if (licenseValidationInterval !== null) {
-                        clearInterval(licenseValidationInterval);
-                        licenseValidationInterval = null;
-                    }
                 }
             });
             authCleanup = () => subscription.unsubscribe();
@@ -213,10 +193,6 @@
     });
 
     onDestroy(() => {
-        if (licenseValidationInterval !== null) {
-            clearInterval(licenseValidationInterval);
-            licenseValidationInterval = null;
-        }
         if (authCleanup) authCleanup();
     });
 </script>

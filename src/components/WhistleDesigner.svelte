@@ -7,7 +7,6 @@
     import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
     import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
     import type { LicenseStatus } from "../lib/licensing";
-    import { checkLicenseStatus } from "../lib/licensing";
     import { getFont, FONT_OPTIONS } from "../lib/utils";
     import {
         centerGeometryXY,
@@ -184,8 +183,7 @@
             onRequestLogin();
             return;
         }
-        const status = await checkLicenseStatus(user);
-        if (!status.canExport) {
+        if (!licenseStatus?.canExport) {
             licenseModalRef?.open();
             return;
         }
@@ -242,7 +240,7 @@
                 `${slug}-${ts}.stl`,
                 new Blob([buffer], { type: "model/stl" }),
             );
-            if (status.type === "trial") onShowThankYou();
+            if (licenseStatus?.type === "trial") onShowThankYou();
         } catch (e) {
             exportError = e instanceof Error ? e.message : "Export failed";
         } finally {
