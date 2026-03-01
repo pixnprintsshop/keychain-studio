@@ -141,15 +141,31 @@
                 class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
                 role="status"
             >
-                <p class="font-medium">Some designers are under maintenance</p>
+                <p class="font-medium">
+                    {#if DESIGNERS_UNDER_MAINTENANCE.size === 1}
+                        One designer is under maintenance
+                    {:else}
+                        Some designers are under maintenance
+                    {/if}
+                </p>
                 <p class="mt-1 text-amber-800">
-                    Chunky Charm, Custom SVG, and Keycap Maker are temporarily unavailable. You can keep using the other designers, or
+                    {#if DESIGNERS_UNDER_MAINTENANCE.size === 1}
+                        {#each Array.from(DESIGNERS_UNDER_MAINTENANCE) as style, i}
+                            {#each DESIGNERS as d}{#if d.id === style}{d.title}{/if}{/each}
+                        {/each}
+                        is temporarily unavailable. 
+                    {:else}
+                        {#each Array.from(DESIGNERS_UNDER_MAINTENANCE) as style, i}
+                            {#each DESIGNERS as d}{#if d.id === style}{d.title}{/if}{/each}{i < DESIGNERS_UNDER_MAINTENANCE.size - 2 ? ', ' : ''}{i === DESIGNERS_UNDER_MAINTENANCE.size - 2 ? ' and ' : ''}
+                        {/each}
+                        are temporarily unavailable.
+                    {/if}
+                    You can keep using the other designers, or
                     <a
-                    target="_blank"
+                        target="_blank"
                         href="http://m.me/arabis.aldrin"
                         class="font-medium underline hover:no-underline"
-                        >cancel your subscription and request a refund</a
-                    >
+                    >cancel your subscription and request a refund</a>
                     if you prefer.
                 </p>
             </div>
