@@ -45,7 +45,7 @@
     const PAID_ONLY_DESIGNERS = new Set<ViewName>(["charm", "customSvg", "keycap"]);
 
     /** Designers under maintenance; not accessible from home and redirect to home if selected. */
-    const MAINTENANCE_VIEWS = new Set<ViewName>([]);
+    const MAINTENANCE_VIEWS = new Set<ViewName>(["charm"]);
 
     // ── View / routing state ────────────────────────────────────────────────
     type ViewName =
@@ -469,6 +469,7 @@
 {#if currentView === "home"}
     <HomeScreen
         paidOnlyDesigners={PAID_ONLY_DESIGNERS}
+        licenseStatus={licenseStatus}
         onSelect={handleStyleSelect}
         onOpenLegal={openLegal}
         onOpenLicenseInfo={openLicenseInfo}

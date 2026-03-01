@@ -19,6 +19,7 @@
     FONT_OPTIONS,
     DEFAULT_TEXT,
   } from "../lib/utils";
+  import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
 
   // ── Props ───────────────────────────────────────────────────────────────
   interface Props {
@@ -1023,67 +1024,22 @@
       class="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_12px_30px_rgba(15,23,42,0.07)]"
     >
       <div bind:this={hostEl} class="absolute inset-0"></div>
-      <div class="absolute bottom-4 right-4 flex items-center gap-2">
-        <button
-          class="rounded-full border border-slate-200 bg-white/90 p-2.5 text-slate-600 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:text-slate-900 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-          type="button"
-          onclick={() =>
+      <div class="absolute bottom-4 right-4">
+        <DesignerExportToolbar
+          onSnapshot={() =>
             downloadSnapshot(renderer, scene, camera, "rounded-rect")}
-          aria-label="Download snapshot"
-          title="Download snapshot"
-        >
-          <svg
-            class="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-            />
-            <circle cx="12" cy="13" r="3" />
-          </svg>
-        </button>
-        <button
-          class="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-semibold tracking-tight text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-          type="button"
-          onclick={exportSTL}
-          aria-label="Download STL"
-          disabled={!user ||
+          onExport={exportSTL}
+          exportDisabled={!user ||
             licenseStatus?.canExport === false ||
             exportLoading}
-          title={!user
+          exportTitle={!user
             ? "Sign in to export"
             : licenseStatus?.canExport === false
               ? "License required to export"
               : "Export STL (base + border, no text) for 3D print"}
-        >
-          {#if !user || licenseStatus?.canExport === false}
-            <span class="flex items-center gap-2">
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                />
-              </svg>
-              Export STL
-            </span>
-          {:else if exportLoading}
-            Exporting…
-          {:else}
-            Export STL
-          {/if}
-        </button>
+          exportLoading={exportLoading}
+          showLockIcon={!user || licenseStatus?.canExport === false}
+        />
         {#if exportError}
           <p
             class="absolute bottom-14 right-4 max-w-[200px] rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 shadow-lg"

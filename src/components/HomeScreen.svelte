@@ -1,4 +1,6 @@
 <script lang="ts">
+    import type { LicenseStatus } from "../lib/licensing";
+
     type StyleName =
         | "textOutline"
         | "initial"
@@ -18,7 +20,7 @@
     }
 
     /** Designers temporarily disabled (under maintenance). */
-    const DESIGNERS_UNDER_MAINTENANCE = new Set<StyleName>([]);
+    const DESIGNERS_UNDER_MAINTENANCE = new Set<StyleName>(["charm"]);
 
 
     const DESIGNERS: DesignerItem[] = [
@@ -92,12 +94,15 @@
 
     interface Props {
         paidOnlyDesigners: ReadonlySet<string>;
+        licenseStatus: LicenseStatus | null;
         onSelect: (style: StyleName) => void;
         onOpenLegal: (view: LegalView) => void;
         onOpenLicenseInfo: () => void;
     }
 
-    let { paidOnlyDesigners, onSelect, onOpenLegal, onOpenLicenseInfo }: Props = $props();
+    let { paidOnlyDesigners, licenseStatus, onSelect, onOpenLegal, onOpenLicenseInfo }: Props = $props();
+
+    const showLicenseCta = $derived(!licenseStatus || licenseStatus.type !== "licensed");
 
     function isPaidDesigner(style: StyleName): boolean {
         return paidOnlyDesigners.has(style);
@@ -190,19 +195,21 @@
             {/each}
         </div>
 
-        <!-- Get a license CTA -->
-        <div class="mt-10 flex flex-col items-center justify-center text-center">
-            <p class="text-sm text-slate-600 mb-4">
-                Need a license to unlock all designers and export?
-            </p>
-            <button
-                type="button"
-                class="w-full max-w-sm rounded-xl bg-indigo-600 px-6 py-4 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                onclick={onOpenLicenseInfo}
-            >
-                Get a license
-            </button>
-        </div>
+        <!-- Get a license CTA (hidden when user is already licensed) -->
+        {#if showLicenseCta}
+            <div class="mt-10 flex flex-col items-center justify-center text-center">
+                <p class="text-sm text-slate-600 mb-4">
+                    Need a license to unlock all designers and export?
+                </p>
+                <button
+                    type="button"
+                    class="w-full max-w-sm rounded-xl bg-indigo-600 px-6 py-4 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                    onclick={onOpenLicenseInfo}
+                >
+                    Get a license
+                </button>
+            </div>
+        {/if}
 
         <div
             class="mt-8 flex flex-col items-center justify-center gap-3 text-center"
@@ -216,13 +223,15 @@
                 />
             </div>
             <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-slate-500">
-                <button
-                    type="button"
-                    class="underline hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 rounded"
-                    onclick={onOpenLicenseInfo}
-                >
-                    Get a license
-                </button>
+                {#if showLicenseCta}
+                    <button
+                        type="button"
+                        class="underline hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 rounded"
+                        onclick={onOpenLicenseInfo}
+                    >
+                        Get a license
+                    </button>
+                {/if}
                 <button
                     type="button"
                     class="underline hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 rounded"

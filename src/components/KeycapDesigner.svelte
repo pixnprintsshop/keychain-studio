@@ -20,7 +20,10 @@
         getFont,
         FONT_OPTIONS,
     } from "../lib/utils";
+    import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
     import type LicenseModal from "./LicenseModal.svelte";
+    import LoadingModal from "./LoadingModal.svelte";
+    import SvgInfoModal from "./SvgInfoModal.svelte";
     import defaultKeycapStlUrl from "../assets/stl/keycap.stl?url";
 
     interface Props {
@@ -981,135 +984,42 @@
             class="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_12px_30px_rgba(15,23,42,0.07)]"
         >
             <div bind:this={hostEl} class="absolute inset-0"></div>
-            <div class="absolute bottom-4 right-4 flex items-center gap-2">
-                <button
-                    class="rounded-full border border-slate-200 bg-white/90 p-2.5 text-slate-600 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:text-slate-900 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-                    type="button"
-                    onclick={() =>
+            <div class="absolute bottom-4 right-4">
+                <DesignerExportToolbar
+                    onSnapshot={() =>
                         downloadSnapshot(
                             renderer,
                             scene,
                             camera,
                             "keycap-designer",
                         )}
-                    aria-label="Download snapshot"
-                    title="Download snapshot"
-                >
-                    <svg
-                        class="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        stroke-width="2"
-                    >
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                        />
-                        <circle cx="12" cy="13" r="3" />
-                    </svg>
-                </button>
-                <button
-                    class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold tracking-tight text-slate-900 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                    type="button"
-                    onclick={exportStl}
-                    disabled={!keycapGeometry ||
+                    onExport={exportStl}
+                    exportDisabled={!keycapGeometry ||
                         ((logoMode === "icon" && !optimizedSvg) || (logoMode === "text" && !logoChar.trim())) ||
                         processing ||
                         exportLoading ||
                         !user ||
                         licenseStatus?.canExport === false}
-                    title={!user
+                    exportTitle={!user
                         ? "Sign in to export"
                         : licenseStatus?.canExport === false
                             ? "License required to export"
                             : "Export STL"}
-                >
-                    {#if exportLoading}
-                        Exporting…
-                    {:else}
-                        Export STL
-                    {/if}
-                </button>
+                    exportLoading={exportLoading}
+                    showLockIcon={false}
+                />
             </div>
         </section>
     </div>
 
-    {#if showSvgInfoModal}
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="keycap-svg-info-modal-title"
-            onclick={() => (showSvgInfoModal = false)}
-            onkeydown={(e) => e.key === "Escape" && (showSvgInfoModal = false)}
-            tabindex="-1"
-        >
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div
-                class="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
-                onclick={(e) => e.stopPropagation()}
-            >
-                <h2
-                    id="keycap-svg-info-modal-title"
-                    class="text-lg font-semibold text-slate-900"
-                >
-                    Before you start
-                </h2>
-                <p class="mt-1 text-sm text-slate-600">
-                    For the best results with custom SVGs, please keep these in mind:
-                </p>
-                <ul class="mt-3 list-inside list-disc space-y-2 text-sm text-slate-600">
-                    <li><strong>Compatibility:</strong> Not every SVG will work—complex paths, filters, or unsupported features may cause issues.</li>
-                    <li><strong>Format:</strong> Use black-and-white artwork only, and keep file size under 1 MB.</li>
-                    <li><strong>Extrusion:</strong> We extrude a single flat layer from your paths; grays, gradients, and shading are ignored—only the outline shape is used.</li>
-                </ul>
-                <div class="mt-5 flex justify-end">
-                    <button
-                        type="button"
-                        class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                        onclick={() => (showSvgInfoModal = false)}
-                    >
-                        Got it
-                    </button>
-                </div>
-            </div>
-        </div>
-    {/if}
-
-    {#if processing}
-        <div
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="keycap-processing-loading-title"
-            aria-busy="true"
-        >
-            <div
-                class="relative w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
-            >
-                <div class="flex flex-col items-center gap-4 text-center">
-                    <div
-                        class="h-10 w-10 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"
-                        aria-hidden="true"
-                    ></div>
-                    <div class="space-y-1">
-                        <h2
-                            id="keycap-processing-loading-title"
-                            class="text-lg font-semibold text-slate-900"
-                        >
-                            Processing SVG
-                        </h2>
-                        <p class="text-sm text-slate-600">
-                            Preparing your icon for the keycap…
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    {/if}
+    <SvgInfoModal
+        open={showSvgInfoModal}
+        onClose={() => (showSvgInfoModal = false)}
+    />
+    <LoadingModal
+        open={processing}
+        title="Processing SVG"
+        description="Preparing your icon for the keycap…"
+        titleId="keycap-processing-loading-title"
+    />
 </main>
