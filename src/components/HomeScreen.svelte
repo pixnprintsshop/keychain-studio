@@ -19,9 +19,26 @@
         imageAlt: string;
     }
 
-    /** Designers temporarily disabled (under maintenance). */
-    const DESIGNERS_UNDER_MAINTENANCE = new Set<StyleName>(["charm"]);
-
+    /**
+     * Designers temporarily disabled (under maintenance).
+     * This uses the VITE_UNDER_MAINTENANCE_DESIGNERS env variable (comma separated ids).
+     */
+    function getUnderMaintenanceDesigners(): Set<StyleName> {
+        // The env variable should be set in .env as:
+        // VITE_UNDER_MAINTENANCE_DESIGNERS=charm,flower
+        // (for example, can be empty string or undefined for none)
+        // Vite exposes import.meta.env but only env vars prefixed with VITE_
+        // We cast the split type as StyleName for internal checking; invalid ids will be ignored.
+        const envList = import.meta.env.VITE_UNDER_MAINTENANCE_DESIGNERS as string | undefined;
+        if (!envList) return new Set();
+        return new Set(
+            envList
+                .split(",")
+                .map(x => x.trim())
+                .filter(Boolean) as StyleName[]
+        );
+    }
+    const DESIGNERS_UNDER_MAINTENANCE = getUnderMaintenanceDesigners();
 
     const DESIGNERS: DesignerItem[] = [
         {
@@ -143,7 +160,10 @@
             >
                 <p class="font-medium">Some designers are under maintenance</p>
                 <p class="mt-1 text-amber-800">
-                    Chunky Charm is temporarily unavailable. You can keep using the other designers, or
+                    {Array.from(DESIGNERS_UNDER_MAINTENANCE).map(s => {
+                        const d = DESIGNERS.find(d => d.id === s);
+                        return d ? d.title : s;
+                    }).join(", ")}{Array.from(DESIGNERS_UNDER_MAINTENANCE).length === 1 ? " is" : " are"} temporarily unavailable. You can keep using the other designers, or
                     <a
                     target="_blank"
                         href="http://m.me/arabis.aldrin"
