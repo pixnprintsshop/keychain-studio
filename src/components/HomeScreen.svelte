@@ -9,7 +9,8 @@
         | "customSvg"
         | "charm"
         | "keycap"
-        | "whistle";
+        | "whistle"
+        | "stanleyTopper";
 
     interface DesignerItem {
         id: StyleName;
@@ -17,6 +18,7 @@
         description: string;
         imageSrc: string;
         imageAlt: string;
+        previewImageSrc?: string;
     }
 
     /**
@@ -104,6 +106,15 @@
                 "Add your name or message to a personal whistle.",
             imageSrc: "/images/whistle.png",
             imageAlt: "Custom Whistle preview",
+        },
+        {
+            id: "stanleyTopper",
+            title: "Stanley Topper",
+            description:
+                "Add your text on top of the Stanley topper—simple and personal.",
+            imageSrc: "/images/stanley-topper.png",
+            imageAlt: "Stanley Topper preview",
+            previewImageSrc: "/images/stanley-topper-preview.png",
         },
     ];
 
@@ -195,6 +206,34 @@
                             class="absolute right-3 top-3 z-10 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
                             >PLUS</span
                         >
+                    {/if}
+                    {#if designer.previewImageSrc}
+                        <!-- svelte-ignore a11y_click_events_have_key_events -->
+                        <div
+                            class="group/preview absolute inset-0 z-10 pointer-events-none"
+                            aria-hidden="true"
+                        >
+                            <button
+                                type="button"
+                                class="absolute right-3 top-3 flex size-8 items-center justify-center rounded-full bg-white/90 text-slate-500 shadow-sm transition pointer-events-auto hover:bg-white hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 {isPaidDesigner(designer.id) || isUnderMaintenance(designer.id) ? 'right-12' : ''}"
+                                title="Preview"
+                                aria-label="Show preview"
+                                onclick={(e) => e.stopPropagation()}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M12 16v-4m0-4h.01M22 12c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2s10 4.477 10 10z" />
+                                </svg>
+                            </button>
+                            <div
+                                class="absolute left-0 right-0 top-0 aspect-4/3 overflow-hidden rounded-t-2xl border-b border-slate-100 bg-white opacity-0 transition-opacity duration-150 group-hover/preview:opacity-100"
+                            >
+                                <img
+                                    src={designer.previewImageSrc}
+                                    alt=""
+                                    class="h-full w-full object-cover"
+                                />
+                            </div>
+                        </div>
                     {/if}
                     <div class="aspect-4/3 w-full overflow-hidden bg-slate-100">
                         <img

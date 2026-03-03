@@ -6,6 +6,7 @@ import retroDollyJson from "../assets/fonts/Retro Dolly_Book.json";
 import kindergoJson from "../assets/fonts/Kindergo_Regular.json";
 import beautifulHarmonyJson from "../assets/fonts/Beautiful Harmony_Regular.json";
 import milkywayJson from "../assets/fonts/Milkyway_Regular.json";
+import bebasNeueJson from "../assets/fonts/Bebas Neue_Regular.json";
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -76,6 +77,12 @@ export const FONT_OPTIONS: FontOption[] = [
         json: milkywayJson,
         fontFamily: "Milkyway",
     },
+    {
+        key: "Bebas Neue_Regular",
+        label: "Bebas Neue (Regular)",
+        json: bebasNeueJson,
+        fontFamily: "Bebas Neue",
+    },
 ];
 
 // ── Default values ──────────────────────────────────────────────────────────
@@ -131,13 +138,13 @@ export function getFont(key: string) {
 
 // ── Three.js helpers ────────────────────────────────────────────────────────
 
-export function centerGeometryXY(geo: any) {
+export function centerGeometryXY(geo: any, offsetX: number = 0) {
     geo.computeBoundingBox();
     const bb = geo.boundingBox;
     if (!bb) return;
     const cx = (bb.min.x + bb.max.x) / 2;
     const cy = (bb.min.y + bb.max.y) / 2;
-    geo.translate(-cx, -cy, 0);
+    geo.translate(-cx + offsetX, -cy, 0);
     geo.computeBoundingBox();
 }
 

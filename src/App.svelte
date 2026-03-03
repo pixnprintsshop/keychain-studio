@@ -5,20 +5,21 @@
     import "./app.css";
     import BasicNameDesigner from "./components/BasicNameDesigner.svelte";
     import CharmDesigner from "./components/CharmDesigner.svelte";
+    import CustomSVGDesigner from "./components/CustomSVGDesigner.svelte";
     import FlowerDesigner from "./components/FlowerDesigner.svelte";
     import HomeScreen from "./components/HomeScreen.svelte";
     import InitialDesigner from "./components/InitialDesigner.svelte";
+    import KeycapDesigner from "./components/KeycapDesigner.svelte";
+    import LicenseInfoPage from "./components/LicenseInfoPage.svelte";
     import LicenseModal from "./components/LicenseModal.svelte";
     import LoginModal from "./components/LoginModal.svelte";
-    import CustomSVGDesigner from "./components/CustomSVGDesigner.svelte";
-    import KeycapDesigner from "./components/KeycapDesigner.svelte";
-    import WhistleDesigner from "./components/WhistleDesigner.svelte";
-    import TextOutlineDesigner from "./components/TextOutlineDesigner.svelte";
     import MaintenancePage from "./components/MaintenancePage.svelte";
-    import ThankYouDialog from "./components/ThankYouDialog.svelte";
-    import TermsPage from "./components/TermsPage.svelte";
     import PrivacyPage from "./components/PrivacyPage.svelte";
-    import LicenseInfoPage from "./components/LicenseInfoPage.svelte";
+    import StanleyTopperDesigner from "./components/StanleyTopperDesigner.svelte";
+    import TermsPage from "./components/TermsPage.svelte";
+    import TextOutlineDesigner from "./components/TextOutlineDesigner.svelte";
+    import ThankYouDialog from "./components/ThankYouDialog.svelte";
+    import WhistleDesigner from "./components/WhistleDesigner.svelte";
     import {
       getSession,
       getUser,
@@ -53,10 +54,12 @@
         | "initial"
         | "flower"
         | "basicName"
+        | "singleChar"
         | "customSvg"
         | "charm"
         | "keycap"
         | "whistle"
+        | "stanleyTopper"
         | "terms"
         | "privacy"
         | "licenseInfo";
@@ -68,10 +71,12 @@
             stored === "initial" ||
             stored === "flower" ||
             stored === "basicName" ||
+            stored === "singleChar" ||
             stored === "customSvg" ||
             stored === "charm" ||
             stored === "keycap" ||
             stored === "whistle" ||
+            stored === "stanleyTopper" ||
             stored === "terms" ||
             stored === "privacy" ||
             stored === "licenseInfo" ||
@@ -121,10 +126,12 @@
             | "initial"
             | "flower"
             | "basicName"
+            | "singleChar"
             | "customSvg"
             | "charm"
             | "keycap"
-            | "whistle",
+            | "whistle"
+            | "stanleyTopper",
     ) {
         if (MAINTENANCE_VIEWS.has(style)) return;
         navigateTo(style);
@@ -522,6 +529,16 @@
     />
 {:else if currentView === "whistle"}
     <WhistleDesigner
+        {user}
+        {session}
+        {licenseStatus}
+        {licenseModalRef}
+        onBack={handleBack}
+        onRequestLogin={() => (showLoginModal = true)}
+        onShowThankYou={() => (showThankYouDialog = true)}
+    />
+{:else if currentView === "stanleyTopper"}
+    <StanleyTopperDesigner
         {user}
         {session}
         {licenseStatus}
