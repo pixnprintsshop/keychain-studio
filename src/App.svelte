@@ -16,6 +16,7 @@
     import MaintenancePage from "./components/MaintenancePage.svelte";
     import PrivacyPage from "./components/PrivacyPage.svelte";
     import StanleyTopperDesigner from "./components/StanleyTopperDesigner.svelte";
+    import DogTagDesigner from "./components/DogTagDesigner.svelte";
     import TermsPage from "./components/TermsPage.svelte";
     import TextOutlineDesigner from "./components/TextOutlineDesigner.svelte";
     import ThankYouDialog from "./components/ThankYouDialog.svelte";
@@ -60,6 +61,7 @@
         | "keycap"
         | "whistle"
         | "stanleyTopper"
+        | "dogtag"
         | "terms"
         | "privacy"
         | "licenseInfo";
@@ -77,6 +79,7 @@
             stored === "keycap" ||
             stored === "whistle" ||
             stored === "stanleyTopper" ||
+            stored === "dogtag" ||
             stored === "terms" ||
             stored === "privacy" ||
             stored === "licenseInfo" ||
@@ -131,7 +134,8 @@
             | "charm"
             | "keycap"
             | "whistle"
-            | "stanleyTopper",
+            | "stanleyTopper"
+            | "dogtag",
     ) {
         if (MAINTENANCE_VIEWS.has(style)) return;
         navigateTo(style);
@@ -539,6 +543,16 @@
     />
 {:else if currentView === "stanleyTopper"}
     <StanleyTopperDesigner
+        {user}
+        {session}
+        {licenseStatus}
+        {licenseModalRef}
+        onBack={handleBack}
+        onRequestLogin={() => (showLoginModal = true)}
+        onShowThankYou={() => (showThankYouDialog = true)}
+    />
+{:else if currentView === "dogtag"}
+    <DogTagDesigner
         {user}
         {session}
         {licenseStatus}

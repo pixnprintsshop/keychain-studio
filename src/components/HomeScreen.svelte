@@ -10,7 +10,8 @@
         | "charm"
         | "keycap"
         | "whistle"
-        | "stanleyTopper";
+        | "stanleyTopper"
+        | "dogtag";
 
     interface DesignerItem {
         id: StyleName;
@@ -120,6 +121,16 @@
             imageAlt: "Stanley Topper preview",
             previewImageSrc: "/images/stanley-topper-preview.png",
             attribution: 'https://makerworld.com/en/models/959060-40oz-stanley-tumbler-topper-cup-name-plate?from=search'
+        },
+        {
+            id: "dogtag",
+            title: "Dog Tag",
+            description:
+                "Design a classic pet dog tag—personalized for your furry friend’s collar.",
+            imageSrc: "/images/dogtag.png",
+            imageAlt: "Pet Dog Tag preview",
+            previewImageSrc: "/images/dogtag-preview.png",
+            attribution: 'https://makerworld.com/en/models/1111790-dog-tag-name-tag-keychain?from=search#profileId-1108483'
         },
     ];
 
