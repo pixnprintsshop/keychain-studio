@@ -364,7 +364,7 @@
                 </button>
             </div>
 
-            <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden pr-1 p-4 pt-0">
+            <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden p-4 pt-0">
                 <p class="text-xs text-slate-500">
                     Add your text on top of the whistle. The text is centered and scaled to fit.
                 </p>

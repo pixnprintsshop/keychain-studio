@@ -728,7 +728,7 @@
                 </button>
             </div>
 
-            <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden pr-1 p-4 pt-0">
+            <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden p-4 pt-0">
                 <p class="text-xs text-slate-500">
                     Upload a flat keycap base (STL) and an SVG icon. The icon is centered on the top of the keycap. Some SVGs may produce unexpected results.
                 </p>

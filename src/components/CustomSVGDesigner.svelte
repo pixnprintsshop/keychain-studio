@@ -952,9 +952,9 @@
 <main class="h-dvh w-dvw bg-slate-100 p-4">
     <div class="flex h-full min-h-0 gap-4">
         <aside
-            class="w-full max-w-[360px] min-w-[320px] rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.06),0_12px_30px_rgba(15,23,42,0.07)]"
+            class="flex min-h-0 w-full max-w-[360px] min-w-[320px] shrink-0 flex-col rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_12px_30px_rgba(15,23,42,0.07)]"
         >
-            <div class="mb-4 flex items-center justify-between">
+            <div class="flex shrink-0 items-center justify-between p-4">
                 <h1 class="text-lg font-semibold tracking-tight text-slate-900">
                     Custom SVG
                 </h1>
@@ -967,9 +967,7 @@
                 </button>
             </div>
 
-            <div
-                class="space-y-4 overflow-y-auto pr-1 max-h-[calc(100dvh-7rem)]"
-            >
+            <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden p-4 pt-0">
                 <p class="text-xs text-slate-500">
                     Some SVGs may produce unexpected results depending on complexity and structure.
                 </p>

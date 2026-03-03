@@ -504,25 +504,25 @@
 
 <main class="h-dvh w-dvw bg-slate-50 p-4">
     <div
-        class="mx-auto flex h-full w-full max-w-[1600px] flex-col gap-4 lg:flex-row"
+        class="mx-auto flex h-full w-full max-w-[1600px] min-h-0 flex-col gap-4 lg:flex-row"
     >
         <aside
-        class="w-full max-w-[360px] min-w-[320px] rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.06),0_12px_30px_rgba(15,23,42,0.07)]"
-    >
-        <div class="mb-4 flex items-center justify-between">
-            <h1 class="text-lg font-semibold tracking-tight text-slate-900">
-                Flower & Initial
-            </h1>
-            <button
-                type="button"
-                class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                onclick={onBack}
-            >
-                Back
-            </button>
-        </div>
+            class="flex min-h-0 w-full max-w-[360px] min-w-[320px] shrink-0 flex-col rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_12px_30px_rgba(15,23,42,0.07)]"
+        >
+            <div class="flex shrink-0 items-center justify-between p-4">
+                <h1 class="text-lg font-semibold tracking-tight text-slate-900">
+                    Flower & Initial
+                </h1>
+                <button
+                    type="button"
+                    class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    onclick={onBack}
+                >
+                    Back
+                </button>
+            </div>
 
-            <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4">
+            <div class="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden p-4 pt-0">
                 <div class="grid grid-cols-1 gap-4">
                     <!-- Base controls -->
                     <div
