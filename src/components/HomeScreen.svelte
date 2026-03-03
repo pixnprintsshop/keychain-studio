@@ -19,6 +19,7 @@
         imageSrc: string;
         imageAlt: string;
         previewImageSrc?: string;
+        attribution?: string;
     }
 
     /**
@@ -66,6 +67,7 @@
                 "Add a colorful flower with your letter for a cute and cheerful keychain.",
             imageSrc: "/images/flower+initial.png",
             imageAlt: "Flower & Initial preview",
+            attribution: 'https://makerworld.com/en/models/513050-flower-initial-keychains?from=search#profileId-429132'
         },
         {
             id: "basicName",
@@ -74,6 +76,7 @@
                 "Classic name tag style—simple, stylish, and great for any occasion.",
             imageSrc: "/images/nametag.png",
             imageAlt: "Basic Name Tag preview",
+            attribution: 'https://makerworld.com/en/models/219037-keytag-keychain-with-custom-name?from=search#profileId-251645'
         },
         {
             id: "customSvg",
@@ -106,6 +109,7 @@
                 "Add your name or message to a personal whistle.",
             imageSrc: "/images/whistle.png",
             imageAlt: "Custom Whistle preview",
+            attribution: 'https://makerworld.com/en/models/119995-loud-whistle?from=search#profileId-129140'
         },
         {
             id: "stanleyTopper",
@@ -115,6 +119,7 @@
             imageSrc: "/images/stanley-topper.png",
             imageAlt: "Stanley Topper preview",
             previewImageSrc: "/images/stanley-topper-preview.png",
+            attribution: 'https://makerworld.com/en/models/959060-40oz-stanley-tumbler-topper-cup-name-plate?from=search'
         },
     ];
 
@@ -249,6 +254,24 @@
                         <p class="mt-1 text-sm leading-relaxed text-slate-500">
                             {designer.description}
                         </p>
+                        {#if designer.attribution}
+                            <!-- svelte-ignore a11y_click_events_have_key_events -->
+                            <a
+                                href={designer.attribution}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="mt-2 inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:ring-offset-1 rounded"
+                                onclick={(e) => e.stopPropagation()}
+                                title="View source / credit"
+                            >
+                                <span>Source</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="size-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                    <polyline points="15 3 21 3 21 9" />
+                                    <line x1="10" y1="14" x2="21" y2="3" />
+                                </svg>
+                            </a>
+                        {/if}
                     </div>
                 </div>
             {/each}
