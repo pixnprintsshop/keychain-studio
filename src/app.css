@@ -51,6 +51,36 @@
     font-style: normal;
 }
 
+@font-face {
+    font-family: "DynaPuff";
+    src: url("/fonts/DynaPuff-Bold.ttf") format("truetype");
+    font-weight: 700;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Coiny";
+    src: url("/fonts/Coiny-Regular.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Pacifico";
+    src: url("/fonts/Pacifico-Regular.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Lobster Two";
+    src: url("/fonts/LobsterTwo-Regular.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+}
+
+
+
 @layer base {
     *,
     ::before,

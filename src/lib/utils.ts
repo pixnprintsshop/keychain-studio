@@ -7,6 +7,10 @@ import kindergoJson from "../assets/fonts/Kindergo_Regular.json";
 import beautifulHarmonyJson from "../assets/fonts/Beautiful Harmony_Regular.json";
 import milkywayJson from "../assets/fonts/Milkyway_Regular.json";
 import bebasNeueJson from "../assets/fonts/Bebas Neue_Regular.json";
+import dynaPuffJson from "../assets/fonts/DynaPuff_Bold.json";
+import coinyJson from "../assets/fonts/Coiny_Regular.json";
+import pacificoJson from "../assets/fonts/Pacifico_Regular.json";
+import lobsterTwoJson from "../assets/fonts/Lobster Two_Regular.json";
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -82,6 +86,30 @@ export const FONT_OPTIONS: FontOption[] = [
         label: "Bebas Neue (Regular)",
         json: bebasNeueJson,
         fontFamily: "Bebas Neue",
+    },
+    {
+        key: "DynaPuff_Bold",
+        label: "DynaPuff (Bold)",
+        json: dynaPuffJson,
+        fontFamily: "DynaPuff",
+    },
+    {
+        key: "Coiny_Regular",
+        label: "Coiny (Regular)",
+        json: coinyJson,
+        fontFamily: "Coiny",
+    },
+    {
+        key: "Pacifico_Regular",
+        label: "Pacifico (Regular)",
+        json: pacificoJson,
+        fontFamily: "Pacifico",
+    },
+    {
+        key: "Lobster Two_Regular",
+        label: "Lobster Two (Regular)",
+        json: lobsterTwoJson,
+        fontFamily: "Lobster Two",
     },
 ];
 
