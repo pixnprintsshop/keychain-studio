@@ -87,14 +87,14 @@
             imageSrc: "/images/custom-svg.png",
             imageAlt: "Custom SVG Designer preview",
         },
-        {
-            id: "charm",
-            title: "Chunky Charm",
-            description:
-                "Turn your design into a cute charm you can easily thread a cord through.",
-            imageSrc: "/images/charm.png",
-            imageAlt: "Chunky Charm preview",
-        },
+        // {
+        //     id: "charm",
+        //     title: "Chunky Charm",
+        //     description:
+        //         "Turn your design into a cute charm you can easily thread a cord through.",
+        //     imageSrc: "/images/charm.png",
+        //     imageAlt: "Chunky Charm preview",
+        // },
         {
             id: "keycap",
             title: "Keycap Maker",
