@@ -68,7 +68,8 @@
                 "Add a colorful flower with your letter for a cute and cheerful keychain.",
             imageSrc: "/images/flower+initial.png",
             imageAlt: "Flower & Initial preview",
-            attribution: 'https://makerworld.com/en/models/513050-flower-initial-keychains?from=search#profileId-429132'
+            attribution: 'https://makerworld.com/en/models/513050-flower-initial-keychains?from=search#profileId-429132',
+            previewImageSrc: "/images/flower+initial-preview.png",
         },
         {
             id: "basicName",
@@ -110,7 +111,8 @@
                 "Add your name or message to a personal whistle.",
             imageSrc: "/images/whistle.png",
             imageAlt: "Custom Whistle preview",
-            attribution: 'https://makerworld.com/en/models/119995-loud-whistle?from=search#profileId-129140'
+            attribution: 'https://makerworld.com/en/models/119995-loud-whistle?from=search#profileId-129140',
+            previewImageSrc: "/images/whistle-preview.png",
         },
         {
             id: "stanleyTopper",
