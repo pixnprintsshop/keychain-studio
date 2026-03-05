@@ -848,7 +848,7 @@
                     </div>
                     </div>
 
-                    <div>
+                    <div class="opacity-50 pointer-events-none select-none">
                         <label
                             for="keycap-svg-upload-input"
                             class="mb-1 block text-xs font-medium text-slate-700"
@@ -860,17 +860,11 @@
                             type="file"
                             accept=".svg,image/svg+xml"
                             class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                            onchange={(e) => {
-                                const input = e.currentTarget as HTMLInputElement;
-                                const file = input.files?.[0];
-                                if (file) void onSvgSelected(file);
-                            }}
+                            disabled
                         />
-                        {#if uploadName}
-                            <p class="mt-1 text-xs text-slate-500 truncate">
-                                {uploadName}
-                            </p>
-                        {/if}
+                        <p class="mt-1 text-xs text-slate-500">
+                            Temporarily not available
+                        </p>
                     </div>
                 {/if}
 
