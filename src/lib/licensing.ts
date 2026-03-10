@@ -8,6 +8,14 @@ const STORAGE_LICENSE_DATA = "keychain-studio-license-data";
 // Trial duration in days
 const TRIAL_DURATION_DAYS = 7;
 
+// Cache checkLicenseStatus result to avoid many requests to license/user_trials/device_activation
+const LICENSE_STATUS_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+let licenseStatusCache: {
+    userId: string;
+    status: LicenseStatus;
+    expiresAt: number;
+} | null = null;
+
 export interface LicenseStatus {
     type: "trial" | "licensed" | "expired";
     /** True only when type === "licensed" (paid license); false for trial, expired, or free/giveaway license. */
@@ -77,6 +85,7 @@ export function storeLicense(
 ): void {
     localStorage.setItem(STORAGE_LICENSE_KEY, licenseKey);
     localStorage.setItem(STORAGE_LICENSE_DATA, JSON.stringify(licenseData));
+    licenseStatusCache = null; // next checkLicenseStatus will refetch
 }
 
 /**
@@ -85,6 +94,7 @@ export function storeLicense(
 export function clearLicense(): void {
     localStorage.removeItem(STORAGE_LICENSE_KEY);
     localStorage.removeItem(STORAGE_LICENSE_DATA);
+    licenseStatusCache = null;
 }
 
 /**
@@ -116,7 +126,7 @@ export async function initializeTrial(userId: string): Promise<boolean> {
             "can_user_start_trial",
             {
                 p_user_id: userId,
-            }
+            },
         );
 
         if (functionError) {
@@ -174,9 +184,7 @@ export async function initializeTrial(userId: string): Promise<boolean> {
 /**
  * Get trial start date from server
  */
-export async function getTrialStartDate(
-    userId: string,
-): Promise<Date | null> {
+export async function getTrialStartDate(userId: string): Promise<Date | null> {
     try {
         const { data: trial, error } = await supabase
             .from("user_trials")
@@ -203,9 +211,7 @@ export async function getTrialStartDate(
 /**
  * Calculate remaining trial days (uses server-side data)
  */
-export async function getTrialDaysRemaining(
-    userId: string,
-): Promise<number> {
+export async function getTrialDaysRemaining(userId: string): Promise<number> {
     try {
         const { data: trial, error } = await supabase
             .from("user_trials")
@@ -224,7 +230,9 @@ export async function getTrialDaysRemaining(
             const diffTime = expiresAt.getTime() - now.getTime();
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             const remaining = Math.max(0, diffDays);
-            console.log(`Trial expires in ${remaining} days (expires: ${trial.trial_expires_at})`);
+            console.log(
+                `Trial expires in ${remaining} days (expires: ${trial.trial_expires_at})`,
+            );
             return remaining;
         }
 
@@ -314,6 +322,7 @@ async function restoreLicenseFromServer(
 
 /**
  * Check license status (trial, licensed, or expired)
+ * Results are cached for 2 minutes to avoid many requests to license/user_trials/device_activation.
  */
 export async function checkLicenseStatus(
     user: User | null,
@@ -326,12 +335,31 @@ export async function checkLicenseStatus(
         };
     }
 
+    const now = Date.now();
+    if (
+        licenseStatusCache?.userId === user.id &&
+        licenseStatusCache.expiresAt > now
+    ) {
+        return licenseStatusCache.status;
+    }
+
+    const setCacheAndReturn = (status: LicenseStatus): LicenseStatus => {
+        licenseStatusCache = {
+            userId: user.id,
+            status,
+            expiresAt: Date.now() + LICENSE_STATUS_CACHE_TTL_MS,
+        };
+        return status;
+    };
+
     // Initialize trial if needed (this will create trial if user doesn't have one)
     const trialInitialized = await initializeTrial(user.id);
 
     // If trial initialization failed, log error but continue to check status
     if (!trialInitialized) {
-        console.warn("Trial initialization returned false, but continuing to check status");
+        console.warn(
+            "Trial initialization returned false, but continuing to check status",
+        );
     }
 
     // Check if user has a stored license
@@ -370,24 +398,24 @@ export async function checkLicenseStatus(
             const isExpired = expiresAt ? expiresAt < new Date() : false;
 
             if (isExpired) {
-                return {
+                return setCacheAndReturn({
                     type: "expired",
                     isPaid: false,
                     licenseKey,
                     expiresAt: expiresAt || undefined,
                     canExport: false,
-                };
+                });
             }
 
             const isPaidLicense = (licenseData.tier ?? "paid") === "paid";
-            return {
+            return setCacheAndReturn({
                 type: "licensed",
                 isPaid: isPaidLicense,
                 licenseKey,
                 expiresAt: expiresAt || undefined,
                 maxDevices: licenseData.max_devices,
                 canExport: true,
-            };
+            });
         } else {
             // License validation failed, clear it
             clearLicense();
@@ -402,7 +430,9 @@ export async function checkLicenseStatus(
     if (trialDaysRemaining === 0 && trialInitialized) {
         // Retry with exponential backoff to ensure database write has completed
         for (let attempt = 0; attempt < 3; attempt++) {
-            await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+            await new Promise((resolve) =>
+                setTimeout(resolve, 100 * (attempt + 1)),
+            );
             trialDaysRemaining = await getTrialDaysRemaining(user.id);
             if (trialDaysRemaining > 0) {
                 console.log(`Trial found after ${attempt + 1} retry attempts`);
@@ -414,20 +444,20 @@ export async function checkLicenseStatus(
     const trialExpired = trialDaysRemaining === 0;
 
     if (trialExpired) {
-        return {
+        return setCacheAndReturn({
             type: "expired",
             isPaid: false,
             trialDaysRemaining: 0,
             canExport: false,
-        };
+        });
     }
 
-    return {
+    return setCacheAndReturn({
         type: "trial",
         isPaid: false,
         trialDaysRemaining,
         canExport: true, // Trial users can use all features including export
-    };
+    });
 }
 
 /**
