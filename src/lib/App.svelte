@@ -184,6 +184,60 @@
         }
     });
 
+    // Tawk chat: show only on home screen, hide on designers
+    $effect(() => {
+        if (typeof window === "undefined") return;
+        const onHome = currentView === "home";
+        (window as unknown as { __tawkViewIsHome?: boolean }).__tawkViewIsHome =
+            onHome;
+        const api = (window as unknown as { Tawk_API?: { showWidget?: () => void; hideWidget?: () => void } }).Tawk_API;
+        if (api) {
+            if (onHome) api.showWidget?.();
+            else api.hideWidget?.();
+        }
+    });
+
+    // Tawk chat: pass logged-in user name, email, and license details when available
+    $effect(() => {
+        if (typeof window === "undefined") return;
+        const w = window as unknown as {
+            Tawk_API?: { setAttributes: (attrs: Record<string, string | number | boolean | undefined>, cb?: () => void) => void };
+            __tawkSetVisitorAttributes?: () => void;
+        };
+        const u = user;
+        const license = licenseStatus;
+        const setTawkVisitor = () => {
+            if (!u?.email) return;
+            const name =
+                (u as User & { user_metadata?: { full_name?: string; name?: string } }).user_metadata?.full_name ??
+                (u as User & { user_metadata?: { full_name?: string; name?: string } }).user_metadata?.name ??
+                u.email.split("@")[0] ??
+                "";
+            const attrs: Record<string, string | number | boolean | undefined> = {
+                name: name || undefined,
+                email: u.email,
+            };
+            if (license) {
+                attrs.license_type = license.type;
+                attrs.license_is_paid = license.isPaid;
+                attrs.can_export = license.canExport;
+                if (license.licenseKey) {
+                    const key = license.licenseKey.replace(/-/g, "");
+                    attrs.license_key_last4 = key.length >= 4 ? key.slice(-4) : "****";
+                }
+                if (license.trialDaysRemaining != null) attrs.trial_days_remaining = license.trialDaysRemaining;
+                if (license.expiresAt) attrs.license_expires_at = license.expiresAt.toISOString().slice(0, 10);
+                if (license.maxDevices != null) attrs.license_max_devices = license.maxDevices;
+                if (license.deviceCount != null) attrs.license_device_count = license.deviceCount;
+            }
+            if (w.Tawk_API?.setAttributes) {
+                w.Tawk_API.setAttributes(attrs);
+            }
+        };
+        w.__tawkSetVisitorAttributes = setTawkVisitor;
+        if (u?.email && w.Tawk_API?.setAttributes) setTawkVisitor();
+    });
+
     // ── Handlers ────────────────────────────────────────────────────────────
     function navigateTo(view: ViewName) {
         currentView = view;
