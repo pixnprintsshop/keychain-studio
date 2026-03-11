@@ -102,6 +102,10 @@
             goto("/pricing");
             return "home";
         }
+        if (hash === "about") {
+            goto("/about");
+            return "home";
+        }
         if (!hash || hash === "home") return "home";
         if (VALID_VIEW_NAMES.includes(hash as ViewName)) {
             const view = hash as ViewName;

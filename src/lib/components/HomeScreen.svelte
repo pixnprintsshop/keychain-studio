@@ -401,6 +401,11 @@
                     class="underline hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 rounded">
                     Refund Policy
                 </a>
+                <a
+                    href="/about"
+                    class="underline hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 rounded">
+                    About
+                </a>
             </div>
         </div>
     </div>
