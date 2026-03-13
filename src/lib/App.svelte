@@ -20,6 +20,7 @@
 	import StanleyTopperDesigner from '$lib/components/StanleyTopperDesigner.svelte';
 	import TextOutlineDesigner from '$lib/components/TextOutlineDesigner.svelte';
 	import ThankYouDialog from '$lib/components/ThankYouDialog.svelte';
+	import SupportShareDialog from '$lib/components/SupportShareDialog.svelte';
 	import WhistleDesigner from '$lib/components/WhistleDesigner.svelte';
 	import { getSession, getUser, onAuthStateChange, signOut } from '$lib/auth';
 	import { type LicenseStatus, checkLicenseStatus, clearLicense } from '$lib/licensing';
@@ -32,6 +33,7 @@
 	// ── Storage keys ────────────────────────────────────────────────────────
 	const STORAGE_KEY_WELCOME = 'designer-has-seen-welcome';
 	const STORAGE_KEY_VIEW = 'designer-current-view';
+	const STORAGE_KEY_SHARE_SHOWN = 'designer-share-dialog-shown';
 
 	/** Designers that require a paid license; trial and free-license users see them as locked. */
 	const PAID_ONLY_DESIGNERS = new Set<ViewName>(['charm', 'customSvg', 'keycap']);
@@ -153,6 +155,7 @@
 	let licenseStatus: LicenseStatus | null = $state(null);
 	let licenseModalRef: LicenseModal | null = $state(null);
 	let showThankYouDialog = $state(false);
+	let showSupportShareDialog = $state(false);
 	let authCleanup: (() => void) | null = null;
 	let hashCleanup: (() => void) | null = null;
 
@@ -177,6 +180,24 @@
 	$effect(() => {
 		if (MAINTENANCE_VIEWS.has(currentView)) {
 			currentView = 'home';
+		}
+	});
+
+	// Show \"support Keychain Studio\" dialog once for paid users (not while welcome is open)
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+		void user;
+		void licenseStatus;
+		if (showWelcomeDialog) return;
+		if (!user || !licenseStatus?.isPaid) return;
+		try {
+			const shown = localStorage.getItem(STORAGE_KEY_SHARE_SHOWN);
+			if (!shown) {
+				showSupportShareDialog = true;
+				localStorage.setItem(STORAGE_KEY_SHARE_SHOWN, 'true');
+			}
+		} catch {
+			// ignore storage errors
 		}
 	});
 
@@ -319,7 +340,12 @@
 			const initialSession = await getSession();
 			session = initialSession;
 			user = initialSession?.user ?? null;
-			if (user) await initializeLicense();
+			if (user) {
+				await initializeLicense();
+			} else {
+				// Guest users see the support dialog once per session (not while welcome is open)
+				if (!showWelcomeDialog) showSupportShareDialog = true;
+			}
 			const {
 				data: { subscription }
 			} = onAuthStateChange(async (event, newSession) => {
@@ -353,6 +379,16 @@
 {#if MAINTENANCE_MODE}
 	<MaintenancePage />
 {:else}
+	<!-- Coming soon: 3MF export (home screen only) -->
+	{#if currentView === 'home'}
+		<div
+			class="fixed top-0 right-0 left-0 z-30 flex items-center justify-center gap-2 border-b border-indigo-200 bg-indigo-50 px-4 py-2 text-center text-sm font-medium text-indigo-800"
+			role="banner"
+		>
+			<span>Coming soon: 3MF export for better slicer compatibility.</span>
+		</div>
+	{/if}
+
 	<!-- Welcome Dialog -->
 	{#if showWelcomeDialog}
 		<div
@@ -498,6 +534,9 @@
 	<!-- Thank You Dialog -->
 	<ThankYouDialog bind:isOpen={showThankYouDialog} />
 
+	<!-- Support / Share Dialog -->
+	<SupportShareDialog bind:isOpen={showSupportShareDialog} />
+
 	<!-- User & License Status Bar (home and designers) -->
 	<div
 		class="fixed top-5 right-5 z-40 flex items-center gap-3 rounded-xl border border-slate-200 bg-white/90 px-4 py-2 shadow-sm backdrop-blur"
@@ -563,146 +602,156 @@
 			>
 				Sign In
 			</button>
+			<button
+				type="button"
+				class="cursor-pointer rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:outline-none"
+				onclick={() => (showSupportShareDialog = true)}
+			>
+				Support Keychain Studio
+			</button>
 		{/if}
 	</div>
 
-	<!-- Router -->
-	{#if currentView === 'home'}
-		<HomeScreen
-			paidOnlyDesigners={PAID_ONLY_DESIGNERS}
-			{licenseStatus}
-			onSelect={handleStyleSelect}
-			onOpenLicenseInfo={openLicenseInfo}
-		/>
-	{:else if currentView === 'textOutline'}
-		<TextOutlineDesigner
-			{user}
-			{session}
-			{licenseStatus}
-			{licenseModalRef}
-			onBack={handleBack}
-			onRequestLogin={() => (showLoginModal = true)}
-			onShowThankYou={() => (showThankYouDialog = true)}
-		/>
-	{:else if currentView === 'initial'}
-		<InitialDesigner
-			{user}
-			{session}
-			{licenseStatus}
-			{licenseModalRef}
-			onBack={handleBack}
-			onRequestLogin={() => (showLoginModal = true)}
-			onShowThankYou={() => (showThankYouDialog = true)}
-		/>
-	{:else if currentView === 'flower'}
-		<FlowerDesigner
-			{user}
-			{session}
-			{licenseStatus}
-			{licenseModalRef}
-			onBack={handleBack}
-			onRequestLogin={() => (showLoginModal = true)}
-			onShowThankYou={() => (showThankYouDialog = true)}
-		/>
-	{:else if currentView === 'basicName'}
-		<BasicNameDesigner
-			{user}
-			{session}
-			{licenseStatus}
-			{licenseModalRef}
-			onBack={handleBack}
-			onRequestLogin={() => (showLoginModal = true)}
-			onShowThankYou={() => (showThankYouDialog = true)}
-		/>
-	{:else if currentView === 'customSvg'}
-		<CustomSVGDesigner
-			{user}
-			{session}
-			{licenseStatus}
-			{licenseModalRef}
-			onBack={handleBack}
-			onRequestLogin={() => (showLoginModal = true)}
-			onShowThankYou={() => (showThankYouDialog = true)}
-		/>
-	{:else if currentView === 'charm'}
-		<CharmDesigner
-			{user}
-			{session}
-			{licenseStatus}
-			{licenseModalRef}
-			onBack={handleBack}
-			onRequestLogin={() => (showLoginModal = true)}
-			onShowThankYou={() => (showThankYouDialog = true)}
-		/>
-	{:else if currentView === 'keycap'}
-		<KeycapDesigner
-			{user}
-			{session}
-			{licenseStatus}
-			{licenseModalRef}
-			onBack={handleBack}
-			onRequestLogin={() => (showLoginModal = true)}
-			onShowThankYou={() => (showThankYouDialog = true)}
-		/>
-	{:else if currentView === 'whistle'}
-		<WhistleDesigner
-			{user}
-			{session}
-			{licenseStatus}
-			{licenseModalRef}
-			onBack={handleBack}
-			onRequestLogin={() => (showLoginModal = true)}
-			onShowThankYou={() => (showThankYouDialog = true)}
-		/>
-	{:else if currentView === 'stanleyTopper'}
-		<StanleyTopperDesigner
-			{user}
-			{session}
-			{licenseStatus}
-			{licenseModalRef}
-			onBack={handleBack}
-			onRequestLogin={() => (showLoginModal = true)}
-			onShowThankYou={() => (showThankYouDialog = true)}
-		/>
-	{:else if currentView === 'dogtag'}
-		<DogTagDesigner
-			{user}
-			{session}
-			{licenseStatus}
-			{licenseModalRef}
-			onBack={handleBack}
-			onRequestLogin={() => (showLoginModal = true)}
-			onShowThankYou={() => (showThankYouDialog = true)}
-		/>
-	{:else if currentView === 'bumpyText'}
-		<BumpyTextDesigner
-			{user}
-			{session}
-			{licenseStatus}
-			{licenseModalRef}
-			onBack={handleBack}
-			onRequestLogin={() => (showLoginModal = true)}
-			onShowThankYou={() => (showThankYouDialog = true)}
-		/>
-	{:else if currentView === 'bowKeychain'}
-		<BowKeychainDesigner
-			{user}
-			{session}
-			{licenseStatus}
-			{licenseModalRef}
-			onBack={handleBack}
-			onRequestLogin={() => (showLoginModal = true)}
-			onShowThankYou={() => (showThankYouDialog = true)}
-		/>
-	{:else if currentView === 'licenseInfo'}
-		<LicenseInfoPage onBack={handleBack as never} />
-	{:else if currentView === 'feedback'}
-		<FeedbackPage
-			{user}
-			{licenseStatus}
-			onBack={handleBack}
-			onRequestLogin={() => (showLoginModal = true)}
-			onOpenLicenseInfo={openLicenseInfo}
-		/>
-	{/if}
+	<!-- Main content (offset below notice banner on home only) -->
+	<div class={currentView === 'home' ? 'pt-16' : ''}>
+		<!-- Router -->
+		{#if currentView === 'home'}
+			<HomeScreen
+				paidOnlyDesigners={PAID_ONLY_DESIGNERS}
+				{licenseStatus}
+				onSelect={handleStyleSelect}
+				onOpenLicenseInfo={openLicenseInfo}
+			/>
+		{:else if currentView === 'textOutline'}
+			<TextOutlineDesigner
+				{user}
+				{session}
+				{licenseStatus}
+				{licenseModalRef}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+			/>
+		{:else if currentView === 'initial'}
+			<InitialDesigner
+				{user}
+				{session}
+				{licenseStatus}
+				{licenseModalRef}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+			/>
+		{:else if currentView === 'flower'}
+			<FlowerDesigner
+				{user}
+				{session}
+				{licenseStatus}
+				{licenseModalRef}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+			/>
+		{:else if currentView === 'basicName'}
+			<BasicNameDesigner
+				{user}
+				{session}
+				{licenseStatus}
+				{licenseModalRef}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+			/>
+		{:else if currentView === 'customSvg'}
+			<CustomSVGDesigner
+				{user}
+				{session}
+				{licenseStatus}
+				{licenseModalRef}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+			/>
+		{:else if currentView === 'charm'}
+			<CharmDesigner
+				{user}
+				{session}
+				{licenseStatus}
+				{licenseModalRef}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+			/>
+		{:else if currentView === 'keycap'}
+			<KeycapDesigner
+				{user}
+				{session}
+				{licenseStatus}
+				{licenseModalRef}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+			/>
+		{:else if currentView === 'whistle'}
+			<WhistleDesigner
+				{user}
+				{session}
+				{licenseStatus}
+				{licenseModalRef}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+			/>
+		{:else if currentView === 'stanleyTopper'}
+			<StanleyTopperDesigner
+				{user}
+				{session}
+				{licenseStatus}
+				{licenseModalRef}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+			/>
+		{:else if currentView === 'dogtag'}
+			<DogTagDesigner
+				{user}
+				{session}
+				{licenseStatus}
+				{licenseModalRef}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+			/>
+		{:else if currentView === 'bumpyText'}
+			<BumpyTextDesigner
+				{user}
+				{session}
+				{licenseStatus}
+				{licenseModalRef}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+			/>
+		{:else if currentView === 'bowKeychain'}
+			<BowKeychainDesigner
+				{user}
+				{session}
+				{licenseStatus}
+				{licenseModalRef}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+			/>
+		{:else if currentView === 'licenseInfo'}
+			<LicenseInfoPage onBack={handleBack as never} />
+		{:else if currentView === 'feedback'}
+			<FeedbackPage
+				{user}
+				{licenseStatus}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onOpenLicenseInfo={openLicenseInfo}
+			/>
+		{/if}
+	</div>
 {/if}
