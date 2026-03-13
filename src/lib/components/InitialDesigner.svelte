@@ -5,6 +5,8 @@
     import * as THREE from "three";
     import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
     import { STLExporter } from "three/examples/jsm/exporters/STLExporter";
+    import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
+    import { exportTo3MF } from "three-3mf-exporter";
     import FontSelect from "$lib/components/FontSelect.svelte";
     import type { LicenseStatus } from "$lib/licensing";
     import {
@@ -259,6 +261,106 @@
         if (licenseStatus?.type === "trial") onShowThankYou();
     }
 
+    /** 3MF: 3 objects. (1) Initial + text outline merged, same color. (2) Text outline only. (3) Text only. */
+    async function export3MF() {
+        if (!user) {
+            onRequestLogin();
+            return;
+        }
+        if (!licenseStatus?.canExport) {
+            licenseModalRef?.open();
+            return;
+        }
+        if (!group || group.children.length === 0) return;
+        try {
+            group.updateWorldMatrix(true, true);
+            const byName: Record<string, THREE.Mesh> = {};
+            for (const child of group.children) {
+                if ((child as THREE.Mesh).isMesh && (child as THREE.Mesh).name) {
+                    byName[(child as THREE.Mesh).name] = child as THREE.Mesh;
+                }
+            }
+            const initialMesh = byName.initial;
+            const initialBaseMesh = byName.initialBase;
+            const outlineMesh = byName.outline;
+            const textMesh = byName.text;
+            const keyringMesh = byName.keyring;
+            const geoWorld = (mesh: THREE.Mesh) =>
+                mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+            const mergeAll = (meshes: THREE.Mesh[]) => {
+                const geos = meshes.map(geoWorld);
+                const merged =
+                    geos.length === 1
+                        ? geos[0]
+                        : BufferGeometryUtils.mergeGeometries(geos);
+                if (!merged) return null;
+                if (geos.length > 1)
+                    geos.forEach((g) => g !== merged && g.dispose());
+                return BufferGeometryUtils.mergeVertices(merged, 1e-3);
+            };
+            const exportGroup = new THREE.Group();
+            // Bottom: initial + text outline merged into 1 object, text color
+            const bottomMeshes: THREE.Mesh[] = [];
+            if (initialMesh) bottomMeshes.push(initialMesh);
+            if (initialBaseMesh) bottomMeshes.push(initialBaseMesh);
+            if (keyringMesh) bottomMeshes.push(keyringMesh);
+            const bottomGeo =
+                bottomMeshes.length > 0 ? mergeAll(bottomMeshes) : null;
+            if (bottomGeo) {
+                exportGroup.add(
+                    new THREE.Mesh(
+                        bottomGeo,
+                        new THREE.MeshBasicMaterial({
+                            color: new THREE.Color(textColor),
+                        }),
+                    ),
+                );
+            }
+            // Middle: text outline only, outline color
+            if (outlineMesh) {
+                const outlineOnlyGeo = mergeAll([outlineMesh]);
+                if (outlineOnlyGeo) {
+                    exportGroup.add(
+                        new THREE.Mesh(
+                            outlineOnlyGeo,
+                            new THREE.MeshBasicMaterial({
+                                color: new THREE.Color(outlineColor),
+                            }),
+                        ),
+                    );
+                }
+            }
+            // Top: text only, text color
+            if (textMesh) {
+                const textOnlyGeo = mergeAll([textMesh]);
+                if (textOnlyGeo) {
+                    exportGroup.add(
+                        new THREE.Mesh(
+                            textOnlyGeo,
+                            new THREE.MeshBasicMaterial({
+                                color: new THREE.Color(textColor),
+                            }),
+                        ),
+                    );
+                }
+            }
+            if (exportGroup.children.length === 0) return;
+            exportGroup.updateWorldMatrix(true, true);
+            const blob = await exportTo3MF(exportGroup);
+            if (!blob || blob.size === 0) return;
+            const safe = (text || "model")
+                .trim()
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/(^-|-$)/g, "");
+            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+            downloadBlob(`${safe || "model"}-initial-${timestamp}.3mf`, blob);
+            if (licenseStatus?.type === "trial") onShowThankYou();
+        } catch (e) {
+            console.error("3MF export failed", e);
+        }
+    }
+
     // ── Rebuild meshes (initial + text) ─────────────────────────────────────
     function rebuildMeshes() {
         if (!scene || !group || !font) return;
@@ -406,7 +508,6 @@
         });
 
         // ── Build the large initial mesh ────────────────────────────────────
-        let initialMesh: any = null;
         const initialCharStr =
             (text?.charAt(0)?.toUpperCase() as string) || "A";
         const initialSize = Math.max(1, Math.round(initialTextSize));
@@ -439,39 +540,37 @@
             );
         }
         const initialThreeShapes = polyTreeToThreeShapes(initialTree);
+        const initialDepthVal = Math.max(0.1, initialDepth);
+        let initialMesh: THREE.Mesh | null = null;
+        let initialBaseMesh: THREE.Mesh | null = null;
         if (initialThreeShapes.length > 0) {
             const initialGeo = new THREE.ExtrudeGeometry(initialThreeShapes, {
-                depth: Math.max(0.1, initialDepth),
+                depth: initialDepthVal,
                 bevelEnabled: false,
                 curveSegments: 12,
             });
             centerGeometryXY(initialGeo);
             initialMesh = new THREE.Mesh(initialGeo, textMat);
+            initialMesh.name = "initial";
             initialMesh.castShadow = true;
             initialMesh.receiveShadow = true;
-            initialMesh.position.z = 0;
+            initialMesh.position.z = 0.002;
             group.add(initialMesh);
-        }
-
-        // ── Initial base (outline shape at initialDepth + textColor) ────────
-        // This creates a colored platform under the main outline base,
-        // so the initial's color extends through the outline footprint.
-        let initialBaseMesh: any = null;
-        if (initialMesh) {
             const initialBaseGeo = new THREE.ExtrudeGeometry(baseShapes, {
-                depth: Math.max(0.1, initialDepth),
+                depth: initialDepthVal,
                 bevelEnabled: false,
                 curveSegments: 12,
             });
             centerGeometryXY(initialBaseGeo);
             initialBaseMesh = new THREE.Mesh(initialBaseGeo, textMat);
+            initialBaseMesh.name = "initialBase";
             initialBaseMesh.castShadow = true;
             initialBaseMesh.receiveShadow = true;
-            initialBaseMesh.position.z = 0.0;
+            initialBaseMesh.position.z = 0;
             group.add(initialBaseMesh);
         }
 
-        // ── Base + text meshes ──────────────────────────────────────────────
+        // ── Outline (middle layer) + text (top layer) ────────────────────────
         const baseGeo = new THREE.ExtrudeGeometry(baseShapes, {
             depth: Math.max(0.1, baseDepth),
             bevelEnabled: false,
@@ -486,15 +585,15 @@
         centerGeometryXY(textGeo);
 
         const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+        baseMesh.name = "outline";
         const textMesh = new THREE.Mesh(textGeo, textMat);
+        textMesh.name = "text";
         baseMesh.castShadow = true;
         baseMesh.receiveShadow = true;
         textMesh.castShadow = true;
         textMesh.receiveShadow = true;
 
         if (initialMesh) {
-            // Stack: initial + initialBase at z=0, base on top at initialDepth, text on top of base
-            initialMesh.position.z = 0.005;
             baseMesh.position.z = Math.max(0.1, initialDepth) + 0.01;
             textMesh.position.z =
                 Math.max(0.1, initialDepth) + Math.max(0.1, baseDepth) + 0.02;
@@ -520,6 +619,7 @@
             const bb = new THREE.Box3().setFromObject(keyringAnchorMesh);
             const corner = new THREE.Vector3(bb.min.x, bb.max.y, 0);
             const ringMesh = new THREE.Mesh(ringGeo, textMat);
+            ringMesh.name = "keyring";
             ringMesh.castShadow = true;
             ringMesh.receiveShadow = true;
             ringMesh.position.set(
@@ -1130,12 +1230,13 @@
                             "keychain-initial",
                         )}
                     onExport={exportSTL}
+                    onExport3MF={() => void export3MF()}
                     exportDisabled={!user || licenseStatus?.canExport === false}
                     exportTitle={!user
                         ? "Sign in to export"
                         : licenseStatus?.canExport === false
                           ? "License required to export"
-                          : "Export STL"}
+                          : "Export STL or 3MF"}
                     showLockIcon={!user ||
                         licenseStatus?.canExport === false} />
             </div>

@@ -6,6 +6,7 @@
     import * as THREE from "three";
     import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
     import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
+    import { exportTo3MF } from "three-3mf-exporter";
     import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
     import ClipperLib from "clipper-lib";
     import FontSelect from "$lib/components/FontSelect.svelte";
@@ -354,6 +355,7 @@
             metalness: 0.05,
         });
         const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+        baseMesh.name = "base";
         baseMesh.castShadow = true;
         baseMesh.receiveShadow = true;
         baseMesh.position.z = 0;
@@ -550,6 +552,7 @@
                 metalness: 0.05,
             });
             const topMesh = new THREE.Mesh(topGeo, borderMat);
+            topMesh.name = "border";
             topMesh.castShadow = true;
             topMesh.receiveShadow = true;
             // Slight embed so border isn't coplanar with base (flush made it disappear in export)
@@ -577,6 +580,7 @@
                     });
 
                     const textMesh = new THREE.Mesh(textGeo, textMat);
+                    textMesh.name = "text";
                     textMesh.castShadow = true;
                     textMesh.receiveShadow = true;
                     // Embed text into base so they overlap (avoids non-manifold at contact)
@@ -652,6 +656,42 @@
             const blob = new Blob([buffer], { type: "model/stl" });
             const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
             downloadBlob(`rounded-rect-${timestamp}.stl`, blob);
+            if (licenseStatus?.type === "trial") onShowThankYou();
+        } catch (e) {
+            exportError = e instanceof Error ? e.message : "Export failed";
+        } finally {
+            exportLoading = false;
+        }
+    }
+
+    async function export3MF() {
+        if (!user) {
+            onRequestLogin();
+            return;
+        }
+        if (!licenseStatus?.canExport) {
+            licenseModalRef?.open();
+            return;
+        }
+        exportError = null;
+        exportLoading = true;
+        try {
+            if (!group || !scene) throw new Error("Scene not ready");
+            rebuildMeshes();
+            group.updateWorldMatrix(true, true);
+            // Clone and raise text so it sits on top of base (no embed) for cleaner slicing
+            const exportGroup = group.clone(true);
+            exportGroup.traverse((obj: THREE.Object3D) => {
+                if (obj instanceof THREE.Mesh && obj.name === "text") {
+                    obj.position.z += TEXT_BASE_EMBED;
+                }
+            });
+            exportGroup.updateWorldMatrix(true, true);
+            const blob = await exportTo3MF(exportGroup);
+            if (!blob || blob.size === 0)
+                throw new Error("Export produced no geometry");
+            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+            downloadBlob(`rounded-rect-multipart-${timestamp}.3mf`, blob);
             if (licenseStatus?.type === "trial") onShowThankYou();
         } catch (e) {
             exportError = e instanceof Error ? e.message : "Export failed";
@@ -1062,6 +1102,7 @@
                             "rounded-rect",
                         )}
                     onExport={exportSTL}
+                    onExport3MF={export3MF}
                     exportDisabled={!user ||
                         licenseStatus?.canExport === false ||
                         exportLoading}
@@ -1069,7 +1110,7 @@
                         ? "Sign in to export"
                         : licenseStatus?.canExport === false
                           ? "License required to export"
-                          : "Export STL (base + border, no text) for 3D print"}
+                          : "Export STL (single mesh) or 3MF (multipart) for 3D print"}
                     {exportLoading}
                     showLockIcon={!user ||
                         licenseStatus?.canExport === false} />

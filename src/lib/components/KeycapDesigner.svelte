@@ -8,6 +8,7 @@
     import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
     import { SVGLoader } from "three/examples/jsm/loaders/SVGLoader.js";
     import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
+    import { exportTo3MF } from "three-3mf-exporter";
     import defaultKeycapStlUrl from "$lib/assets/stl/keycap.stl?url";
     import FontSelect from "$lib/components/FontSelect.svelte";
     import type { LicenseStatus } from "$lib/licensing";
@@ -635,6 +636,50 @@
         }
     }
 
+    async function export3MF() {
+        if (!group || !scene) return;
+        if (!user) {
+            onRequestLogin();
+            return;
+        }
+        if (!licenseStatus?.canExport) {
+            licenseModalRef?.open();
+            return;
+        }
+        rebuildMeshes();
+        group.updateWorldMatrix(true, true);
+        const exportGroup = new THREE.Group();
+        for (const child of group.children) {
+            if (!(child as THREE.Mesh).isMesh) continue;
+            const mesh = child as THREE.Mesh;
+            const geo = mesh.geometry
+                .clone()
+                .applyMatrix4(mesh.matrixWorld);
+            const mat = (Array.isArray(mesh.material)
+                ? mesh.material[0]
+                : mesh.material) as THREE.MeshStandardMaterial;
+            const color =
+                mat?.color != null
+                    ? mat.color.clone()
+                    : new THREE.Color(0xffffff);
+            exportGroup.add(
+                new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color })),
+            );
+        }
+        if (exportGroup.children.length === 0) return;
+        exportGroup.updateWorldMatrix(true, true);
+        const blob = await exportTo3MF(exportGroup);
+        if (!blob || blob.size === 0) return;
+        const slug = (keycapFileName || uploadName || "keycap")
+            .toLowerCase()
+            .replace(/\.(stl|svg)$/i, "")
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/(^-|-$)/g, "");
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        downloadBlob(`${slug || "keycap"}-${timestamp}.3mf`, blob);
+        if (licenseStatus?.type === "trial") onShowThankYou();
+    }
+
     $effect(() => {
         void keycapGeometry;
         void optimizedSvg;
@@ -1015,6 +1060,7 @@
                         : licenseStatus?.canExport === false
                           ? "License required to export"
                           : "Export STL"}
+                    onExport3MF={() => void export3MF()}
                     {exportLoading}
                     showLockIcon={false} />
             </div>

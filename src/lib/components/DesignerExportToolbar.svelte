@@ -7,6 +7,11 @@
         exportLoading?: boolean;
         /** When true, show lock icon + "Export STL" on the export button (e.g. when login/license required). */
         showLockIcon?: boolean;
+        /** Optional: when provided, show a second "Export 3MF" button for multipart 3MF export (base, border, text). */
+        onExport3MF?: () => void;
+        /** Optional: when provided, show a second STL button (e.g. "Bow+text STL"). */
+        onExportSTL2?: () => void;
+        exportSTL2Label?: string;
     }
 
     let {
@@ -16,6 +21,9 @@
         exportTitle,
         exportLoading = false,
         showLockIcon = false,
+        onExport3MF,
+        onExportSTL2,
+        exportSTL2Label = "Bow+text STL",
     }: Props = $props();
 </script>
 
@@ -67,4 +75,33 @@
             Export STL
         {/if}
     </button>
+    {#if onExportSTL2}
+        <button
+            class="rounded-full border border-slate-200 bg-white/90 px-3 py-2 text-sm font-semibold tracking-tight text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+            type="button"
+            onclick={onExportSTL2}
+            disabled={exportDisabled}
+            title="Export bow + text as one STL">
+            {#if exportLoading}
+                Exporting…
+            {:else}
+                {exportSTL2Label}
+            {/if}
+        </button>
+    {/if}
+    {#if onExport3MF}
+        <button
+            class="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-semibold tracking-tight text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+            type="button"
+            onclick={onExport3MF}
+            aria-label="Download 3MF (multipart)"
+            disabled={exportDisabled}
+            title="Export 3MF with separate parts (base, border, text) for multi-material printing">
+            {#if exportLoading}
+                Exporting…
+            {:else}
+                Export 3MF
+            {/if}
+        </button>
+    {/if}
 </div>

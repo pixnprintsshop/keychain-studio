@@ -5,6 +5,7 @@
     import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
     import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
     import { STLLoader } from "three/examples/jsm/loaders/STLLoader";
+    import { exportTo3MF } from "three-3mf-exporter";
     import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
     import baseStlUrl from "$lib/assets/stl/flower/base.stl?url";
     import topStlUrl from "$lib/assets/stl/flower/top.stl?url";
@@ -332,6 +333,78 @@
             const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
             downloadBlob(`flower-${timestamp}.stl`, blob);
         }
+        if (licenseStatus?.type === "trial") onShowThankYou();
+    }
+
+    async function export3MF() {
+        if (!group || !scene) return;
+        if (!user) {
+            onRequestLogin();
+            return;
+        }
+        if (!licenseStatus?.canExport) {
+            licenseModalRef?.open();
+            return;
+        }
+        rebuildMeshes();
+        group.updateWorldMatrix(true, true);
+        const exportGroup = new THREE.Group();
+        const meshes = group.children.filter(
+            (c: THREE.Object3D) => (c as THREE.Mesh).isMesh,
+        ) as THREE.Mesh[];
+        if (meshes.length === 0) return;
+        const geoWorld = (m: THREE.Mesh) =>
+            m.geometry.clone().applyMatrix4(m.matrixWorld);
+        const getColor = (m: THREE.Mesh) => {
+            const mat = (Array.isArray(m.material)
+                ? m.material[0]
+                : m.material) as THREE.MeshStandardMaterial;
+            return mat?.color != null
+                ? mat.color.clone()
+                : new THREE.Color(0xffffff);
+        };
+        if (meshes.length >= 1) {
+            exportGroup.add(
+                new THREE.Mesh(
+                    geoWorld(meshes[0]),
+                    new THREE.MeshBasicMaterial({ color: getColor(meshes[0]) }),
+                ),
+            );
+        }
+        if (meshes.length >= 2) {
+            exportGroup.add(
+                new THREE.Mesh(
+                    geoWorld(meshes[1]),
+                    new THREE.MeshBasicMaterial({ color: getColor(meshes[1]) }),
+                ),
+            );
+        }
+        if (meshes.length > 2) {
+            const textGeos = meshes.slice(2).map(geoWorld);
+            const mergedText =
+                textGeos.length === 1
+                    ? textGeos[0]
+                    : BufferGeometryUtils.mergeGeometries(textGeos);
+            if (mergedText) {
+                if (textGeos.length > 1) {
+                    textGeos.forEach((g) => g.dispose());
+                }
+                exportGroup.add(
+                    new THREE.Mesh(
+                        BufferGeometryUtils.mergeVertices(mergedText, 1e-3),
+                        new THREE.MeshBasicMaterial({
+                            color: new THREE.Color(charColor),
+                        }),
+                    ),
+                );
+            }
+        }
+        if (exportGroup.children.length === 0) return;
+        exportGroup.updateWorldMatrix(true, true);
+        const blob = await exportTo3MF(exportGroup);
+        if (!blob || blob.size === 0) return;
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        downloadBlob(`flower-${timestamp}.3mf`, blob);
         if (licenseStatus?.type === "trial") onShowThankYou();
     }
 
@@ -722,12 +795,13 @@
                     onSnapshot={() =>
                         downloadSnapshot(renderer, scene, camera, "flower")}
                     onExport={exportSTL}
+                    onExport3MF={() => void export3MF()}
                     exportDisabled={!user || licenseStatus?.canExport === false}
                     exportTitle={!user
                         ? "Sign in to export"
                         : licenseStatus?.canExport === false
                           ? "License required to export"
-                          : "Export STL"}
+                          : "Export STL or 3MF"}
                     showLockIcon={!user ||
                         licenseStatus?.canExport === false} />
             </div>

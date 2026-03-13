@@ -172,6 +172,64 @@ export function disposeObject3D(obj: any) {
 	});
 }
 
+/**
+ * Parse STL (ASCII or binary) into Three.js BufferGeometry.
+ * @param data - STL file contents as string (ASCII) or ArrayBuffer (binary)
+ */
+export function stlToBufferGeometry(data: string | ArrayBuffer): THREE.BufferGeometry {
+	const isBinary =
+		typeof data !== "string" &&
+		data.byteLength >= 84 &&
+		new TextDecoder().decode(new Uint8Array(data, 0, 5)) !== "solid";
+
+	if (isBinary && typeof data !== "string") {
+		const view = new DataView(data);
+		const numTriangles = view.getUint32(80, true);
+		const positions: number[] = [];
+		const normals: number[] = [];
+		let offset = 84;
+		for (let i = 0; i < numTriangles; i++) {
+			const nx = view.getFloat32(offset, true);
+			const ny = view.getFloat32(offset + 4, true);
+			const nz = view.getFloat32(offset + 8, true);
+			normals.push(nx, ny, nz, nx, ny, nz, nx, ny, nz);
+			for (let v = 0; v < 3; v++) {
+				positions.push(
+					view.getFloat32(offset + 12 + v * 12, true),
+					view.getFloat32(offset + 12 + v * 12 + 4, true),
+					view.getFloat32(offset + 12 + v * 12 + 8, true),
+				);
+			}
+			offset += 50;
+		}
+		const geo = new THREE.BufferGeometry();
+		geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+		geo.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+		return geo;
+	}
+
+	// ASCII STL: parse facet-by-facet so normals and vertices stay aligned
+	const text = typeof data === "string" ? data : new TextDecoder().decode(data);
+	const pos: number[] = [];
+	const norm: number[] = [];
+	const facetBlockRe = /facet normal\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+outer loop\s+vertex\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+vertex\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+vertex\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)/g;
+	let m = facetBlockRe.exec(text);
+	while (m) {
+		const nx = parseFloat(m[1]);
+		const ny = parseFloat(m[2]);
+		const nz = parseFloat(m[3]);
+		norm.push(nx, ny, nz, nx, ny, nz, nx, ny, nz);
+		pos.push(parseFloat(m[4]), parseFloat(m[5]), parseFloat(m[6]));
+		pos.push(parseFloat(m[7]), parseFloat(m[8]), parseFloat(m[9]));
+		pos.push(parseFloat(m[10]), parseFloat(m[11]), parseFloat(m[12]));
+		m = facetBlockRe.exec(text);
+	}
+	const geo = new THREE.BufferGeometry();
+	geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+	geo.setAttribute("normal", new THREE.Float32BufferAttribute(norm, 3));
+	return geo;
+}
+
 export function downloadBlob(filename: string, blob: Blob) {
 	const url = URL.createObjectURL(blob);
 	const a = document.createElement("a");
@@ -180,7 +238,9 @@ export function downloadBlob(filename: string, blob: Blob) {
 	document.body.appendChild(a);
 	a.click();
 	a.remove();
-	URL.revokeObjectURL(url);
+	// Revoke after a delay so the browser can start the download; revoking
+	// immediately can make subsequent downloads in the same session fail.
+	setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export function downloadSnapshot(renderer: any, scene: any, camera: any, filenamePrefix: string) {

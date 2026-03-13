@@ -5,6 +5,7 @@
     import * as THREE from "three";
     import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
     import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
+    import { exportTo3MF } from "three-3mf-exporter";
     import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
     import FontSelect from "$lib/components/FontSelect.svelte";
     import type { LicenseStatus } from "$lib/licensing";
@@ -253,6 +254,38 @@
             const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
             downloadBlob(`${safe || "model"}-${timestamp}.stl`, blob);
         }
+        if (licenseStatus?.type === "trial") onShowThankYou();
+    }
+
+    async function export3MF() {
+        if (!group || !scene) return;
+        if (!user) {
+            onRequestLogin();
+            return;
+        }
+        if (!licenseStatus?.canExport) {
+            licenseModalRef?.open();
+            return;
+        }
+        rebuildMeshes();
+        group.updateWorldMatrix(true, true);
+        // Clone and raise text so it sits on top of base (no embed) for cleaner slicing
+        const exportGroup = group.clone(true);
+        exportGroup.traverse((obj: THREE.Object3D) => {
+            if (obj instanceof THREE.Mesh && obj.name === "text") {
+                obj.position.z += TEXT_BASE_EMBED;
+            }
+        });
+        exportGroup.updateWorldMatrix(true, true);
+        const blob = await exportTo3MF(exportGroup);
+        if (!blob || blob.size === 0) return;
+        const safe = (text || "model")
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/(^-|-$)/g, "");
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        downloadBlob(`${safe || "model"}-multipart-${timestamp}.3mf`, blob);
         if (licenseStatus?.type === "trial") onShowThankYou();
     }
 
@@ -542,6 +575,8 @@
 
         const baseMesh = new THREE.Mesh(baseGeo, baseMat);
         const textMesh = new THREE.Mesh(textGeo, textMat);
+        baseMesh.name = "base";
+        textMesh.name = "text";
         baseMesh.castShadow = true;
         baseMesh.receiveShadow = true;
         textMesh.castShadow = true;
@@ -1040,12 +1075,13 @@
                     onSnapshot={() =>
                         downloadSnapshot(renderer, scene, camera, "keychain")}
                     onExport={exportSTL}
+                    onExport3MF={export3MF}
                     exportDisabled={!user || licenseStatus?.canExport === false}
                     exportTitle={!user
                         ? "Sign in to export"
                         : licenseStatus?.canExport === false
                           ? "License required to export"
-                          : "Export STL"}
+                          : "Export STL or 3MF (multipart)"}
                     showLockIcon={!user ||
                         licenseStatus?.canExport === false} />
             </div>

@@ -7,6 +7,7 @@
     import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
     import { SVGLoader } from "three/examples/jsm/loaders/SVGLoader.js";
     import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
+    import { exportTo3MF } from "three-3mf-exporter";
     import ribbonSvgRaw from "$lib/assets/svg/ribbon.svg?raw";
     import FontSelect from "$lib/components/FontSelect.svelte";
     import type { LicenseStatus } from "$lib/licensing";
@@ -217,12 +218,11 @@
 
         const baseD = Math.max(0.01, baseDepth);
         const topD = Math.max(0.01, topDepth);
-        const extraTextD = Math.max(0.01, textDepth);
-        const textTotalDepth = baseD + topD + extraTextD;
 
         // Lower outline base: offset version of bow path (from Clipper)
         const baseGeoRaw = scaleGeometryToDepth(bowOutlineGeoUnit, baseDepth);
         const baseMesh = new THREE.Mesh(baseGeoRaw, baseMat);
+        baseMesh.name = "base";
         baseMesh.rotation.z = Math.PI;
         baseMesh.castShadow = true;
         baseMesh.receiveShadow = true;
@@ -232,6 +232,7 @@
         // Main bow base on top
         const topGeo = scaleGeometryToDepth(bowGeoUnit, topDepth);
         const topMesh = new THREE.Mesh(topGeo, topMat);
+        topMesh.name = "top";
         topMesh.rotation.z = Math.PI;
         topMesh.castShadow = true;
         topMesh.receiveShadow = true;
@@ -258,7 +259,7 @@
                 );
                 if (shapes.length > 0) {
                     const textGeo = new THREE.ExtrudeGeometry(shapes, {
-                        depth: textTotalDepth,
+                        depth: baseD,
                         bevelEnabled: false,
                     });
                     centerGeometryXY(textGeo);
@@ -283,11 +284,41 @@
                     const scaleCapped = Math.min(rawScale, widthCap);
 
                     const textMesh = new THREE.Mesh(textGeo, textMat);
+                    textMesh.name = "text";
                     textMesh.scale.set(scaleCapped, scaleCapped, 1);
                     textMesh.castShadow = true;
                     textMesh.receiveShadow = true;
-                    textMesh.position.set(0, 10, -TEXT_EMBED);
+                    textMesh.position.set(0, 10, 0);
                     group.add(textMesh);
+
+                    // Second text instance on top of base (same XY scale), bow height, for bow+text STL
+                    const textTopGeo = new THREE.ExtrudeGeometry(shapes, {
+                        depth: topD,
+                        bevelEnabled: false,
+                    });
+                    centerGeometryXY(textTopGeo);
+                    const textTopMesh = new THREE.Mesh(textTopGeo, textMat);
+                    textTopMesh.name = "textTop";
+                    textTopMesh.scale.set(scaleCapped, scaleCapped, 1);
+                    textTopMesh.castShadow = true;
+                    textTopMesh.receiveShadow = true;
+                    textTopMesh.position.set(0, 10, baseD);
+                    group.add(textTopMesh);
+
+                    // Third text instance on top of the bow (for 3MF "text only at top" layer)
+                    const extraTextD = Math.max(0.01, textDepth);
+                    const textTopMostGeo = new THREE.ExtrudeGeometry(shapes, {
+                        depth: extraTextD,
+                        bevelEnabled: false,
+                    });
+                    centerGeometryXY(textTopMostGeo);
+                    const textTopMostMesh = new THREE.Mesh(textTopMostGeo, textMat);
+                    textTopMostMesh.name = "textTopMost";
+                    textTopMostMesh.scale.set(scaleCapped, scaleCapped, 1);
+                    textTopMostMesh.castShadow = true;
+                    textTopMostMesh.receiveShadow = true;
+                    textTopMostMesh.position.set(0, 10, baseD + topD);
+                    group.add(textTopMostMesh);
                 }
             }
         }
@@ -308,6 +339,7 @@
                 metalness: 0.05,
             });
             const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+            ringMesh.name = "keyring";
             ringMesh.castShadow = true;
             ringMesh.receiveShadow = true;
             ringMesh.position.set(0, bowTopY - 4, 0);
@@ -339,6 +371,7 @@
         }
     }
 
+    /** STL: outline base + merged text, then bow + merged text on top; all merged into one watertight STL. */
     async function exportSTL() {
         if (!user) {
             onRequestLogin();
@@ -355,26 +388,40 @@
         exportError = null;
         exportLoading = true;
         try {
-            const geometries: THREE.BufferGeometry[] = [];
+            group.updateWorldMatrix(true, true);
+            const forStl: THREE.Mesh[] = [];
             for (const child of group.children) {
-                if ((child as THREE.Mesh).isMesh) {
-                    const mesh = child as THREE.Mesh;
-                    let g = mesh.geometry
-                        .clone()
-                        .applyMatrix4(mesh.matrixWorld);
-                    if (g.getAttribute("uv")) g.deleteAttribute("uv");
-                    if (!g.getAttribute("normal")) g.computeVertexNormals();
-                    if (g.index) {
-                        const nonIndexed = g.toNonIndexed();
-                        g.dispose();
-                        g = nonIndexed;
-                    }
-                    geometries.push(g);
+                if (!(child as THREE.Mesh).isMesh) continue;
+                const mesh = child as THREE.Mesh;
+                const name = mesh.name;
+                if (
+                    name === "base" ||
+                    name === "keyring" ||
+                    name === "text" ||
+                    name === "top" ||
+                    name === "textTop" ||
+                    name === "textTopMost"
+                ) {
+                    forStl.push(mesh);
                 }
             }
-            if (geometries.length === 0) {
+            if (forStl.length === 0) {
                 exportError = "Nothing to export";
                 return;
+            }
+            const geometries: THREE.BufferGeometry[] = [];
+            for (const mesh of forStl) {
+                let g = mesh.geometry
+                    .clone()
+                    .applyMatrix4(mesh.matrixWorld);
+                if (g.getAttribute("uv")) g.deleteAttribute("uv");
+                if (!g.getAttribute("normal")) g.computeVertexNormals();
+                if (g.index) {
+                    const nonIndexed = g.toNonIndexed();
+                    g.dispose();
+                    g = nonIndexed;
+                }
+                geometries.push(g);
             }
             const merged =
                 geometries.length === 1
@@ -385,7 +432,9 @@
                 exportError = "Failed to merge geometry";
                 return;
             }
-            if (geometries.length > 1) geometries.forEach((g) => g.dispose());
+            if (geometries.length > 1) {
+                geometries.forEach((g) => g !== merged && g.dispose());
+            }
             const welded = BufferGeometryUtils.mergeVertices(merged, 1e-3);
             if (welded !== merged) merged.dispose();
 
@@ -412,6 +461,124 @@
             if (licenseStatus?.type === "trial") onShowThankYou();
         } catch (e) {
             exportError = e instanceof Error ? e.message : "Export failed";
+        } finally {
+            exportLoading = false;
+        }
+    }
+
+    /** Multi-color 3MF: 3 objects. (1) Outline base + text. (2) Main bow + text merged. (3) Text only at top. Each one color. */
+    async function export3MF() {
+        if (!user) {
+            onRequestLogin();
+            return;
+        }
+        if (!licenseStatus?.canExport) {
+            licenseModalRef?.open();
+            return;
+        }
+        if (!group || group.children.length === 0) {
+            exportError = "Nothing to export";
+            return;
+        }
+        exportError = null;
+        exportLoading = true;
+        try {
+            group.updateWorldMatrix(true, true);
+            const byName: Record<string, THREE.Mesh> = {};
+            for (const child of group.children) {
+                if ((child as THREE.Mesh).isMesh && (child as THREE.Mesh).name) {
+                    byName[(child as THREE.Mesh).name] = child as THREE.Mesh;
+                }
+            }
+            const baseMesh = byName.base;
+            const topMesh = byName.top;
+            const textMesh = byName.text;
+            const textTopMesh = byName.textTop;
+            const keyringMesh = byName.keyring;
+            if (!baseMesh) {
+                exportError = "Nothing to export";
+                return;
+            }
+            const geoWorld = (mesh: THREE.Mesh) =>
+                mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+            const mergeAll = (meshes: THREE.Mesh[]) => {
+                const geos = meshes.map(geoWorld);
+                const merged =
+                    geos.length === 1
+                        ? geos[0]
+                        : BufferGeometryUtils.mergeGeometries(geos);
+                if (!merged) return null;
+                if (geos.length > 1) geos.forEach((g) => g !== merged && g.dispose());
+                return BufferGeometryUtils.mergeVertices(merged, 1e-3);
+            };
+            const exportGroup = new THREE.Group();
+            // Bottom layer: expanded bow (base) + text merged, one color
+            const bottomMeshes = [baseMesh].concat(keyringMesh ? [keyringMesh] : []);
+            if (textMesh) bottomMeshes.push(textMesh);
+            const bottomGeo = mergeAll(bottomMeshes);
+            if (bottomGeo) {
+                exportGroup.add(
+                    new THREE.Mesh(
+                        bottomGeo,
+                        new THREE.MeshBasicMaterial({
+                            color: new THREE.Color(baseColor),
+                        }),
+                    ),
+                );
+            }
+            // Main bow + text merged as 1 object, one color (topColor)
+            const bowTextMeshes = topMesh ? [topMesh] : [];
+            if (textTopMesh) bowTextMeshes.push(textTopMesh);
+            const bowTextGeo =
+                bowTextMeshes.length > 0 ? mergeAll(bowTextMeshes) : null;
+            if (bowTextGeo) {
+                exportGroup.add(
+                    new THREE.Mesh(
+                        bowTextGeo,
+                        new THREE.MeshBasicMaterial({
+                            color: new THREE.Color(topColor),
+                        }),
+                    ),
+                );
+            }
+            // Text only on top of the bow, one color (textColor)
+            const textTopMostMesh = byName.textTopMost;
+            if (textTopMostMesh) {
+                const textOnlyGeo = mergeAll([textTopMostMesh]);
+                if (textOnlyGeo) {
+                    exportGroup.add(
+                        new THREE.Mesh(
+                            textOnlyGeo,
+                            new THREE.MeshBasicMaterial({
+                                color: new THREE.Color(textColor),
+                            }),
+                        ),
+                    );
+                }
+            }
+            if (exportGroup.children.length === 0) {
+                exportError = "Nothing to export";
+                return;
+            }
+            exportGroup.updateWorldMatrix(true, true);
+            const blob = await exportTo3MF(exportGroup);
+            if (!blob || blob.size === 0) {
+                exportError = "3MF export produced no data";
+                return;
+            }
+            const safe = (text || "bow")
+                .trim()
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/(^-|-$)/g, "");
+            const ts = new Date().toISOString().replace(/[:.]/g, "-");
+            downloadBlob(
+                `${safe || "bow"}-${ts}.3mf`,
+                blob,
+            );
+            if (licenseStatus?.type === "trial") onShowThankYou();
+        } catch (e) {
+            exportError = e instanceof Error ? e.message : "3MF export failed";
         } finally {
             exportLoading = false;
         }
@@ -1008,12 +1175,13 @@
                             );
                     }}
                     onExport={() => void exportSTL()}
+                    onExport3MF={() => void export3MF()}
                     exportDisabled={!user || licenseStatus?.canExport === false}
                     exportTitle={!user
                         ? "Sign in to export"
                         : licenseStatus?.canExport === false
                           ? "License required to export"
-                          : "Export STL"}
+                          : "Export STL or 3MF"}
                     {exportLoading}
                     showLockIcon={!user ||
                         licenseStatus?.canExport === false} />

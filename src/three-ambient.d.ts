@@ -6,3 +6,4 @@ declare module '$lib/assets/fonts/*.json';
 declare module 'clipper-lib';
 declare module 'three/examples/jsm/exporters/STLExporter';
 declare module 'three/examples/jsm/loaders/STLLoader';
+declare module 'three-3mf-exporter';

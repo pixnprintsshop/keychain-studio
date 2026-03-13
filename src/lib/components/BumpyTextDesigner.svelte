@@ -5,6 +5,7 @@
     import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
     import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
     import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
+    import { exportTo3MF } from "three-3mf-exporter";
     import FontSelect from "$lib/components/FontSelect.svelte";
     import type { LicenseStatus } from "$lib/licensing";
     import {
@@ -432,6 +433,62 @@
         }
     }
 
+    async function export3MF() {
+        if (!user) {
+            onRequestLogin();
+            return;
+        }
+        if (!licenseStatus?.canExport) {
+            licenseModalRef?.open();
+            return;
+        }
+        if (!group || !scene) return;
+        exportError = null;
+        exportLoading = true;
+        try {
+            rebuildMeshes();
+            group.updateWorldMatrix(true, true);
+            const exportGroup = new THREE.Group();
+            const mat = new THREE.MeshBasicMaterial({
+                color: new THREE.Color(textColor || "#24b6ff"),
+            });
+            for (let i = 0; i < group.children.length; i++) {
+                const child = group.children[i];
+                if (child && (child as THREE.Mesh).isMesh) {
+                    const mesh = child as THREE.Mesh;
+                    const geo = mesh.geometry
+                        .clone()
+                        .applyMatrix4(mesh.matrixWorld);
+                    exportGroup.add(new THREE.Mesh(geo, mat));
+                }
+            }
+            if (exportGroup.children.length === 0) {
+                exportError = "No text to export";
+                return;
+            }
+            exportGroup.updateWorldMatrix(true, true);
+            const blob = await exportTo3MF(exportGroup);
+            if (!blob || blob.size === 0) {
+                exportError = "3MF export produced no data";
+                return;
+            }
+            const safe = (textContent || "text")
+                .trim()
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/(^-|-$)/g, "");
+            const timestamp = new Date()
+                .toISOString()
+                .replace(/[:.]/g, "-");
+            downloadBlob(`${safe || "text"}-${timestamp}.3mf`, blob);
+            if (licenseStatus?.type === "trial") onShowThankYou();
+        } catch (e) {
+            exportError = e instanceof Error ? e.message : "3MF export failed";
+        } finally {
+            exportLoading = false;
+        }
+    }
+
     $effect(() => {
         const currentFont = fontKey;
         const currentChar = getCurrentChar();
@@ -829,12 +886,13 @@
                             );
                     }}
                     onExport={() => void exportSTL()}
+                    onExport3MF={() => void export3MF()}
                     exportDisabled={!user || licenseStatus?.canExport === false}
                     exportTitle={!user
                         ? "Sign in to export"
                         : licenseStatus?.canExport === false
                           ? "License required to export"
-                          : "Export STL"}
+                          : "Export STL or 3MF"}
                     {exportLoading}
                     showLockIcon={!user ||
                         licenseStatus?.canExport === false} />
