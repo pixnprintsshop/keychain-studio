@@ -524,8 +524,10 @@
 	<LicenseModal
 		bind:this={licenseModalRef}
 		{user}
-		onStatusChange={async () => {
-			if (user) {
+		onStatusChange={async (newStatus) => {
+			if (newStatus !== undefined) {
+				licenseStatus = newStatus;
+			} else if (user) {
 				licenseStatus = await checkLicenseStatus(user);
 			}
 		}}

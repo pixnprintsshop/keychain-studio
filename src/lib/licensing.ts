@@ -103,21 +103,20 @@ export function clearLicense(): void {
  */
 export async function initializeTrial(userId: string): Promise<boolean> {
     try {
-        // Check if user already has a trial
+        // Check if user already has a trial row (active or deactivated; table has unique on user_id)
         const { data: existingTrial, error: checkError } = await supabase
             .from("user_trials")
-            .select("*")
+            .select("id")
             .eq("user_id", userId)
-            .eq("is_active", true)
             .maybeSingle();
 
-        if (checkError && checkError.code !== "PGRST116") {
+        if (checkError) {
             console.error("Error checking trial:", checkError);
             // Don't fail completely, try to create trial anyway
         }
 
         if (existingTrial) {
-            // User already has a trial
+            // User already has a trial row - do not insert (would violate user_id unique constraint)
             return true;
         }
 
@@ -274,13 +273,13 @@ async function restoreLicenseFromServer(
             return null;
         }
 
-        // Fetch the linked license
+        // Fetch the linked license (use maybeSingle so inactive/missing returns null, not PGRST116)
         const { data: license, error: licenseError } = await supabase
             .from("licenses")
             .select("*")
             .eq("id", activation.license_id)
             .eq("is_active", true)
-            .single();
+            .maybeSingle();
 
         if (licenseError || !license) {
             return null;
@@ -385,7 +384,7 @@ export async function checkLicenseStatus(
                     .from("licenses")
                     .select("tier")
                     .eq("license_key", licenseKey)
-                    .single();
+                    .maybeSingle();
                 if (licenseRow?.tier != null) {
                     licenseData = { ...licenseData, tier: licenseRow.tier };
                     storeLicense(licenseKey, licenseData);
@@ -470,13 +469,12 @@ export async function validateDeviceActivation(
     if (!licenseKey) return false;
 
     try {
-        // Get license by key
+        // Get license by key (do not require is_active so newly activated license validates even if UPDATE lagged)
         const { data: license, error: licenseError } = await supabase
             .from("licenses")
             .select("*")
             .eq("license_key", licenseKey)
-            .eq("is_active", true)
-            .single();
+            .maybeSingle();
 
         if (licenseError || !license) {
             return false;
@@ -526,7 +524,7 @@ export async function validateDeviceActivation(
 export async function activateLicense(
     licenseKey: string,
     userId: string,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; alreadyActivated?: boolean }> {
     try {
         // Validate license key format (basic check)
         if (!licenseKey || licenseKey.trim().length === 0) {
@@ -535,18 +533,29 @@ export async function activateLicense(
 
         const deviceName = `${navigator.platform} - ${navigator.userAgent.split(" ")[0]}`;
 
-        // Get license from Supabase
+        // Clear any existing (e.g. expired) stored license so the new one is the only one in use
+        clearLicense();
+
+        // Deactivate trial first (expired or not) so activation is not blocked by trial state
+        const { error: trialDeactivateError } = await supabase
+            .from("user_trials")
+            .update({ is_active: false })
+            .eq("user_id", userId);
+        if (trialDeactivateError) {
+            console.warn("License activation: could not deactivate trial (non-fatal):", trialDeactivateError.message);
+        }
+
+        // Get license from Supabase (allow inactive keys so user can activate and we set active on first use)
         const { data: license, error: licenseError } = await supabase
             .from("licenses")
             .select("*")
             .eq("license_key", licenseKey.trim())
-            .eq("is_active", true)
-            .single();
+            .maybeSingle();
 
         if (licenseError || !license) {
             return {
                 success: false,
-                error: "Invalid or inactive license key",
+                error: "Invalid license key",
             };
         }
 
@@ -561,7 +570,26 @@ export async function activateLicense(
             }
         }
 
-        // Check existing activations for this license (license is tied to one user only)
+        // One user per license: RPC bypasses RLS so we see all activations (client SELECT may be restricted)
+        const { data: byAnotherUser, error: rpcError } = await supabase.rpc(
+            "license_activated_by_another_user",
+            { p_license_id: license.id, p_user_id: userId },
+        );
+        if (rpcError) {
+            return {
+                success: false,
+                error: "Error checking license",
+            };
+        }
+        if (byAnotherUser) {
+            return {
+                success: false,
+                error:
+                    "This license is already activated to another account. Each license can only be used by one account.",
+            };
+        }
+
+        // Get existing activations for this license (for this user: refresh; for device limit check)
         const { data: existingActivations, error: countError } = await supabase
             .from("device_activations")
             .select("id, user_id")
@@ -575,23 +603,9 @@ export async function activateLicense(
         }
 
         const currentDeviceCount = existingActivations?.length || 0;
-        const activationByAnotherUser = existingActivations?.some(
-            (a) => a.user_id !== userId,
-        );
-
-        // Check if this user is already activated
         const existingActivation = existingActivations?.find(
             (a) => a.user_id === userId,
         );
-
-        // License is tied to one user only: if already activated by a different user, reject
-        if (activationByAnotherUser && !existingActivation) {
-            return {
-                success: false,
-                error:
-                    "This license is already activated to another account. Each license can only be used by one account.",
-            };
-        }
 
         // If this user is not already activated, check device limit
         if (!existingActivation) {
@@ -604,7 +618,7 @@ export async function activateLicense(
         }
 
         if (existingActivation) {
-            // User already activated, just update validation time
+            // User already activated this license: refresh validation time and ensure license is active
             await supabase
                 .from("device_activations")
                 .update({
@@ -612,7 +626,18 @@ export async function activateLicense(
                     device_name: deviceName,
                 })
                 .eq("id", existingActivation.id);
+            await supabase.rpc("set_license_active", { p_license_id: license.id });
+            // Fall through to store and return with alreadyActivated: true
         } else {
+            // Remove all of this user's activations (e.g. expired license) so we replace with the new one
+            const { error: deleteError } = await supabase
+                .from("device_activations")
+                .delete()
+                .eq("user_id", userId);
+            if (deleteError) {
+                console.warn("License activation: could not remove old activations (non-fatal):", deleteError.message);
+            }
+
             // Create new user activation
             const { error: activationError } = await supabase
                 .from("device_activations")
@@ -631,12 +656,25 @@ export async function activateLicense(
                     error: "Failed to activate license",
                 };
             }
+
+            // Set license active on first use (RPC bypasses RLS so DB is updated reliably)
+            await supabase.rpc("set_license_active", { p_license_id: license.id });
         }
 
-        // Store license information
-        storeLicense(licenseKey.trim(), license);
+        // Replace any existing (e.g. expired) license so the new one is the only one in use
+        clearLicense();
+        storeLicense(licenseKey.trim(), { ...license, is_active: true });
 
-        return { success: true };
+        // Deactivate any trial (expired or not) so status is driven by the license only (non-fatal)
+        const { error: trialUpdateError } = await supabase
+            .from("user_trials")
+            .update({ is_active: false })
+            .eq("user_id", userId);
+        if (trialUpdateError) {
+            console.warn("License activation: could not deactivate trial (non-fatal):", trialUpdateError.message);
+        }
+
+        return { success: true, alreadyActivated: !!existingActivation };
     } catch (error) {
         console.error("Error activating license:", error);
         return {
@@ -658,7 +696,7 @@ export async function getDeviceActivationCount(): Promise<number> {
             .from("licenses")
             .select("id")
             .eq("license_key", licenseKey)
-            .single();
+            .maybeSingle();
 
         if (!license) return 0;
 

@@ -5,7 +5,8 @@
 
 	interface Props {
 		user: User | null;
-		onStatusChange?: () => void;
+		/** Called after activation; pass new status so parent can replace expired with licensed without refetch. */
+		onStatusChange?: (newStatus?: LicenseStatus | null) => void | Promise<void>;
 	}
 
 	let { user, onStatusChange }: Props = $props();
@@ -52,12 +53,14 @@
 		const result = await activateLicense(licenseKeyInput.trim(), user.id);
 
 		if (result.success) {
-			successMessage = 'License activated successfully!';
+			successMessage = result.alreadyActivated
+				? 'This license is already activated to your account.'
+				: 'License activated successfully!';
 			licenseKeyInput = '';
 			await loadLicenseStatus();
-			// Notify parent of status change
+			// Pass new status to parent so it replaces expired with licensed everywhere (no refetch race)
 			if (onStatusChange) {
-				onStatusChange();
+				await onStatusChange(licenseStatus);
 			}
 			// Close modal after 2 seconds
 			setTimeout(() => {
