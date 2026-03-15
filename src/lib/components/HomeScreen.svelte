@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { LicenseStatus } from '$lib/licensing';
+	import * as Dialog from '$lib/components/ui/dialog';
 
 	type StyleName =
 		| 'textOutline'
@@ -11,6 +12,8 @@
 		| 'keycap'
 		| 'whistle'
 		| 'stanleyTopper'
+		| 'strawTopper'
+		| 'pencilTopper'
 		| 'dogtag'
 		| 'bumpyText'
 		| 'bowKeychain';
@@ -45,6 +48,9 @@
 		);
 	}
 	const DESIGNERS_UNDER_MAINTENANCE = getUnderMaintenanceDesigners();
+
+	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper']);
+	let pendingBetaDesigner: StyleName | null = $state(null);
 
 	const DESIGNERS: DesignerItem[] = [
 		{
@@ -149,6 +155,24 @@
 			previewImageSrc: '/images/stanley-topper-preview.png',
 			attribution:
 				'https://makerworld.com/en/models/959060-40oz-stanley-tumbler-topper-cup-name-plate?from=search'
+		},
+		{
+			id: 'strawTopper',
+			title: 'Straw Topper',
+			description:
+				'Add your name to your favorite tumbler—simply snap this topper on and enjoy a personalized look!',
+			imageSrc: '/images/straw-topper.png',
+			imageAlt: 'Preview of Straw Topper',
+			previewImageSrc: '/images/straw-topper-preview.png'
+		},
+		{
+			id: 'pencilTopper',
+			title: 'Pencil Topper',
+			description:
+				'Make your pencil stand out with a unique topper featuring your name—prints easily and slides on in seconds.',
+			imageSrc: '/images/pencil-topper.png',
+			imageAlt: 'Preview of Pencil Topper personalization',
+			previewImageSrc: '/images/pencil-topper-preview.png'
 		}
 	];
 
@@ -171,9 +195,28 @@
 		return DESIGNERS_UNDER_MAINTENANCE.has(style);
 	}
 
+	function isBetaDesigner(style: StyleName): boolean {
+		return BETA_DESIGNERS.has(style);
+	}
+
 	function handleCardClick(designer: DesignerItem) {
 		if (isUnderMaintenance(designer.id)) return;
+		if (isBetaDesigner(designer.id)) {
+			pendingBetaDesigner = designer.id;
+			return;
+		}
 		onSelect(designer.id);
+	}
+
+	function confirmBetaAndEnter() {
+		if (pendingBetaDesigner) {
+			onSelect(pendingBetaDesigner);
+			pendingBetaDesigner = null;
+		}
+	}
+
+	function dismissBetaDialog() {
+		pendingBetaDesigner = null;
 	}
 </script>
 
@@ -186,6 +229,43 @@
 			<h1 class="text-3xl font-bold tracking-tight text-slate-900">Keychain Studio</h1>
 			<p class="mt-2 text-sm text-slate-500">Choose a style to start designing your 3D keychain</p>
 		</div>
+
+		<!-- Beta designer confirmation dialog (shadcn for smooth transitions) -->
+		<Dialog.Root
+			open={pendingBetaDesigner !== null}
+			onOpenChange={(open) => {
+				if (!open) pendingBetaDesigner = null;
+			}}
+		>
+			<Dialog.Content
+				showCloseButton={false}
+				class="max-w-md rounded-2xl border-slate-200 shadow-xl"
+			>
+				<Dialog.Header>
+					<Dialog.Title class="text-lg font-semibold text-slate-900">Beta design</Dialog.Title>
+					<Dialog.Description class="mt-2 text-sm text-slate-600">
+						This feature is currently in beta and the models may not be fully print-tested. If you
+						encounter any issues or have suggestions, please let us know—your feedback will help us
+						improve!
+					</Dialog.Description>
+				</Dialog.Header>
+				<div class="mt-6 flex justify-end gap-3">
+					<Dialog.Close
+						class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:ring-2 focus:ring-indigo-500/50 focus:outline-none"
+						onclick={dismissBetaDialog}
+					>
+						Cancel
+					</Dialog.Close>
+					<button
+						type="button"
+						class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
+						onclick={confirmBetaAndEnter}
+					>
+						Continue
+					</button>
+				</div>
+			</Dialog.Content>
+		</Dialog.Root>
 
 		{#if DESIGNERS_UNDER_MAINTENANCE.size > 0}
 			<div
@@ -233,6 +313,12 @@
 						<span
 							class="absolute top-3 right-3 z-10 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
 							>PLUS</span
+						>
+					{/if}
+					{#if isBetaDesigner(designer.id)}
+						<span
+							class="absolute top-3 left-3 z-10 rounded-md bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800"
+							>Beta</span
 						>
 					{/if}
 					{#if designer.previewImageSrc}

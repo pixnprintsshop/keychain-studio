@@ -18,6 +18,8 @@
 	import MaintenancePage from '$lib/components/MaintenancePage.svelte';
 	import FeedbackPage from '$lib/components/FeedbackPage.svelte';
 	import StanleyTopperDesigner from '$lib/components/StanleyTopperDesigner.svelte';
+	import StrawTopperDesigner from '$lib/components/StrawTopperDesigner.svelte';
+	import PencilTopperDesigner from '$lib/components/PencilTopperDesigner.svelte';
 	import TextOutlineDesigner from '$lib/components/TextOutlineDesigner.svelte';
 	import ThankYouDialog from '$lib/components/ThankYouDialog.svelte';
 	import SupportShareDialog from '$lib/components/SupportShareDialog.svelte';
@@ -53,6 +55,8 @@
 		| 'keycap'
 		| 'whistle'
 		| 'stanleyTopper'
+		| 'strawTopper'
+		| 'pencilTopper'
 		| 'dogtag'
 		| 'bumpyText'
 		| 'bowKeychain'
@@ -70,6 +74,8 @@
 		'keycap',
 		'whistle',
 		'stanleyTopper',
+		'strawTopper',
+		'pencilTopper',
 		'dogtag',
 		'bumpyText',
 		'bowKeychain',
@@ -130,6 +136,8 @@
 				stored === 'keycap' ||
 				stored === 'whistle' ||
 				stored === 'stanleyTopper' ||
+				stored === 'strawTopper' ||
+				stored === 'pencilTopper' ||
 				stored === 'dogtag' ||
 				stored === 'bumpyText' ||
 				stored === 'bowKeychain' ||
@@ -281,6 +289,8 @@
 			| 'keycap'
 			| 'whistle'
 			| 'stanleyTopper'
+			| 'strawTopper'
+			| 'pencilTopper'
 			| 'dogtag'
 			| 'bumpyText'
 			| 'bowKeychain'
@@ -524,10 +534,8 @@
 	<LicenseModal
 		bind:this={licenseModalRef}
 		{user}
-		onStatusChange={async (newStatus) => {
-			if (newStatus !== undefined) {
-				licenseStatus = newStatus;
-			} else if (user) {
+		onStatusChange={async () => {
+			if (user) {
 				licenseStatus = await checkLicenseStatus(user);
 			}
 		}}
@@ -706,6 +714,26 @@
 			/>
 		{:else if currentView === 'stanleyTopper'}
 			<StanleyTopperDesigner
+				{user}
+				{session}
+				{licenseStatus}
+				{licenseModalRef}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+			/>
+		{:else if currentView === 'strawTopper'}
+			<StrawTopperDesigner
+				{user}
+				{session}
+				{licenseStatus}
+				{licenseModalRef}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+			/>
+		{:else if currentView === 'pencilTopper'}
+			<PencilTopperDesigner
 				{user}
 				{session}
 				{licenseStatus}
