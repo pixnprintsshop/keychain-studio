@@ -1,6 +1,6 @@
-# Keychain Studio (PixnPrints)
+# Print Studio (PixnPrints)
 
-A **SvelteKit 2** + **Svelte 5** app for designing personalized 3D keychains. Users pick a style (text-only, flower + initial, custom SVG, keycap, whistle, and more), customize in the browser, and export for 3D printing. Includes auth (Supabase), licensing, URL routes for legal/pricing pages, and hash-based routing for designers.
+A **SvelteKit 2** + **Svelte 5** app for designing personalized 3D printables (keychains, toppers, and more). Users pick a style (text-only, flower + initial, custom SVG, keycap, whistle, and more), customize in the browser, and export for 3D printing. Includes auth (Supabase), licensing, URL routes for legal/pricing pages, and hash-based routing for designers.
 
 ## Tech stack
 

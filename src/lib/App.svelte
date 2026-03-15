@@ -191,7 +191,7 @@
 		}
 	});
 
-	// Show \"support Keychain Studio\" dialog once for paid users (not while welcome is open)
+	// Show \"support Print Studio\" dialog once for paid users (not while welcome is open)
 	$effect(() => {
 		if (typeof window === 'undefined') return;
 		void user;
@@ -426,7 +426,7 @@
 
 					<div class="mb-4 flex items-center justify-center">
 						<h2 id="welcome-title" class="text-center text-2xl font-bold text-slate-900">
-							Welcome to Keychain Studio
+							Welcome to Print Studio
 						</h2>
 					</div>
 
@@ -617,7 +617,7 @@
 				class="cursor-pointer rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:outline-none"
 				onclick={() => (showSupportShareDialog = true)}
 			>
-				Support Keychain Studio
+				Support Print Studio
 			</button>
 		{/if}
 	</div>

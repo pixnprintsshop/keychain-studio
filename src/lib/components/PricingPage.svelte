@@ -25,7 +25,7 @@
                 Pricing
             </h1>
             <p class="mt-1 text-sm text-slate-500">
-                Keychain Studio by PixnPrints
+                Print Studio by PixnPrints
             </p>
 
             <div class="mt-8 grid gap-4 sm:grid-cols-2">

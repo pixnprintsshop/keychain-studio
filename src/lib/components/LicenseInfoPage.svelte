@@ -21,7 +21,7 @@
                 How to obtain or buy a license
             </h1>
             <p class="mt-1 text-sm text-slate-500">
-                Keychain Studio by PixnPrints
+                Print Studio by PixnPrints
             </p>
 
             <div class="mt-8 space-y-4 text-sm text-slate-700">

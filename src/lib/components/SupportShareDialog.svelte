@@ -19,8 +19,8 @@
 		if (typeof window === 'undefined') return;
 		const url = window.location.origin;
 		const shareData = {
-			title: 'Keychain Studio – 3D keychain designer',
-			text: 'I use this to design printable keychains. It might help your shop too.',
+			title: 'Print Studio – 3D print designer',
+			text: 'I use this to design keychains, toppers, and more. It might help your shop too.',
 			url
 		};
 
@@ -49,10 +49,10 @@
 	<Dialog.Content>
 		<div class="space-y-3 text-sm text-slate-600">
 			<h2 class="text-lg font-semibold text-slate-900">
-				Help keep Keychain Studio running
+				Help keep Print Studio running
 			</h2>
 			<p>
-				Keychain Studio is kept alive by a small number of paying makers. More users and subscribers
+				Print Studio is kept alive by a small number of paying makers. More users and subscribers
 				help cover the costs so we can keep it online and keep adding new models.
 			</p>
 			<p>
@@ -87,7 +87,7 @@
 						class="cursor-pointer rounded-xl bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:outline-none"
 						onclick={handleShare}
 					>
-						Share Keychain Studio
+						Share Print Studio
 					</button>
 				</div>
 			</div>

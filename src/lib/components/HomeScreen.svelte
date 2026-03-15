@@ -226,7 +226,7 @@
 			<div class="mb-4 flex justify-center">
 				<img src="/app-logo.png" alt="PixnPrints Logo" class="h-16 w-auto object-contain" />
 			</div>
-			<h1 class="text-3xl font-bold tracking-tight text-slate-900">Keychain Studio</h1>
+			<h1 class="text-3xl font-bold tracking-tight text-slate-900">Print Studio</h1>
 			<p class="mt-2 text-sm text-slate-500">Choose a style to start designing your 3D keychain</p>
 		</div>
 
@@ -429,7 +429,7 @@
 		>
 			<p class="text-sm font-semibold text-indigo-900">For businesses</p>
 			<p class="mt-1 text-sm text-indigo-800">
-				Want an exclusive model or the whole Keychain Studio for your brand? We offer custom designs
+				Want an exclusive model or the whole Print Studio for your brand? We offer custom designs
 				and white-label options.
 			</p>
 			<a

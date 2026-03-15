@@ -29,7 +29,7 @@
 			<div class="prose prose-slate mt-8 max-w-none text-sm text-slate-700">
 				<h2 class="text-lg font-semibold text-slate-900">1. Eligibility for Refunds</h2>
 				<p class="mt-2">
-					PixnPrints may offer refunds for Keychain Studio license subscriptions in certain
+					PixnPrints may offer refunds for Print Studio license subscriptions in certain
 					circumstances, including but not limited to: extended or repeated service maintenance that
 					prevents use of the app, duplicate or erroneous charges, or other issues we determine
 					warrant a refund.

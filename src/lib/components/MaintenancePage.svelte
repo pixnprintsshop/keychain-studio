@@ -5,7 +5,7 @@
         <div class="mb-6 flex justify-center">
             <img
                 src="/app-logo.png"
-                alt="Keychain Studio"
+                alt="Print Studio"
                 class="h-20 w-auto object-contain" />
         </div>
         <h1 class="mb-2 text-xl font-semibold tracking-tight text-slate-900">

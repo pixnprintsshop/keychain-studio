@@ -23,7 +23,7 @@ export async function sendFeedbackEmail(payload: FeedbackEmailPayload) {
 
 	const { userEmail, category, title, message, createdAt } = payload;
 
-	const subject = `[Keychain Studio] New feedback (${category})`;
+	const subject = `[Print Studio] New feedback (${category})`;
 	const body = [
 		`New feedback from: ${userEmail}`,
 		'',
@@ -45,7 +45,7 @@ export async function sendFeedbackEmail(payload: FeedbackEmailPayload) {
 		},
 		body: JSON.stringify({
 			// Use Resend's default verified sender; configure a custom domain later
-			from: 'Keychain Studio <info@pixnprints.shop>',
+			from: 'Print Studio <info@pixnprints.shop>',
 			to: [FEEDBACK_NOTIFY_EMAIL],
 			subject,
 			text: body

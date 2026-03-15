@@ -29,13 +29,13 @@
 			<div class="prose prose-slate mt-8 max-w-none text-sm text-slate-700">
 				<h2 class="text-lg font-semibold text-slate-900">1. Acceptance of Terms</h2>
 				<p class="mt-2">
-					By accessing or using Keychain Studio ("the Service") by PixnPrints, you agree to be bound
+					By accessing or using Print Studio ("the Service") by PixnPrints, you agree to be bound
 					by these Terms and Conditions. If you do not agree, please do not use the Service.
 				</p>
 
 				<h2 class="mt-6 text-lg font-semibold text-slate-900">2. Description of Service</h2>
 				<p class="mt-2">
-					Keychain Studio allows you to create and customize 3D keychain designs. You may export
+					Print Studio allows you to create and customize 3D keychain designs. You may export
 					designs for personal or commercial use subject to your license and these terms.
 				</p>
 

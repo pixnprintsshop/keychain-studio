@@ -144,7 +144,7 @@
                         Feedback
                     </h1>
                     <p class="mt-1 text-xs text-slate-500">
-                        Share questions, requests, or issues so we can improve Keychain Studio.
+                        Share questions, requests, or issues so we can improve Print Studio.
                     </p>
                 </div>
             </div>
@@ -165,7 +165,7 @@
         {:else if !licenseStatus || !licenseStatus.isPaid}
             <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 mb-6">
                 <p class="mb-2">
-                    Feedback is available for customers with a paid Keychain Studio license so we
+                    Feedback is available for customers with a paid Print Studio license so we
                     can prioritize product support and feature requests.
                 </p>
                 <button

@@ -68,7 +68,7 @@
 
                 <div class="space-y-4">
                     <p class="text-sm leading-relaxed text-slate-600">
-                        Thank you for using Keychain Studio! We hope you're
+                        Thank you for using Print Studio! We hope you're
                         enjoying creating your custom designs.
                     </p>
 
