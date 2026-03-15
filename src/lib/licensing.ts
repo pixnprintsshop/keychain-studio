@@ -561,32 +561,40 @@ export async function activateLicense(
             }
         }
 
-        // Check existing user activations
+        // Check existing activations for this license (license is tied to one user only)
         const { data: existingActivations, error: countError } = await supabase
             .from("device_activations")
-            .select("id")
+            .select("id, user_id")
             .eq("license_id", license.id);
 
         if (countError) {
             return {
                 success: false,
-                error: "Error checking device limit",
+                error: "Error checking license",
             };
         }
 
         const currentDeviceCount = existingActivations?.length || 0;
+        const activationByAnotherUser = existingActivations?.some(
+            (a) => a.user_id !== userId,
+        );
 
         // Check if this user is already activated
-        const { data: existingActivation } = await supabase
-            .from("device_activations")
-            .select("*")
-            .eq("license_id", license.id)
-            .eq("user_id", userId)
-            .maybeSingle();
+        const existingActivation = existingActivations?.find(
+            (a) => a.user_id === userId,
+        );
 
-        // If device is not already activated, check device limit
+        // License is tied to one user only: if already activated by a different user, reject
+        if (activationByAnotherUser && !existingActivation) {
+            return {
+                success: false,
+                error:
+                    "This license is already activated to another account. Each license can only be used by one account.",
+            };
+        }
+
+        // If this user is not already activated, check device limit
         if (!existingActivation) {
-            // Check device limit
             if (currentDeviceCount >= license.max_devices) {
                 return {
                     success: false,
