@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { getSession } from '$lib/auth';
 	import { getSubscriptionStatus } from '$lib/subscription';
@@ -21,6 +20,10 @@
 		ends_at: string | null;
 		renews_at: string | null;
 		created_at: string;
+	} | null>(null);
+	let licenseDetails = $state<{
+		activated_at: string;
+		expires_at: string | null;
 	} | null>(null);
 
 	function formatDate(iso: string | null | undefined): string {
@@ -57,6 +60,19 @@
 					renews_at: data.renews_at as string | null,
 					created_at: data.created_at as string
 				};
+			}
+		} else if (subscriptionStatus?.source === 'license') {
+			const res = await fetch('/api/license/status', {
+				headers: { Authorization: `Bearer ${session.access_token}` }
+			});
+			if (res.ok) {
+				const data = (await res.json()) as { activated?: boolean; activated_at?: string; expires_at?: string | null };
+				if (data.activated && data.activated_at) {
+					licenseDetails = {
+						activated_at: data.activated_at,
+						expires_at: data.expires_at ?? null
+					};
+				}
 			}
 		}
 		loading = false;
@@ -107,7 +123,23 @@
 					<p class="mt-1 text-sm text-emerald-700">
 						You have full export access via your license code.
 					</p>
-					<Button variant="outline" size="sm" class="mt-4" onclick={onBack}>
+					{#if licenseDetails}
+						<dl class="mt-6 grid gap-4 sm:grid-cols-2">
+							<div>
+								<dt class="text-xs font-medium uppercase tracking-wider text-slate-500">Activated</dt>
+								<dd class="mt-1 text-sm text-slate-700">
+									{formatDate(licenseDetails.activated_at)}
+								</dd>
+							</div>
+							<div>
+								<dt class="text-xs font-medium uppercase tracking-wider text-slate-500">Expires</dt>
+								<dd class="mt-1 text-sm text-slate-700">
+									{licenseDetails.expires_at ? formatDate(licenseDetails.expires_at) : 'Never'}
+								</dd>
+							</div>
+						</dl>
+					{/if}
+					<Button variant="outline" size="sm" class="mt-6" onclick={onBack}>
 						Back to app
 					</Button>
 				</div>
