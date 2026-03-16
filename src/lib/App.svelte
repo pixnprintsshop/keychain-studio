@@ -1,31 +1,42 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import type { Session, User } from '@supabase/supabase-js';
-	import { onDestroy, onMount } from 'svelte';
+	import { getSession, getUser, onAuthStateChange, signOut } from '$lib/auth';
 	import BasicNameDesigner from '$lib/components/BasicNameDesigner.svelte';
 	import BowKeychainDesigner from '$lib/components/BowKeychainDesigner.svelte';
 	import BumpyTextDesigner from '$lib/components/BumpyTextDesigner.svelte';
 	import CharmDesigner from '$lib/components/CharmDesigner.svelte';
 	import CustomSVGDesigner from '$lib/components/CustomSVGDesigner.svelte';
+	import DesktopRequiredView from '$lib/components/DesktopRequiredView.svelte';
 	import DogTagDesigner from '$lib/components/DogTagDesigner.svelte';
+	import FeedbackPage from '$lib/components/FeedbackPage.svelte';
 	import FlowerDesigner from '$lib/components/FlowerDesigner.svelte';
+	import SettingsPage from '$lib/components/SettingsPage.svelte';
 	import HomeScreen from '$lib/components/HomeScreen.svelte';
 	import InitialDesigner from '$lib/components/InitialDesigner.svelte';
 	import KeycapDesigner from '$lib/components/KeycapDesigner.svelte';
-	import LicenseInfoPage from '$lib/components/LicenseInfoPage.svelte';
-	import LicenseModal from '$lib/components/LicenseModal.svelte';
+	import LicenseActivationModal from '$lib/components/LicenseActivationModal.svelte';
 	import LoginModal from '$lib/components/LoginModal.svelte';
 	import MaintenancePage from '$lib/components/MaintenancePage.svelte';
-	import FeedbackPage from '$lib/components/FeedbackPage.svelte';
+	import PencilTopperDesigner from '$lib/components/PencilTopperDesigner.svelte';
 	import StanleyTopperDesigner from '$lib/components/StanleyTopperDesigner.svelte';
 	import StrawTopperDesigner from '$lib/components/StrawTopperDesigner.svelte';
-	import PencilTopperDesigner from '$lib/components/PencilTopperDesigner.svelte';
+	import SupportShareDialog from '$lib/components/SupportShareDialog.svelte';
 	import TextOutlineDesigner from '$lib/components/TextOutlineDesigner.svelte';
 	import ThankYouDialog from '$lib/components/ThankYouDialog.svelte';
-	import SupportShareDialog from '$lib/components/SupportShareDialog.svelte';
 	import WhistleDesigner from '$lib/components/WhistleDesigner.svelte';
-	import { getSession, getUser, onAuthStateChange, signOut } from '$lib/auth';
-	import { type LicenseStatus, checkLicenseStatus, clearLicense } from '$lib/licensing';
+	import { Button } from '$lib/components/ui/button';
+	import * as Dialog from '$lib/components/ui/dialog';
+	import * as Popover from '$lib/components/ui/popover/index.js';
+	import type { SubscriptionStatus } from '$lib/subscription';
+	import { clearLicenseCache, getSubscriptionStatus } from '$lib/subscription';
+	import {
+		fetchUserPalette,
+		getEffectivePalette,
+		saveUserPalette,
+		type PaletteColor
+	} from '$lib/colorPalette';
+	import type { Session, User } from '@supabase/supabase-js';
+	import { onDestroy, onMount } from 'svelte';
 
 	/** When true, only the maintenance page is shown. Set via VITE_MAINTENANCE_MODE (e.g. "true" or "1"). */
 	const MAINTENANCE_MODE =
@@ -36,9 +47,6 @@
 	const STORAGE_KEY_WELCOME = 'designer-has-seen-welcome';
 	const STORAGE_KEY_VIEW = 'designer-current-view';
 	const STORAGE_KEY_SHARE_SHOWN = 'designer-share-dialog-shown';
-
-	/** Designers that require a paid license; trial and free-license users see them as locked. */
-	const PAID_ONLY_DESIGNERS = new Set<ViewName>(['charm', 'customSvg', 'keycap']);
 
 	/** Designers under maintenance; not accessible from home and redirect to home if selected. */
 	const MAINTENANCE_VIEWS = new Set<ViewName>([]);
@@ -60,8 +68,8 @@
 		| 'dogtag'
 		| 'bumpyText'
 		| 'bowKeychain'
-		| 'licenseInfo'
-		| 'feedback';
+		| 'feedback'
+		| 'settings';
 
 	const VALID_VIEW_NAMES: ViewName[] = [
 		'home',
@@ -79,9 +87,27 @@
 		'dogtag',
 		'bumpyText',
 		'bowKeychain',
-		'licenseInfo',
-		'feedback'
+		'feedback',
+		'settings'
 	];
+
+	/** Designer views that require desktop; on mobile we show DesktopRequiredView instead. */
+	const DESIGNER_VIEWS = new Set<ViewName>([
+		'textOutline',
+		'initial',
+		'flower',
+		'basicName',
+		'customSvg',
+		'charm',
+		'keycap',
+		'whistle',
+		'stanleyTopper',
+		'strawTopper',
+		'pencilTopper',
+		'dogtag',
+		'bumpyText',
+		'bowKeychain'
+	]);
 
 	/** True when the URL hash contains Supabase OAuth callback params (tokens or error). Do not overwrite hash until Supabase has processed it. */
 	function isSupabaseAuthHash(): boolean {
@@ -101,10 +127,6 @@
 		}
 		if (hash === 'privacy') {
 			goto('/privacy');
-			return 'home';
-		}
-		if (hash === 'pricing') {
-			goto('/pricing');
 			return 'home';
 		}
 		if (hash === 'about') {
@@ -141,8 +163,8 @@
 				stored === 'dogtag' ||
 				stored === 'bumpyText' ||
 				stored === 'bowKeychain' ||
-				stored === 'licenseInfo' ||
 				stored === 'feedback' ||
+				stored === 'settings' ||
 				stored === 'home'
 			) {
 				initialView = MAINTENANCE_VIEWS.has(stored as ViewName) ? 'home' : (stored as ViewName);
@@ -150,6 +172,7 @@
 		} catch (_) {}
 	}
 	let currentView = $state<ViewName>(initialView);
+	let isMobile = $state(false);
 
 	// ── Welcome dialog state ────────────────────────────────────────────────
 	let showWelcomeDialog = $state(false);
@@ -157,13 +180,16 @@
 	// ── Authentication state ────────────────────────────────────────────────
 	let user: User | null = $state(null);
 	let session: Session | null = $state(null);
+	let subscriptionStatus: SubscriptionStatus | null = $state(null);
 	let showLoginModal = $state(false);
+	let showLicenseModal = $state(false);
+	let showLogoutConfirm = $state(false);
 
-	// ── Licensing state ─────────────────────────────────────────────────────
-	let licenseStatus: LicenseStatus | null = $state(null);
-	let licenseModalRef: LicenseModal | null = $state(null);
+	// ── Dialog state ────────────────────────────────────────────────────────
 	let showThankYouDialog = $state(false);
 	let showSupportShareDialog = $state(false);
+	let menuOpen = $state(false);
+	let userPalette: PaletteColor[] | null = $state(null);
 	let authCleanup: (() => void) | null = null;
 	let hashCleanup: (() => void) | null = null;
 
@@ -191,24 +217,6 @@
 		}
 	});
 
-	// Show \"support Print Studio\" dialog once for paid users (not while welcome is open)
-	$effect(() => {
-		if (typeof window === 'undefined') return;
-		void user;
-		void licenseStatus;
-		if (showWelcomeDialog) return;
-		if (!user || !licenseStatus?.isPaid) return;
-		try {
-			const shown = localStorage.getItem(STORAGE_KEY_SHARE_SHOWN);
-			if (!shown) {
-				showSupportShareDialog = true;
-				localStorage.setItem(STORAGE_KEY_SHARE_SHOWN, 'true');
-			}
-		} catch {
-			// ignore storage errors
-		}
-	});
-
 	// Tawk chat: show only on home screen, hide on designers
 	$effect(() => {
 		if (typeof window === 'undefined') return;
@@ -223,7 +231,43 @@
 		}
 	});
 
-	// Tawk chat: pass logged-in user name, email, and license details when available
+	async function refreshAccessStatus() {
+		if (!user?.id) {
+			subscriptionStatus = null;
+			return;
+		}
+		getSubscriptionStatus(user.id).then((s) => {
+			subscriptionStatus = s;
+		});
+	}
+
+	// Fetch subscription status when user changes
+	$effect(() => {
+		const u = user;
+		if (!u?.id) {
+			subscriptionStatus = null;
+			return;
+		}
+		getSubscriptionStatus(u.id).then((s) => {
+			subscriptionStatus = s;
+		});
+	});
+
+	// Fetch user palette when user changes
+	$effect(() => {
+		const u = user;
+		if (!u?.id) {
+			userPalette = null;
+			return;
+		}
+		fetchUserPalette(u.id).then((p) => {
+			userPalette = p;
+		});
+	});
+
+	const effectivePalette = $derived(getEffectivePalette(user, userPalette));
+
+	// Tawk chat: pass logged-in user name and email when available
 	$effect(() => {
 		if (typeof window === 'undefined') return;
 		const w = window as unknown as {
@@ -236,7 +280,6 @@
 			__tawkSetVisitorAttributes?: () => void;
 		};
 		const u = user;
-		const license = licenseStatus;
 		const setTawkVisitor = () => {
 			if (!u?.email) return;
 			const name =
@@ -250,21 +293,6 @@
 				name: name || undefined,
 				email: u.email
 			};
-			if (license) {
-				attrs.license_type = license.type;
-				attrs.license_is_paid = license.isPaid;
-				attrs.can_export = license.canExport;
-				if (license.licenseKey) {
-					const key = license.licenseKey.replace(/-/g, '');
-					attrs.license_key_last4 = key.length >= 4 ? key.slice(-4) : '****';
-				}
-				if (license.trialDaysRemaining != null)
-					attrs.trial_days_remaining = license.trialDaysRemaining;
-				if (license.expiresAt)
-					attrs.license_expires_at = license.expiresAt.toISOString().slice(0, 10);
-				if (license.maxDevices != null) attrs.license_max_devices = license.maxDevices;
-				if (license.deviceCount != null) attrs.license_device_count = license.deviceCount;
-			}
 			if (w.Tawk_API?.setAttributes) {
 				w.Tawk_API.setAttributes(attrs);
 			}
@@ -303,20 +331,33 @@
 		navigateTo('home');
 	}
 
-	function openLicenseInfo() {
-		currentView = 'licenseInfo';
-	}
-
 	function openFeedback() {
 		currentView = 'feedback';
 	}
 
+	function openSettings() {
+		currentView = 'settings';
+	}
+
+	async function handleSavePalette(colors: PaletteColor[]) {
+		if (!user?.id) return { success: false, error: 'Not signed in' };
+		const result = await saveUserPalette(user.id, colors);
+		if (result.success) {
+			userPalette = colors;
+		}
+		return result;
+	}
+
+	function showPricing() {
+		goto('/pricing');
+	}
+
 	async function handleSignOut() {
+		const userId = user?.id ?? null;
 		await signOut();
+		clearLicenseCache(userId);
 		user = null;
 		session = null;
-		licenseStatus = null;
-		clearLicense();
 		showLoginModal = true;
 	}
 
@@ -327,6 +368,13 @@
 
 	// ── Lifecycle ───────────────────────────────────────────────────────────
 	onMount(() => {
+		// Mobile detection: show DesktopRequiredView when opening a designer on small screens
+		const mq = window.matchMedia('(max-width: 768px)');
+		isMobile = mq.matches;
+		mq.addEventListener('change', (e) => {
+			isMobile = e.matches;
+		});
+
 		// URL hash -> view (back/forward or direct link)
 		function syncViewFromHash() {
 			const view = getViewFromUrl();
@@ -339,10 +387,13 @@
 		const hasSeenWelcome = localStorage.getItem(STORAGE_KEY_WELCOME);
 		if (!hasSeenWelcome) showWelcomeDialog = true;
 
-		// License: check once on sign-in; no periodic polling to avoid many requests
-		async function initializeLicense() {
-			if (!user) return;
-			licenseStatus = await checkLicenseStatus(user);
+		// Open login modal if redirected from pricing with ?login=1
+		if (typeof window !== 'undefined' && new URL(window.location.href).searchParams.get('login') === '1') {
+			showLoginModal = true;
+			// Clear the param from URL without full reload
+			const url = new URL(window.location.href);
+			url.searchParams.delete('login');
+			window.history.replaceState({}, '', url.pathname + url.hash || '/');
 		}
 
 		// Auth initialization
@@ -350,9 +401,7 @@
 			const initialSession = await getSession();
 			session = initialSession;
 			user = initialSession?.user ?? null;
-			if (user) {
-				await initializeLicense();
-			} else {
+			if (!user) {
 				// Guest users see the support dialog once per session (not while welcome is open)
 				if (!showWelcomeDialog) showSupportShareDialog = true;
 			}
@@ -363,7 +412,6 @@
 				user = newSession?.user ?? null;
 				if (event === 'SIGNED_IN' && user) {
 					showLoginModal = false;
-					await initializeLicense();
 					// Clean OAuth callback hash from URL after Supabase has processed it
 					if (isSupabaseAuthHash()) {
 						const h = currentView === 'home' ? '' : currentView;
@@ -371,9 +419,6 @@
 							window.location.hash = h;
 						}, 0);
 					}
-				} else if (event === 'SIGNED_OUT') {
-					licenseStatus = null;
-					clearLicense();
 				}
 			});
 			authCleanup = () => subscription.unsubscribe();
@@ -389,13 +434,13 @@
 {#if MAINTENANCE_MODE}
 	<MaintenancePage />
 {:else}
-	<!-- Coming soon: 3MF export (home screen only) -->
+	<!-- Coming soon banner: floating on desktop only -->
 	{#if currentView === 'home'}
 		<div
-			class="fixed top-0 right-0 left-0 z-30 flex items-center justify-center gap-2 border-b border-indigo-200 bg-indigo-50 px-4 py-2 text-center text-sm font-medium text-indigo-800"
+			class="fixed top-5 left-5 right-24 z-30 hidden rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-800 shadow-sm sm:block sm:right-auto"
 			role="banner"
 		>
-			<span>Coming soon: 3MF export for better slicer compatibility.</span>
+			Coming soon: 3MF export for better slicer compatibility.
 		</div>
 	{/if}
 
@@ -504,13 +549,9 @@
 							<span>By</span>
 							<img src="/pixnprints-logo.png" alt="PixnPrints" class="h-4 w-auto object-contain" />
 						</div>
-						<button
-							type="button"
-							class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
-							onclick={closeWelcomeDialog}
-						>
+						<Button onclick={closeWelcomeDialog}>
 							Get Started
-						</button>
+						</Button>
 					</div>
 				</div>
 			</div>
@@ -525,20 +566,14 @@
 			user = newUser;
 			if (newUser) {
 				showLoginModal = false;
-				licenseStatus = await checkLicenseStatus(newUser);
 			}
 		}}
 	/>
 
-	<!-- License Modal -->
-	<LicenseModal
-		bind:this={licenseModalRef}
-		{user}
-		onStatusChange={async () => {
-			if (user) {
-				licenseStatus = await checkLicenseStatus(user);
-			}
-		}}
+	<!-- License Activation Modal -->
+	<LicenseActivationModal
+		bind:isOpen={showLicenseModal}
+		onSuccess={refreshAccessStatus}
 	/>
 
 	<!-- Thank You Dialog -->
@@ -547,9 +582,41 @@
 	<!-- Support / Share Dialog -->
 	<SupportShareDialog bind:isOpen={showSupportShareDialog} />
 
-	<!-- User & License Status Bar (home and designers) -->
+	<!-- Logout confirmation -->
+	<Dialog.Root
+		bind:open={showLogoutConfirm}
+		onOpenChange={(open) => {
+			showLogoutConfirm = open;
+		}}
+	>
+		<Dialog.Content showCloseButton={false} class="max-w-sm rounded-2xl border-slate-200 shadow-xl">
+			<Dialog.Header>
+				<Dialog.Title class="text-lg font-semibold text-slate-900">Sign out</Dialog.Title>
+				<Dialog.Description class="mt-1 text-sm text-slate-600">
+					Are you sure you want to sign out?
+				</Dialog.Description>
+			</Dialog.Header>
+			<div class="mt-6 flex justify-end gap-3">
+				<Dialog.Close
+					class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:ring-2 focus:ring-indigo-500/50 focus:outline-none"
+				>
+					Cancel
+				</Dialog.Close>
+				<Button
+					onclick={async () => {
+						showLogoutConfirm = false;
+						await handleSignOut();
+					}}
+				>
+					Sign out
+				</Button>
+			</div>
+		</Dialog.Content>
+	</Dialog.Root>
+
+	<!-- Desktop: status bar (original) -->
 	<div
-		class="fixed top-5 right-5 z-40 flex items-center gap-3 rounded-xl border border-slate-200 bg-white/90 px-4 py-2 shadow-sm backdrop-blur"
+		class="fixed top-5 right-5 z-40 hidden flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/90 px-4 py-2 shadow-sm backdrop-blur sm:flex"
 	>
 		{#if user}
 			<div class="flex items-center gap-2">
@@ -562,225 +629,363 @@
 					{user.email}
 				</span>
 			</div>
-			{#if licenseStatus}
-				{#if licenseStatus.type === 'trial'}
-					<span
-						class="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800"
-					>
-						Trial &middot; {licenseStatus.trialDaysRemaining}d
-					</span>
-				{:else if licenseStatus.type === 'licensed'}
-					<span
-						class="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800"
-					>
+			{#if subscriptionStatus}
+				{#if subscriptionStatus?.source === 'license'}
+					<span class="ml-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-800">
 						Licensed
 					</span>
-				{:else}
-					<span
-						class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800"
-					>
-						Expired
-					</span>
+				{:else if !subscriptionStatus?.isActive}
+					<Button variant="secondary" size="sm" class="ml-2 rounded-full" onclick={() => (showLicenseModal = true)}>
+						Enter license
+					</Button>
 				{/if}
 			{/if}
-			<button
-				type="button"
-				class="ml-2 cursor-pointer rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:outline-none"
-				onclick={openFeedback}
-			>
+			<Button variant="secondary" size="xs" class="rounded-full" onclick={openSettings}>
+				Settings
+			</Button>
+			<Button variant="secondary" size="xs" class="rounded-full" onclick={openFeedback}>
 				Feedback
-			</button>
-			<button
-				type="button"
-				class="cursor-pointer text-xs font-medium text-indigo-600 transition-colors hover:text-indigo-700"
-				onclick={() => licenseModalRef?.open()}
-			>
-				{licenseStatus?.type === 'licensed' ? 'Manage' : 'License'}
-			</button>
-			<button
-				type="button"
-				class="cursor-pointer text-xs font-medium text-slate-500 transition-colors hover:text-slate-700"
-				onclick={handleSignOut}
-			>
-				Sign Out
-			</button>
-		{:else}
-			<button
-				type="button"
-				class="cursor-pointer rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
-				onclick={() => (showLoginModal = true)}
-			>
-				Sign In
-			</button>
-			<button
-				type="button"
-				class="cursor-pointer rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:outline-none"
-				onclick={() => (showSupportShareDialog = true)}
-			>
+			</Button>
+			<Button variant="secondary" size="xs" class="rounded-full" onclick={() => (showSupportShareDialog = true)}>
 				Support Print Studio
-			</button>
+			</Button>
+			<Button variant="outline" size="xs" class="rounded-full text-slate-700" onclick={() => (showLogoutConfirm = true)}>
+				Sign Out
+			</Button>
+		{:else}
+			<Button size="xs" href="/pricing">
+				View pricing
+			</Button>
+			<Button variant="secondary" size="xs" class="rounded-full" onclick={() => (showLoginModal = true)}>
+				Sign In
+			</Button>
+			<Button variant="secondary" size="xs" class="rounded-full" onclick={openSettings}>
+				Settings
+			</Button>
+			<Button variant="secondary" size="xs" class="rounded-full" onclick={() => (showSupportShareDialog = true)}>
+				Support Print Studio
+			</Button>
 		{/if}
 	</div>
 
-	<!-- Main content (offset below notice banner on home only) -->
-	<div class={currentView === 'home' ? 'pt-16' : ''}>
+	<!-- Mobile: burger menu + popover -->
+	<div class="fixed top-5 right-5 z-40 sm:hidden">
+		<Popover.Root bind:open={menuOpen}>
+			<Popover.Trigger
+				class="flex size-10 items-center justify-center rounded-xl border border-slate-200 bg-white/90 shadow-sm backdrop-blur transition hover:bg-slate-50 focus:ring-2 focus:ring-indigo-500/50 focus:outline-none"
+				aria-label="Open menu"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="size-5 text-slate-600"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke-width="2"
+					stroke="currentColor"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+				>
+					<path d="M4 6h16M4 12h16M4 18h16" />
+				</svg>
+			</Popover.Trigger>
+			<Popover.Content class="w-72 p-3" align="end" side="bottom" sideOffset={8}>
+				<div class="flex flex-col gap-2">
+					{#if user}
+						<div class="flex items-center gap-2 border-b border-slate-200 pb-2">
+							<div
+								class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-medium text-indigo-600"
+							>
+								{(user.email || 'U')[0].toUpperCase()}
+							</div>
+							<div class="min-w-0 flex-1">
+								<span class="block truncate text-sm font-medium text-slate-700">
+									{user.email}
+								</span>
+								{#if subscriptionStatus}
+									{#if subscriptionStatus?.source === 'license'}
+										<span class="text-[11px] text-emerald-700">Licensed</span>
+									{:else if !subscriptionStatus?.isActive}
+										<button
+											type="button"
+											class="mt-0.5 text-xs font-medium text-indigo-600 hover:underline"
+											onclick={() => {
+												menuOpen = false;
+												showLicenseModal = true;
+											}}
+										>
+											Enter license
+										</button>
+									{/if}
+								{/if}
+							</div>
+						</div>
+						<Button
+							variant="secondary"
+							size="sm"
+							class="w-full justify-start"
+							onclick={() => {
+								menuOpen = false;
+								openSettings();
+							}}
+						>
+							Settings
+						</Button>
+						<Button
+							variant="secondary"
+							size="sm"
+							class="w-full justify-start"
+							onclick={() => {
+								menuOpen = false;
+								openFeedback();
+							}}
+						>
+							Feedback
+						</Button>
+						<Button
+							variant="secondary"
+							size="sm"
+							class="w-full justify-start"
+							onclick={() => {
+								menuOpen = false;
+								showSupportShareDialog = true;
+							}}
+						>
+							Support Print Studio
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							class="w-full justify-start text-slate-700"
+							onclick={() => {
+								menuOpen = false;
+								showLogoutConfirm = true;
+							}}
+						>
+							Sign Out
+						</Button>
+					{:else}
+						<Button
+							size="sm"
+							class="w-full"
+							href="/pricing"
+							onclick={() => (menuOpen = false)}
+						>
+							View pricing
+						</Button>
+						<Button
+							variant="secondary"
+							size="sm"
+							class="w-full justify-start"
+							onclick={() => {
+								menuOpen = false;
+								showLoginModal = true;
+							}}
+						>
+							Sign In
+						</Button>
+						<Button
+							variant="secondary"
+							size="sm"
+							class="w-full justify-start"
+							onclick={() => {
+								menuOpen = false;
+								openSettings();
+							}}
+						>
+							Settings
+						</Button>
+						<Button
+							variant="secondary"
+							size="sm"
+							class="w-full justify-start"
+							onclick={() => {
+								menuOpen = false;
+								showSupportShareDialog = true;
+							}}
+						>
+							Support Print Studio
+						</Button>
+					{/if}
+				</div>
+			</Popover.Content>
+		</Popover.Root>
+	</div>
+
+	<!-- Main content -->
+	<div>
 		<!-- Router -->
 		{#if currentView === 'home'}
-			<HomeScreen
-				paidOnlyDesigners={PAID_ONLY_DESIGNERS}
-				{licenseStatus}
-				onSelect={handleStyleSelect}
-				onOpenLicenseInfo={openLicenseInfo}
-			/>
+			<HomeScreen onSelect={handleStyleSelect} />
+		{:else if isMobile && DESIGNER_VIEWS.has(currentView)}
+			<DesktopRequiredView onBack={handleBack} />
 		{:else if currentView === 'textOutline'}
 			<TextOutlineDesigner
 				{user}
 				{session}
-				{licenseStatus}
-				{licenseModalRef}
+				{subscriptionStatus}
+				palette={effectivePalette}
 				onBack={handleBack}
 				onRequestLogin={() => (showLoginModal = true)}
 				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
 			/>
 		{:else if currentView === 'initial'}
 			<InitialDesigner
 				{user}
 				{session}
-				{licenseStatus}
-				{licenseModalRef}
+				{subscriptionStatus}
+				palette={effectivePalette}
 				onBack={handleBack}
 				onRequestLogin={() => (showLoginModal = true)}
 				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
 			/>
 		{:else if currentView === 'flower'}
 			<FlowerDesigner
 				{user}
 				{session}
-				{licenseStatus}
-				{licenseModalRef}
+				{subscriptionStatus}
+				palette={effectivePalette}
 				onBack={handleBack}
 				onRequestLogin={() => (showLoginModal = true)}
 				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
 			/>
 		{:else if currentView === 'basicName'}
 			<BasicNameDesigner
 				{user}
 				{session}
-				{licenseStatus}
-				{licenseModalRef}
+				{subscriptionStatus}
+				palette={effectivePalette}
 				onBack={handleBack}
 				onRequestLogin={() => (showLoginModal = true)}
 				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
 			/>
 		{:else if currentView === 'customSvg'}
 			<CustomSVGDesigner
 				{user}
 				{session}
-				{licenseStatus}
-				{licenseModalRef}
+				{subscriptionStatus}
+				palette={effectivePalette}
 				onBack={handleBack}
 				onRequestLogin={() => (showLoginModal = true)}
 				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
 			/>
 		{:else if currentView === 'charm'}
 			<CharmDesigner
 				{user}
 				{session}
-				{licenseStatus}
-				{licenseModalRef}
+				{subscriptionStatus}
+				palette={effectivePalette}
 				onBack={handleBack}
 				onRequestLogin={() => (showLoginModal = true)}
 				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
 			/>
 		{:else if currentView === 'keycap'}
 			<KeycapDesigner
 				{user}
 				{session}
-				{licenseStatus}
-				{licenseModalRef}
+				{subscriptionStatus}
+				palette={effectivePalette}
 				onBack={handleBack}
 				onRequestLogin={() => (showLoginModal = true)}
 				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
 			/>
 		{:else if currentView === 'whistle'}
 			<WhistleDesigner
 				{user}
 				{session}
-				{licenseStatus}
-				{licenseModalRef}
+				{subscriptionStatus}
+				palette={effectivePalette}
 				onBack={handleBack}
 				onRequestLogin={() => (showLoginModal = true)}
 				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
 			/>
 		{:else if currentView === 'stanleyTopper'}
 			<StanleyTopperDesigner
 				{user}
 				{session}
-				{licenseStatus}
-				{licenseModalRef}
+				{subscriptionStatus}
+				palette={effectivePalette}
 				onBack={handleBack}
 				onRequestLogin={() => (showLoginModal = true)}
 				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
 			/>
 		{:else if currentView === 'strawTopper'}
 			<StrawTopperDesigner
 				{user}
 				{session}
-				{licenseStatus}
-				{licenseModalRef}
+				{subscriptionStatus}
+				palette={effectivePalette}
 				onBack={handleBack}
 				onRequestLogin={() => (showLoginModal = true)}
 				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
 			/>
 		{:else if currentView === 'pencilTopper'}
 			<PencilTopperDesigner
 				{user}
 				{session}
-				{licenseStatus}
-				{licenseModalRef}
+				{subscriptionStatus}
+				palette={effectivePalette}
 				onBack={handleBack}
 				onRequestLogin={() => (showLoginModal = true)}
 				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
 			/>
 		{:else if currentView === 'dogtag'}
 			<DogTagDesigner
 				{user}
 				{session}
-				{licenseStatus}
-				{licenseModalRef}
+				{subscriptionStatus}
+				palette={effectivePalette}
 				onBack={handleBack}
 				onRequestLogin={() => (showLoginModal = true)}
 				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
 			/>
 		{:else if currentView === 'bumpyText'}
 			<BumpyTextDesigner
 				{user}
 				{session}
-				{licenseStatus}
-				{licenseModalRef}
+				{subscriptionStatus}
+				palette={effectivePalette}
 				onBack={handleBack}
 				onRequestLogin={() => (showLoginModal = true)}
 				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
 			/>
 		{:else if currentView === 'bowKeychain'}
 			<BowKeychainDesigner
 				{user}
 				{session}
-				{licenseStatus}
-				{licenseModalRef}
+				{subscriptionStatus}
+				palette={effectivePalette}
 				onBack={handleBack}
 				onRequestLogin={() => (showLoginModal = true)}
 				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'licenseInfo'}
-			<LicenseInfoPage onBack={handleBack as never} />
 		{:else if currentView === 'feedback'}
 			<FeedbackPage
 				{user}
-				{licenseStatus}
 				onBack={handleBack}
 				onRequestLogin={() => (showLoginModal = true)}
-				onOpenLicenseInfo={openLicenseInfo}
+			/>
+		{:else if currentView === 'settings'}
+			<SettingsPage
+				{user}
+				palette={effectivePalette}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onSavePalette={handleSavePalette}
 			/>
 		{/if}
 	</div>

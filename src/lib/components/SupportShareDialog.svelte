@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from "$lib/components/ui/dialog";
 
 	interface Props {
@@ -60,8 +61,7 @@
 			</p>
 			<p class="text-xs text-slate-500">
 				If you're willing to promote the app (social media, groups, or your customers), send us a link
-				or screenshot of your post and we'll thank you with
-				<span class="font-semibold text-slate-800">1 month of free license</span>.
+				or screenshot of your post—we really appreciate the support.
 			</p>
 		</div>
 
@@ -75,34 +75,22 @@
 					{/if}
 				</div>
 				<div class="flex justify-end gap-2">
-					<button
-						type="button"
-						class="cursor-pointer rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:outline-none"
-						onclick={handleClose}
-					>
+					<Button variant="outline" size="sm" onclick={handleClose}>
 						Maybe later
-					</button>
-					<button
-						type="button"
-						class="cursor-pointer rounded-xl bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:outline-none"
-						onclick={handleShare}
-					>
+					</Button>
+					<Button size="sm" onclick={handleShare}>
 						Share Print Studio
-					</button>
+					</Button>
 				</div>
 			</div>
 
 			<div class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
 				<p class="text-[11px] text-slate-600">
-					Want 1 month free license? Share the app and send us your post.
+					You can also message us directly if you’d like to chat about how you’re using Print Studio.
 				</p>
-				<button
-					type="button"
-					class="cursor-pointer rounded-lg border border-slate-200 px-3 py-1 text-[11px] font-medium whitespace-nowrap text-slate-700 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:outline-none"
-					onclick={() => window.open("https://m.me/pixnprints.shop", "_blank")}
-				>
-					Claim 1 month free
-				</button>
+				<Button variant="outline" size="sm" class="whitespace-nowrap" onclick={() => window.open("https://m.me/pixnprints.shop", "_blank")}>
+					Message PixnPrints
+				</Button>
 			</div>
 		</div>
 	</Dialog.Content>

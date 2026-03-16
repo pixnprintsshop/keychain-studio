@@ -5,15 +5,8 @@
     import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
     import { FONT_OPTIONS, cn } from "$lib/utils";
     import type { FontOption } from "$lib/utils";
-    import type { LicenseStatus } from "$lib/licensing";
-    import type { User } from "@supabase/supabase-js";
     import * as Command from "./ui/command/index.js";
     import * as Popover from "./ui/popover/index.js";
-
-    /** Ref to a modal with an open() method (e.g. LicenseModal). */
-    interface LicenseModalRef {
-        open: () => void;
-    }
 
     interface Props {
         value: string;
@@ -22,10 +15,6 @@
         triggerClass?: string;
         /** Optional override list of fonts (defaults to all FONT_OPTIONS). */
         options?: FontOption[];
-        /** When provided with licenseStatus (trial), first font is free; others show lock and open license modal. */
-        user?: User | null;
-        licenseStatus?: LicenseStatus | null;
-        licenseModalRef?: LicenseModalRef | null;
     }
 
     let {
@@ -34,9 +23,6 @@
         id,
         triggerClass = "w-full",
         options = FONT_OPTIONS,
-        user = null,
-        licenseStatus = null,
-        licenseModalRef = null,
     }: Props = $props();
 
     let open = $state(false);
@@ -53,14 +39,7 @@
         });
     }
 
-    function selectFont(fontKey: string, index: number) {
-        const isFirstFont = index === 0;
-        const isTrialRestricted =
-            user != null && licenseStatus?.type === "trial" && !isFirstFont;
-        if (isTrialRestricted) {
-            licenseModalRef?.open();
-            return;
-        }
+    function selectFont(fontKey: string, _index: number) {
         value = fontKey;
         closeAndFocusTrigger();
     }
@@ -96,15 +75,11 @@
                 <Command.Empty>No font found.</Command.Empty>
                 <Command.Group>
                     {#each options as f, index}
-                        {@const isFirstFont = index === 0}
-                        {@const isTrialRestricted =
-                            user != null && licenseStatus?.type === "trial" && !isFirstFont}
                         <Command.Item
                             value={f.label}
                             onSelect={() => selectFont(f.key, index)}
                             class={cn(
-                                value === f.key && "bg-indigo-100",
-                                isTrialRestricted && "opacity-60 cursor-not-allowed text-slate-500"
+                                value === f.key && "bg-indigo-100"
                             )}
                             style="font-family: {f.fontFamily}"
                         >
@@ -115,9 +90,6 @@
                                 )}
                             />
                             <span class="flex-1">{f.label}</span>
-                            {#if isTrialRestricted}
-                                <LockIcon class="size-4 shrink-0 text-slate-400" />
-                            {/if}
                         </Command.Item>
                     {/each}
                 </Command.Group>

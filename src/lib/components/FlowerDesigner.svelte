@@ -10,7 +10,6 @@
     import baseStlUrl from "$lib/assets/stl/flower/base.stl?url";
     import topStlUrl from "$lib/assets/stl/flower/top.stl?url";
     import FontSelect from "$lib/components/FontSelect.svelte";
-    import type { LicenseStatus } from "$lib/licensing";
     import {
         centerGeometryXY,
         disposeObject3D,
@@ -20,26 +19,32 @@
         getFont,
     } from "$lib/utils";
     import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
-    import type LicenseModal from "./LicenseModal.svelte";
+    import { Button } from '$lib/components/ui/button';
+    import { Slider } from '$lib/components/ui/slider';
+    import ColorPalettePicker from './ColorPalettePicker.svelte';
+    import type { PaletteColor } from '$lib/colorPalette';
+    import type { SubscriptionStatus } from "$lib/subscription";
 
     // ── Props ───────────────────────────────────────────────────────────────
     interface Props {
         user: User | null;
         session: Session | null;
-        licenseStatus: LicenseStatus | null;
-        licenseModalRef: LicenseModal | null;
+        subscriptionStatus: SubscriptionStatus | null;
+        palette: PaletteColor[];
         onBack: () => void;
         onRequestLogin: () => void;
         onShowThankYou: () => void;
+        onShowPricing?: () => void;
     }
     let {
         user,
         session,
-        licenseStatus,
-        licenseModalRef,
+        subscriptionStatus,
+        palette,
         onBack,
         onRequestLogin,
         onShowThankYou,
+        onShowPricing,
     }: Props = $props();
 
     // ── Storage keys ────────────────────────────────────────────────────────
@@ -299,10 +304,7 @@
             onRequestLogin();
             return;
         }
-        if (!licenseStatus?.canExport) {
-            licenseModalRef?.open();
-            return;
-        }
+
         rebuildMeshes();
         group.updateWorldMatrix(true, true);
         const geometries: THREE.BufferGeometry[] = [];
@@ -333,7 +335,7 @@
             const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
             downloadBlob(`flower-${timestamp}.stl`, blob);
         }
-        if (licenseStatus?.type === "trial") onShowThankYou();
+        onShowThankYou();
     }
 
     async function export3MF() {
@@ -342,10 +344,7 @@
             onRequestLogin();
             return;
         }
-        if (!licenseStatus?.canExport) {
-            licenseModalRef?.open();
-            return;
-        }
+
         rebuildMeshes();
         group.updateWorldMatrix(true, true);
         const exportGroup = new THREE.Group();
@@ -405,7 +404,7 @@
         if (!blob || blob.size === 0) return;
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         downloadBlob(`flower-${timestamp}.3mf`, blob);
-        if (licenseStatus?.type === "trial") onShowThankYou();
+        onShowThankYou();
     }
 
     // ── Lifecycle ───────────────────────────────────────────────────────────
@@ -572,12 +571,9 @@
                 <h1 class="text-lg font-semibold tracking-tight text-slate-900">
                     Flower & Initial
                 </h1>
-                <button
-                    type="button"
-                    class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                    onclick={onBack}>
+                <Button variant="outline" size="sm" onclick={onBack}>
                     Back
-                </button>
+                </Button>
             </div>
 
             <div
@@ -604,11 +600,7 @@
                     <label class="grid gap-1.5">
                         <span class="text-xs font-medium text-slate-700"
                             >Font</span>
-                        <FontSelect
-                            bind:value={charFontKey}
-                            {user}
-                            {licenseStatus}
-                            {licenseModalRef} />
+                        <FontSelect bind:value={charFontKey} />
                     </label>
 
                     <!-- Size slider -->
@@ -619,13 +611,13 @@
                             <span class="text-xs tabular-nums text-slate-600"
                                 >{charSize}</span>
                         </div>
-                        <input
-                            class="w-full accent-indigo-500"
-                            type="range"
-                            min="1"
-                            max="40"
-                            step="1"
-                            bind:value={charSize} />
+                        <Slider
+                            type="single"
+                            bind:value={charSize}
+                            min={1}
+                            max={40}
+                            step={1}
+                            class="w-full" />
                     </label>
 
                     <!-- Depth slider -->
@@ -636,30 +628,19 @@
                             <span class="text-xs tabular-nums text-slate-600"
                                 >{charDepth}</span>
                         </div>
-                        <input
-                            class="w-full accent-indigo-500"
-                            type="range"
-                            min="0.2"
-                            max="10"
-                            step="0.2"
-                            bind:value={charDepth} />
+                        <Slider
+                            type="single"
+                            bind:value={charDepth}
+                            min={0.2}
+                            max={10}
+                            step={0.2}
+                            class="w-full" />
                     </label>
 
-                    <!-- Color picker -->
-                    <label class="grid gap-1.5">
-                        <span class="text-xs font-medium text-slate-700"
-                            >Color</span>
-                        <div class="flex items-center gap-2">
-                            <input
-                                class="h-10 w-10 rounded-xl"
-                                type="color"
-                                bind:value={charColor} />
-                            <input
-                                class="min-w-0 w-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                                type="text"
-                                bind:value={charColor} />
-                        </div>
-                    </label>
+                    <ColorPalettePicker
+                        bind:value={charColor}
+                        {palette}
+                        label="Color" />
 
                     <!-- Text offset -->
                     <div class="grid gap-1.5">
@@ -676,13 +657,13 @@
                                     class="text-xs tabular-nums text-slate-600"
                                     >{textOffsetX}</span>
                             </div>
-                            <input
-                                class="w-full accent-indigo-500"
-                                type="range"
-                                min="-50"
-                                max="50"
-                                step="0.5"
-                                bind:value={textOffsetX} />
+                            <Slider
+                                type="single"
+                                bind:value={textOffsetX}
+                                min={-50}
+                                max={50}
+                                step={0.5}
+                                class="w-full" />
                         </label>
                         <label class="grid gap-1">
                             <div
@@ -693,13 +674,13 @@
                                     class="text-xs tabular-nums text-slate-600"
                                     >{textOffsetY}</span>
                             </div>
-                            <input
-                                class="w-full accent-indigo-500"
-                                type="range"
-                                min="-50"
-                                max="50"
-                                step="0.5"
-                                bind:value={textOffsetY} />
+                            <Slider
+                                type="single"
+                                bind:value={textOffsetY}
+                                min={-50}
+                                max={50}
+                                step={0.5}
+                                class="w-full" />
                         </label>
                     </div>
                 </div>
@@ -711,20 +692,10 @@
                             class="text-xs font-semibold tracking-tight text-slate-700">
                             Base
                         </div>
-                        <label class="grid gap-1.5">
-                            <span class="text-xs font-medium text-slate-700"
-                                >Color</span>
-                            <div class="flex items-center gap-2">
-                                <input
-                                    class="h-10 w-10 rounded-xl"
-                                    type="color"
-                                    bind:value={baseColor} />
-                                <input
-                                    class="min-w-0 w-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                                    type="text"
-                                    bind:value={baseColor} />
-                            </div>
-                        </label>
+                        <ColorPalettePicker
+                            bind:value={baseColor}
+                            {palette}
+                            label="Color" />
                         <label class="grid gap-1.5">
                             <div
                                 class="flex items-center justify-between gap-2">
@@ -734,13 +705,13 @@
                                     class="text-xs tabular-nums text-slate-600"
                                     >{baseDepth}</span>
                             </div>
-                            <input
-                                class="w-full accent-indigo-500"
-                                type="range"
-                                min="0.2"
-                                max="20"
-                                step="0.2"
-                                bind:value={baseDepth} />
+                            <Slider
+                                type="single"
+                                bind:value={baseDepth}
+                                min={0.2}
+                                max={20}
+                                step={0.2}
+                                class="w-full" />
                         </label>
                     </div>
 
@@ -751,20 +722,10 @@
                             class="text-xs font-semibold tracking-tight text-slate-700">
                             Top
                         </div>
-                        <label class="grid gap-1.5">
-                            <span class="text-xs font-medium text-slate-700"
-                                >Color</span>
-                            <div class="flex items-center gap-2">
-                                <input
-                                    class="h-10 w-10 rounded-xl"
-                                    type="color"
-                                    bind:value={topColor} />
-                                <input
-                                    class="min-w-0 w-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                                    type="text"
-                                    bind:value={topColor} />
-                            </div>
-                        </label>
+                        <ColorPalettePicker
+                            bind:value={topColor}
+                            {palette}
+                            label="Color" />
                         <label class="grid gap-1.5">
                             <div
                                 class="flex items-center justify-between gap-2">
@@ -774,13 +735,13 @@
                                     class="text-xs tabular-nums text-slate-600"
                                     >{topDepth}</span>
                             </div>
-                            <input
-                                class="w-full accent-indigo-500"
-                                type="range"
-                                min="0.2"
-                                max="20"
-                                step="0.2"
-                                bind:value={topDepth} />
+                            <Slider
+                                type="single"
+                                bind:value={topDepth}
+                                min={0.2}
+                                max={20}
+                                step={0.2}
+                                class="w-full" />
                         </label>
                     </div>
                 </div>
@@ -794,16 +755,15 @@
                 <DesignerExportToolbar
                     onSnapshot={() =>
                         downloadSnapshot(renderer, scene, camera, "flower")}
-                    onExport={exportSTL}
-                    onExport3MF={() => void export3MF()}
-                    exportDisabled={!user || licenseStatus?.canExport === false}
+                    onExport={() => (user && subscriptionStatus?.isActive ? exportSTL() : onShowPricing?.())}
+                    onExport3MF={() => (user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.())}
+                    exportDisabled={false}
                     exportTitle={!user
                         ? "Sign in to export"
-                        : licenseStatus?.canExport === false
-                          ? "License required to export"
-                          : "Export STL or 3MF"}
-                    showLockIcon={!user ||
-                        licenseStatus?.canExport === false} />
+                        : !subscriptionStatus?.isActive
+                            ? "Subscribe to export"
+                            : "Export STL or 3MF"}
+                    showLockIcon={!user || !subscriptionStatus?.isActive} />
             </div>
         </section>
     </div>

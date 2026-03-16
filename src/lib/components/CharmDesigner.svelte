@@ -9,7 +9,6 @@
 	import { SVGLoader } from 'three/examples/jsm/loaders/SVGLoader.js';
 	import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 	import { exportTo3MF } from 'three-3mf-exporter';
-	import type { LicenseStatus } from '$lib/licensing';
 	import { uploadSvgToSupabase } from '$lib/svgUpload';
 	import { runOpenScad } from '$lib/openscad';
 	import {
@@ -20,30 +19,27 @@
 		frameCameraToObject,
 		stlToBufferGeometry
 	} from '$lib/utils';
-	import DesignerExportToolbar from './DesignerExportToolbar.svelte';
-	import type LicenseModal from './LicenseModal.svelte';
+import DesignerExportToolbar from './DesignerExportToolbar.svelte';
+	import { Button } from '$lib/components/ui/button';
+	import { Slider } from '$lib/components/ui/slider';
+	import ColorPalettePicker from './ColorPalettePicker.svelte';
+	import type { PaletteColor } from '$lib/colorPalette';
 	import LoadingModal from './LoadingModal.svelte';
 	import SvgInfoModal from './SvgInfoModal.svelte';
+	import type { SubscriptionStatus } from '$lib/subscription';
 
-	interface Props {
-		user: User | null;
-		session: Session | null;
-		licenseStatus: LicenseStatus | null;
-		licenseModalRef: LicenseModal | null;
-		onBack: () => void;
-		onRequestLogin: () => void;
-		onShowThankYou: () => void;
-	}
+interface Props {
+	user: User | null;
+	session: Session | null;
+	subscriptionStatus: SubscriptionStatus | null;
+	palette: PaletteColor[];
+	onBack: () => void;
+	onRequestLogin: () => void;
+	onShowThankYou: () => void;
+	onShowPricing?: () => void;
+}
 
-	let {
-		user,
-		session,
-		licenseStatus,
-		licenseModalRef,
-		onBack,
-		onRequestLogin,
-		onShowThankYou
-	}: Props = $props();
+let { user, session, subscriptionStatus, palette, onBack, onRequestLogin, onShowThankYou, onShowPricing }: Props = $props();
 
 	const PROCESS_URL = 'https://svg-icon-processor-475432008335.us-central1.run.app/process';
 
@@ -963,10 +959,6 @@ difference() {
 			onRequestLogin();
 			return;
 		}
-		if (!licenseStatus?.canExport || !licenseStatus?.isPaid) {
-			licenseModalRef?.open();
-			return;
-		}
 		if (!optimizedSvg?.trim()) {
 			exportError = 'Nothing to export yet';
 			return;
@@ -1030,7 +1022,7 @@ difference() {
 
 			const ts = new Date().toISOString().replace(/[:.]/g, '-');
 			downloadBlob(`${baseName || 'charm'}-${ts}.stl`, blob);
-			if (licenseStatus?.type === 'trial') onShowThankYou();
+			onShowThankYou();
 		} catch (e) {
 			exportError = e instanceof Error ? e.message : 'Export failed';
 		} finally {
@@ -1041,10 +1033,6 @@ difference() {
 	async function export3MF() {
 		if (!user) {
 			onRequestLogin();
-			return;
-		}
-		if (!licenseStatus?.canExport || !licenseStatus?.isPaid) {
-			licenseModalRef?.open();
 			return;
 		}
 		if (!optimizedSvg?.trim()) {
@@ -1109,7 +1097,7 @@ difference() {
 			}
 			const ts = new Date().toISOString().replace(/[:.]/g, '-');
 			downloadBlob(`${baseName || 'charm'}-${ts}.3mf`, blob);
-			if (licenseStatus?.type === 'trial') onShowThankYou();
+			onShowThankYou();
 		} catch (e) {
 			exportError = e instanceof Error ? e.message : 'Export failed';
 		} finally {
@@ -1283,13 +1271,9 @@ difference() {
 		>
 			<div class="flex shrink-0 items-center justify-between p-4">
 				<h1 class="text-lg font-semibold tracking-tight text-slate-900">Chunky Charm</h1>
-				<button
-					type="button"
-					class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-					onclick={onBack}
-				>
+				<Button variant="outline" size="sm" onclick={onBack}>
 					Back
-				</button>
+				</Button>
 			</div>
 
 			<div class="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto p-4 pt-0">
@@ -1309,14 +1293,14 @@ difference() {
 							bind:value={svgUrl}
 							disabled={processing}
 						/>
-						<button
-							type="button"
-							class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+						<Button
+							variant="outline"
+							size="sm"
 							onclick={() => void processSvgFromUrl()}
 							disabled={processing || !svgUrl.trim()}
 						>
 							Process
-						</button>
+						</Button>
 					</div>
 				</div>
 
@@ -1349,13 +1333,12 @@ difference() {
 						<label for="charm-size" class="text-xs font-medium text-slate-700">Size (width)</label>
 						<span class="text-xs text-slate-500">{sizeMm.toFixed(0)} mm</span>
 					</div>
-					<input
-						id="charm-size"
-						type="range"
-						min="5"
-						max="100"
-						step="1"
+					<Slider
+						type="single"
 						bind:value={sizeMm}
+						min={5}
+						max={100}
+						step={1}
 						class="w-full"
 						disabled={!optimizedSvg || processing}
 					/>
@@ -1369,13 +1352,12 @@ difference() {
 						>
 						<span class="text-xs text-slate-500">{thickness.toFixed(1)} mm</span>
 					</div>
-					<input
-						id="charm-thickness"
-						type="range"
-						min="0.5"
-						max="10"
-						step="0.1"
+					<Slider
+						type="single"
 						bind:value={thickness}
+						min={0.5}
+						max={10}
+						step={0.1}
 						class="w-full"
 						disabled={!optimizedSvg || processing}
 					/>
@@ -1388,13 +1370,12 @@ difference() {
 						>
 						<span class="text-xs text-slate-500">{baseThickness.toFixed(1)} mm</span>
 					</div>
-					<input
-						id="charm-base-thickness"
-						type="range"
-						min="2"
-						max="25"
-						step="0.5"
+					<Slider
+						type="single"
 						bind:value={baseThickness}
+						min={2}
+						max={25}
+						step={0.5}
 						class="w-full"
 						disabled={!optimizedSvg || processing}
 					/>
@@ -1407,13 +1388,12 @@ difference() {
 						>
 						<span class="text-xs text-slate-500">{baseOffsetMm.toFixed(2)} mm</span>
 					</div>
-					<input
-						id="charm-base-offset"
-						type="range"
-						min="0"
-						max="10"
-						step="0.1"
+					<Slider
+						type="single"
 						bind:value={baseOffsetMm}
+						min={0}
+						max={10}
+						step={0.1}
 						class="w-full"
 						disabled={!optimizedSvg || processing}
 					/>
@@ -1449,14 +1429,13 @@ difference() {
 							>
 							<span class="text-xs text-slate-500">{holeDiameter.toFixed(1)}</span>
 						</div>
-						<input
-							id="charm-hole-diameter"
-							class="w-full accent-indigo-500"
-							type="range"
-							min="2"
-							max="12"
-							step="0.5"
+						<Slider
+							type="single"
 							bind:value={holeDiameter}
+							min={2}
+							max={12}
+							step={0.5}
+							class="w-full"
 							disabled={!optimizedSvg || processing}
 						/>
 					</div>
@@ -1467,14 +1446,13 @@ difference() {
 							>
 							<span class="text-xs text-slate-500">{holeFlatTopOffset.toFixed(2)}</span>
 						</div>
-						<input
-							id="charm-hole-flat"
-							class="w-full accent-indigo-500"
-							type="range"
-							min="0.1"
-							max="2"
-							step="0.05"
+						<Slider
+							type="single"
 							bind:value={holeFlatTopOffset}
+							min={0.1}
+							max={2}
+							step={0.05}
+							class="w-full"
 							disabled={!optimizedSvg || processing}
 						/>
 						<p class="mt-0.5 text-[10px] text-slate-400">
@@ -1484,44 +1462,16 @@ difference() {
 				</div>
 
 				<div class="grid grid-cols-2 gap-3">
-					<label class="grid gap-1.5" for="charm-main-color-text">
-						<span class="text-xs font-medium text-slate-700">Top color</span>
-						<div class="flex items-center gap-2">
-							<input
-								id="charm-main-color"
-								class="h-10 w-10 rounded-xl"
-								type="color"
-								bind:value={mainColor}
-								disabled={!optimizedSvg || processing}
-							/>
-							<input
-								id="charm-main-color-text"
-								class="w-10 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm ring-indigo-500/25 outline-none focus:border-indigo-400 focus:ring-2"
-								type="text"
-								bind:value={mainColor}
-								disabled={!optimizedSvg || processing}
-							/>
-						</div>
-					</label>
-					<label class="grid gap-1.5" for="charm-base-color-text">
-						<span class="text-xs font-medium text-slate-700">Base color</span>
-						<div class="flex items-center gap-2">
-							<input
-								id="charm-base-color"
-								class="h-10 w-10 rounded-xl"
-								type="color"
-								bind:value={baseColor}
-								disabled={!optimizedSvg || processing}
-							/>
-							<input
-								id="charm-base-color-text"
-								class="w-10 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm ring-indigo-500/25 outline-none focus:border-indigo-400 focus:ring-2"
-								type="text"
-								bind:value={baseColor}
-								disabled={!optimizedSvg || processing}
-							/>
-						</div>
-					</label>
+					<ColorPalettePicker
+						bind:value={mainColor}
+						{palette}
+						label="Top color"
+						disabled={!optimizedSvg || processing} />
+					<ColorPalettePicker
+						bind:value={baseColor}
+						{palette}
+						label="Base color"
+						disabled={!optimizedSvg || processing} />
 				</div>
 
 				{#if processError}
@@ -1540,25 +1490,16 @@ difference() {
 			<div class="absolute right-4 bottom-4">
 				<DesignerExportToolbar
 					onSnapshot={() => downloadSnapshot(renderer, scene, camera, 'charm-designer')}
-					onExport={exportStl}
-					onExport3MF={export3MF}
-					exportDisabled={!optimizedSvg ||
-						processing ||
-						exportLoading ||
-						!user ||
-						licenseStatus?.canExport === false ||
-						licenseStatus?.isPaid === false}
+					onExport={() => (user && subscriptionStatus?.isActive ? exportStl() : onShowPricing?.())}
+					onExport3MF={() => (user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.())}
+					exportDisabled={!optimizedSvg || processing || exportLoading}
 					exportTitle={!user
 						? 'Sign in to export'
-						: licenseStatus?.canExport === false
-							? 'License required to export'
-							: licenseStatus?.isPaid === false
-								? 'Paid license required to export'
-								: 'Export STL or 3MF (multipart) for 3D print'}
+						: !subscriptionStatus?.isActive
+							? 'Subscribe to export'
+							: 'Export STL or 3MF (multipart) for 3D print'}
 					{exportLoading}
-					showLockIcon={!user ||
-						licenseStatus?.canExport === false ||
-						licenseStatus?.isPaid === false}
+					showLockIcon={!user || !subscriptionStatus?.isActive}
 				/>
 			</div>
 		</section>

@@ -12,7 +12,7 @@
 	--card-foreground: oklch(0.145 0 0);
 	--popover: oklch(1 0 0);
 	--popover-foreground: oklch(0.145 0 0);
-	--primary: oklch(0.205 0 0);
+	--primary: oklch(0.51 0.21 265);
 	--primary-foreground: oklch(0.985 0 0);
 	--secondary: oklch(0.97 0 0);
 	--secondary-foreground: oklch(0.205 0 0);
@@ -74,6 +74,8 @@
 }
 
 @theme inline {
+	--font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+	--font-display: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);
@@ -194,6 +196,9 @@
 		@apply border-border outline-ring/50;
 	}
 	body {
-		@apply bg-slate-50 text-foreground;
+		@apply bg-slate-50 text-foreground font-sans antialiased;
+	}
+	h1, h2, h3, h4, h5, h6 {
+		font-family: var(--font-display);
 	}
 }

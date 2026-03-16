@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { Button } from '$lib/components/ui/button';
+
 	interface Props {
 		onBack: () => void;
 	}
@@ -8,13 +10,9 @@
 <main class="min-h-dvh w-dvw bg-slate-50">
 	<div class="mx-auto max-w-3xl px-4 py-8">
 		<div class="mb-6 flex items-center justify-between">
-			<button
-				type="button"
-				class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-				onclick={onBack}
-			>
+			<Button variant="outline" size="sm" onclick={onBack}>
 				Back
-			</button>
+			</Button>
 		</div>
 		<div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
 			<h1 class="text-2xl font-bold tracking-tight text-slate-900">Privacy Policy</h1>
@@ -36,18 +34,17 @@
 				<h2 class="mt-6 text-lg font-semibold text-slate-900">2. Information We Collect</h2>
 				<p class="mt-2">
 					We may collect: (a) account information (email, name, password) when you sign up; (b)
-					usage data (e.g., which designers you use, license status) to operate and improve the
-					Service; (c) license and device-activation data (e.g. to enforce device limits per your
-					license); (d) design files or content you upload (e.g., SVG, STL) only as necessary to
-					process and display your designs. We do not sell your personal information.
+					usage data (e.g., which designers you use) to operate and improve the Service; and (c)
+					design files or content you upload (e.g., SVG, STL) only as necessary to process and
+					display your designs. We do not sell your personal information.
 				</p>
 
 				<h2 class="mt-6 text-lg font-semibold text-slate-900">3. How We Use Your Information</h2>
 				<p class="mt-2">
 					We use your information to provide, secure, and improve the Service; to communicate with
-					you about your account or license; and to comply with legal obligations. Processing of
-					uploads (e.g., SVG processing) may involve temporary storage or transmission to our
-					services; we do not use your designs for marketing or unrelated purposes.
+					you about your account; and to comply with legal obligations. Processing of uploads (e.g.,
+					SVG processing) may involve temporary storage or transmission to our services; we do not
+					use your designs for marketing or unrelated purposes.
 				</p>
 
 				<h2 class="mt-6 text-lg font-semibold text-slate-900">4. Data Storage and Security</h2>
@@ -105,7 +102,7 @@
 					>
 						Facebook Messenger
 					</a>
-					or through the link under <strong>How to obtain or buy a license</strong> in the app.
+					or through the contact link in the app.
 				</p>
 			</div>
 		</div>

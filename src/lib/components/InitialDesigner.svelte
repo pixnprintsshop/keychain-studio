@@ -8,7 +8,6 @@
     import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
     import { exportTo3MF } from "three-3mf-exporter";
     import FontSelect from "$lib/components/FontSelect.svelte";
-    import type { LicenseStatus } from "$lib/licensing";
     import {
         centerGeometryXY,
         type CharSettings,
@@ -29,26 +28,32 @@
         makeKeyringGeometry,
     } from "$lib/utils";
     import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
-    import type LicenseModal from "./LicenseModal.svelte";
+    import { Button } from "$lib/components/ui/button";
+    import { Slider } from "$lib/components/ui/slider";
+    import ColorPalettePicker from "./ColorPalettePicker.svelte";
+    import type { PaletteColor } from "$lib/colorPalette";
+    import type { SubscriptionStatus } from "$lib/subscription";
 
     // ── Props ───────────────────────────────────────────────────────────────
     interface Props {
         user: User | null;
         session: Session | null;
-        licenseStatus: LicenseStatus | null;
-        licenseModalRef: LicenseModal | null;
+        subscriptionStatus: SubscriptionStatus | null;
+        palette: PaletteColor[];
         onBack: () => void;
         onRequestLogin: () => void;
         onShowThankYou: () => void;
+        onShowPricing?: () => void;
     }
     let {
         user,
         session,
-        licenseStatus,
-        licenseModalRef,
+        subscriptionStatus,
+        palette,
         onBack,
         onRequestLogin,
         onShowThankYou,
+        onShowPricing,
     }: Props = $props();
 
     // ── Storage keys (initial-specific) ─────────────────────────────────────
@@ -244,10 +249,6 @@
             onRequestLogin();
             return;
         }
-        if (!licenseStatus?.canExport) {
-            licenseModalRef?.open();
-            return;
-        }
         const exporter = new STLExporter();
         const result = exporter.parse(group, { binary: true } as any);
         const blob =
@@ -261,17 +262,13 @@
             .replace(/(^-|-$)/g, "");
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         downloadBlob(`${safe || "model"}-initial-${timestamp}.stl`, blob);
-        if (licenseStatus?.type === "trial") onShowThankYou();
+        onShowThankYou();
     }
 
     /** 3MF: 3 objects. (1) Initial + text outline merged, same color. (2) Text outline only. (3) Text only. */
     async function export3MF() {
         if (!user) {
             onRequestLogin();
-            return;
-        }
-        if (!licenseStatus?.canExport) {
-            licenseModalRef?.open();
             return;
         }
         if (!group || group.children.length === 0) return;
@@ -358,7 +355,7 @@
                 .replace(/(^-|-$)/g, "");
             const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
             downloadBlob(`${safe || "model"}-initial-${timestamp}.3mf`, blob);
-            if (licenseStatus?.type === "trial") onShowThankYou();
+            onShowThankYou();
         } catch (e) {
             console.error("3MF export failed", e);
         }
@@ -783,7 +780,7 @@
     // Text font change (save/load font settings, but NOT keyring -- that's tied to initialFontKey)
     $effect(() => {
         const currentFont = fontKey;
-        if (user && licenseStatus?.type === "trial") {
+        if (user) {
             const firstFontKey = FONT_OPTIONS[0]?.key;
             if (currentFont !== firstFontKey && firstFontKey) {
                 fontKey = firstFontKey;
@@ -938,12 +935,9 @@
                 <h1 class="text-lg font-semibold tracking-tight text-slate-900">
                     Text & Initial
                 </h1>
-                <button
-                    type="button"
-                    class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                    onclick={onBack}>
+                <Button variant="outline" size="sm" onclick={onBack}>
                     Back
-                </button>
+                </Button>
             </div>
 
             <div
@@ -963,10 +957,7 @@
                         <span class="text-xs font-medium text-slate-700"
                             >Text Font</span>
                         <FontSelect
-                            bind:value={fontKey}
-                            {user}
-                            {licenseStatus}
-                            {licenseModalRef} />
+                            bind:value={fontKey} />
                     </label>
 
                     <!-- Initial Font -->
@@ -974,10 +965,7 @@
                         <span class="text-xs font-medium text-slate-700"
                             >Initial Font</span>
                         <FontSelect
-                            bind:value={initialFontKey}
-                            {user}
-                            {licenseStatus}
-                            {licenseModalRef} />
+                            bind:value={initialFontKey} />
                     </label>
 
                     <label class="grid gap-1.5">
@@ -987,13 +975,13 @@
                             <span class="text-xs tabular-nums text-slate-600"
                                 >{initialTextSize}</span>
                         </div>
-                        <input
-                            class="w-full accent-indigo-500"
-                            type="range"
-                            min="6"
-                            max="120"
-                            step="1"
-                            bind:value={initialTextSize} />
+                        <Slider
+                            type="single"
+                            bind:value={initialTextSize}
+                            min={6}
+                            max={120}
+                            step={1}
+                            class="w-full" />
                     </label>
 
                     <label class="grid gap-1.5">
@@ -1003,13 +991,13 @@
                             <span class="text-xs tabular-nums text-slate-600"
                                 >{textSize}</span>
                         </div>
-                        <input
-                            class="w-full accent-indigo-500"
-                            type="range"
-                            min="6"
-                            max="72"
-                            step="1"
-                            bind:value={textSize} />
+                        <Slider
+                            type="single"
+                            bind:value={textSize}
+                            min={6}
+                            max={72}
+                            step={1}
+                            class="w-full" />
                     </label>
 
 					<!-- Top text position (relative to initial) -->
@@ -1021,13 +1009,13 @@
 								<span class="text-xs tabular-nums text-slate-600"
 									>{textOffsetX}</span>
 							</div>
-							<input
-								class="w-full accent-indigo-500"
-								type="range"
-								min="-40"
-								max="40"
-								step="0.5"
-								bind:value={textOffsetX} />
+							<Slider
+								type="single"
+								bind:value={textOffsetX}
+								min={-40}
+								max={40}
+								step={0.5}
+								class="w-full" />
 						</label>
 						<label class="grid gap-1.5">
 							<div class="flex items-center justify-between gap-2">
@@ -1036,13 +1024,13 @@
 								<span class="text-xs tabular-nums text-slate-600"
 									>{textOffsetY}</span>
 							</div>
-							<input
-								class="w-full accent-indigo-500"
-								type="range"
-								min="-40"
-								max="40"
-								step="0.5"
-								bind:value={textOffsetY} />
+							<Slider
+								type="single"
+								bind:value={textOffsetY}
+								min={-40}
+								max={40}
+								step={0.5}
+								class="w-full" />
 						</label>
 					</div>
 
@@ -1053,44 +1041,24 @@
                             <span class="text-xs tabular-nums text-slate-600"
                                 >{outlineOffsetPx}px</span>
                         </div>
-                        <input
-                            class="w-full accent-indigo-500"
-                            type="range"
-                            min="5"
-                            max="30"
-                            step="1"
-                            bind:value={outlineOffsetPx} />
+                        <Slider
+                            type="single"
+                            bind:value={outlineOffsetPx}
+                            min={5}
+                            max={30}
+                            step={1}
+                            class="w-full" />
                     </label>
 
                     <div class="grid grid-cols-2 gap-3">
-                        <label class="grid gap-1.5">
-                            <span class="text-xs font-medium text-slate-700"
-                                >Text color</span>
-                            <div class="flex items-center gap-2">
-                                <input
-                                    class="h-10 w-10 rounded-xl"
-                                    type="color"
-                                    bind:value={textColor} />
-                                <input
-                                    class="min-w-0 w-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                                    type="text"
-                                    bind:value={textColor} />
-                            </div>
-                        </label>
-                        <label class="grid gap-1.5">
-                            <span class="text-xs font-medium text-slate-700"
-                                >Outline color</span>
-                            <div class="flex items-center gap-2">
-                                <input
-                                    class="h-10 w-10 rounded-xl"
-                                    type="color"
-                                    bind:value={outlineColor} />
-                                <input
-                                    class="min-w-0 w-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                                    type="text"
-                                    bind:value={outlineColor} />
-                            </div>
-                        </label>
+                        <ColorPalettePicker
+                            bind:value={textColor}
+                            {palette}
+                            label="Text color" />
+                        <ColorPalettePicker
+                            bind:value={outlineColor}
+                            {palette}
+                            label="Outline color" />
                     </div>
 
                     <div
@@ -1110,13 +1078,13 @@
                                         class="text-xs tabular-nums text-slate-600"
                                         >{initialDepth}</span>
                                 </div>
-                                <input
-                                    class="w-full accent-indigo-500"
-                                    type="range"
-                                    min="1"
-                                    max="20"
-                                    step="0.2"
-                                    bind:value={initialDepth} />
+                                <Slider
+                                    type="single"
+                                    bind:value={initialDepth}
+                                    min={1}
+                                    max={20}
+                                    step={0.2}
+                                    class="w-full" />
                             </label>
                             <label class="grid gap-1.5">
                                 <div
@@ -1128,13 +1096,13 @@
                                         class="text-xs tabular-nums text-slate-600"
                                         >{baseDepth}</span>
                                 </div>
-                                <input
-                                    class="w-full accent-indigo-500"
-                                    type="range"
-                                    min="0.2"
-                                    max="20"
-                                    step="0.2"
-                                    bind:value={baseDepth} />
+                                <Slider
+                                    type="single"
+                                    bind:value={baseDepth}
+                                    min={0.2}
+                                    max={20}
+                                    step={0.2}
+                                    class="w-full" />
                             </label>
                             <label class="grid gap-1.5">
                                 <div
@@ -1146,13 +1114,13 @@
                                         class="text-xs tabular-nums text-slate-600"
                                         >{textDepth}</span>
                                 </div>
-                                <input
-                                    class="w-full accent-indigo-500"
-                                    type="range"
-                                    min="1"
-                                    max="20"
-                                    step="0.2"
-                                    bind:value={textDepth} />
+                                <Slider
+                                    type="single"
+                                    bind:value={textDepth}
+                                    min={1}
+                                    max={20}
+                                    step={0.2}
+                                    class="w-full" />
                             </label>
                         </div>
                     </div>
@@ -1182,13 +1150,13 @@
                                     class="text-xs tabular-nums text-slate-600"
                                     >{keyringDepth}</span>
                             </div>
-                            <input
-                                class="w-full accent-indigo-500"
-                                type="range"
-                                min="1"
-                                max="20"
-                                step="1"
-                                bind:value={keyringDepth} />
+                            <Slider
+                                type="single"
+                                bind:value={keyringDepth}
+                                min={1}
+                                max={20}
+                                step={1}
+                                class="w-full" />
                         </label>
                         <label class="grid gap-1.5">
                             <div
@@ -1199,13 +1167,13 @@
                                     class="text-xs tabular-nums text-slate-600"
                                     >{keyringOuterSize}</span>
                             </div>
-                            <input
-                                class="w-full accent-indigo-500"
-                                type="range"
-                                min="4"
-                                max="15"
-                                step="0.5"
-                                bind:value={keyringOuterSize} />
+                            <Slider
+                                type="single"
+                                bind:value={keyringOuterSize}
+                                min={4}
+                                max={15}
+                                step={0.5}
+                                class="w-full" />
                         </label>
                         <label class="grid gap-1.5">
                             <div
@@ -1216,13 +1184,13 @@
                                     class="text-xs tabular-nums text-slate-600"
                                     >{keyringHoleSize}</span>
                             </div>
-                            <input
-                                class="w-full accent-indigo-500"
-                                type="range"
-                                min="2"
+                            <Slider
+                                type="single"
+                                bind:value={keyringHoleSize}
+                                min={2}
                                 max={Math.max(1, keyringOuterSize - 1)}
-                                step="0.5"
-                                bind:value={keyringHoleSize} />
+                                step={0.5}
+                                class="w-full" />
                         </label>
                         <div class="grid grid-cols-2 gap-3">
                             <label class="grid gap-1.5">
@@ -1235,13 +1203,13 @@
                                         class="text-xs tabular-nums text-slate-600"
                                         >{keyringOffsetX}</span>
                                 </div>
-                                <input
-                                    class="w-full accent-indigo-500"
-                                    type="range"
-                                    min="-40"
-                                    max="40"
-                                    step="0.5"
-                                    bind:value={keyringOffsetX} />
+                                <Slider
+                                    type="single"
+                                    bind:value={keyringOffsetX}
+                                    min={-40}
+                                    max={40}
+                                    step={0.5}
+                                    class="w-full" />
                             </label>
                             <label class="grid gap-1.5">
                                 <div
@@ -1253,13 +1221,13 @@
                                         class="text-xs tabular-nums text-slate-600"
                                         >{keyringOffsetY}</span>
                                 </div>
-                                <input
-                                    class="w-full accent-indigo-500"
-                                    type="range"
-                                    min="-40"
-                                    max="40"
-                                    step="0.5"
-                                    bind:value={keyringOffsetY} />
+                                <Slider
+                                    type="single"
+                                    bind:value={keyringOffsetY}
+                                    min={-40}
+                                    max={40}
+                                    step={0.5}
+                                    class="w-full" />
                             </label>
                         </div>
                     </div>
@@ -1279,16 +1247,15 @@
                             camera,
                             "keychain-initial",
                         )}
-                    onExport={exportSTL}
-                    onExport3MF={() => void export3MF()}
-                    exportDisabled={!user || licenseStatus?.canExport === false}
+                    onExport={() => (user && subscriptionStatus?.isActive ? exportSTL() : onShowPricing?.())}
+                    onExport3MF={() => (user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.())}
+                    exportDisabled={false}
                     exportTitle={!user
                         ? "Sign in to export"
-                        : licenseStatus?.canExport === false
-                          ? "License required to export"
-                          : "Export STL or 3MF"}
-                    showLockIcon={!user ||
-                        licenseStatus?.canExport === false} />
+                        : !subscriptionStatus?.isActive
+                            ? "Subscribe to export"
+                            : "Export STL or 3MF"}
+                    showLockIcon={!user || !subscriptionStatus?.isActive} />
             </div>
         </section>
     </div>

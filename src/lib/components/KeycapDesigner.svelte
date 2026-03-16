@@ -1,50 +1,55 @@
 <script lang="ts">
+    import defaultKeycapStlUrl from "$lib/assets/stl/keycap.stl?url";
+    import FontSelect from "$lib/components/FontSelect.svelte";
+    import { uploadSvgToSupabase } from "$lib/svgUpload";
+    import {
+    	centerGeometryXY,
+    	disposeObject3D,
+    	downloadBlob,
+    	downloadSnapshot,
+    	FONT_OPTIONS,
+    	frameCameraToObject,
+    	getFont,
+    } from "$lib/utils";
     import type { Session, User } from "@supabase/supabase-js";
     import ClipperLib from "clipper-lib";
     import { onDestroy, onMount } from "svelte";
     import * as THREE from "three";
+    import { exportTo3MF } from "three-3mf-exporter";
     import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
     import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
     import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
     import { SVGLoader } from "three/examples/jsm/loaders/SVGLoader.js";
     import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
-    import { exportTo3MF } from "three-3mf-exporter";
-    import defaultKeycapStlUrl from "$lib/assets/stl/keycap.stl?url";
-    import FontSelect from "$lib/components/FontSelect.svelte";
-    import type { LicenseStatus } from "$lib/licensing";
-    import { uploadSvgToSupabase } from "$lib/svgUpload";
-    import {
-        centerGeometryXY,
-        disposeObject3D,
-        downloadBlob,
-        downloadSnapshot,
-        FONT_OPTIONS,
-        frameCameraToObject,
-        getFont,
-    } from "$lib/utils";
     import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
-    import type LicenseModal from "./LicenseModal.svelte";
+    import { Button } from "$lib/components/ui/button";
+    import { Slider } from "$lib/components/ui/slider";
+    import ColorPalettePicker from "./ColorPalettePicker.svelte";
+    import type { PaletteColor } from "$lib/colorPalette";
     import LoadingModal from "./LoadingModal.svelte";
     import SvgInfoModal from "./SvgInfoModal.svelte";
+    import type { SubscriptionStatus } from "$lib/subscription";
 
     interface Props {
         user: User | null;
         session: Session | null;
-        licenseStatus: LicenseStatus | null;
-        licenseModalRef: LicenseModal | null;
+        subscriptionStatus: SubscriptionStatus | null;
+        palette: PaletteColor[];
         onBack: () => void;
         onRequestLogin: () => void;
         onShowThankYou: () => void;
+        onShowPricing?: () => void;
     }
 
     let {
         user,
         session,
-        licenseStatus,
-        licenseModalRef,
+        subscriptionStatus,
+        palette,
         onBack,
         onRequestLogin,
         onShowThankYou,
+        onShowPricing,
     }: Props = $props();
 
     const PROCESS_URL =
@@ -563,10 +568,6 @@
             onRequestLogin();
             return;
         }
-        if (!licenseStatus?.canExport) {
-            licenseModalRef?.open();
-            return;
-        }
         if (!group || group.children.length === 0) {
             exportError = "Add a keycap and an icon to export";
             return;
@@ -628,7 +629,7 @@
                 `${slug || "keycap"}-${ts}.stl`,
                 new Blob([buffer], { type: "model/stl" }),
             );
-            if (licenseStatus?.type === "trial") onShowThankYou();
+            onShowThankYou();
         } catch (e) {
             exportError = e instanceof Error ? e.message : "Export failed";
         } finally {
@@ -640,10 +641,6 @@
         if (!group || !scene) return;
         if (!user) {
             onRequestLogin();
-            return;
-        }
-        if (!licenseStatus?.canExport) {
-            licenseModalRef?.open();
             return;
         }
         rebuildMeshes();
@@ -677,7 +674,7 @@
             .replace(/(^-|-$)/g, "");
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         downloadBlob(`${slug || "keycap"}-${timestamp}.3mf`, blob);
-        if (licenseStatus?.type === "trial") onShowThankYou();
+        onShowThankYou();
     }
 
     $effect(() => {
@@ -797,12 +794,9 @@
                 <h1 class="text-lg font-semibold tracking-tight text-slate-900">
                     Keycap Maker
                 </h1>
-                <button
-                    type="button"
-                    class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                    onclick={onBack}>
+                <Button variant="outline" size="sm" onclick={onBack}>
                     Back
-                </button>
+                </Button>
             </div>
 
             <div
@@ -843,24 +837,24 @@
                         Text or Icon
                     </span>
                     <div class="flex rounded-xl border border-slate-200 p-0.5">
-                        <button
-                            type="button"
-                            class="flex-1 rounded-lg px-3 py-2 text-xs font-medium transition {logoMode ===
-                            'text'
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            class="flex-1 rounded-lg {logoMode === 'text'
                                 ? 'bg-slate-200 text-slate-900'
-                                : 'text-slate-600 hover:bg-slate-50'}"
+                                : ''}"
                             onclick={() => (logoMode = "text")}>
                             Text
-                        </button>
-                        <button
-                            type="button"
-                            class="flex-1 rounded-lg px-3 py-2 text-xs font-medium transition {logoMode ===
-                            'icon'
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            class="flex-1 rounded-lg {logoMode === 'icon'
                                 ? 'bg-slate-200 text-slate-900'
-                                : 'text-slate-600 hover:bg-slate-50'}"
+                                : ''}"
                             onclick={() => (logoMode = "icon")}>
                             Icon
-                        </button>
+                        </Button>
                     </div>
                 </div>
 
@@ -904,13 +898,13 @@
                                 class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
                                 bind:value={svgUrl}
                                 disabled={processing} />
-                            <button
-                                type="button"
-                                class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            <Button
+                                variant="outline"
+                                size="sm"
                                 onclick={() => void processSvgFromUrl()}
                                 disabled={processing || !svgUrl.trim()}>
                                 Process
-                            </button>
+                            </Button>
                         </div>
                     </div>
 
@@ -951,13 +945,12 @@
                                 {(logoScale * 100).toFixed(0)}%
                             </span>
                         </div>
-                        <input
-                            id="keycap-logo-scale"
-                            type="range"
-                            min="0.2"
-                            max="1"
-                            step="0.05"
+                        <Slider
+                            type="single"
                             bind:value={logoScale}
+                            min={0.2}
+                            max={1}
+                            step={0.05}
                             class="w-full"
                             disabled={processing} />
                     </div>
@@ -973,56 +966,27 @@
                                 {logoDepth.toFixed(1)} mm
                             </span>
                         </div>
-                        <input
-                            id="keycap-logo-depth"
-                            type="range"
-                            min="0.1"
-                            max="2"
-                            step="0.05"
+                        <Slider
+                            type="single"
                             bind:value={logoDepth}
+                            min={0.1}
+                            max={2}
+                            step={0.05}
                             class="w-full"
                             disabled={processing} />
                     </div>
 
                     <div class="grid grid-cols-2 gap-3">
-                        <label class="grid gap-1.5" for="keycap-color-text">
-                            <span class="text-xs font-medium text-slate-700"
-                                >Keycap color</span>
-                            <div class="flex items-center gap-2">
-                                <input
-                                    id="keycap-color"
-                                    class="h-10 w-10 rounded-xl"
-                                    type="color"
-                                    bind:value={keycapColor}
-                                    disabled={!keycapGeometry || processing} />
-                                <input
-                                    id="keycap-color-text"
-                                    class="min-w-0 w-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                                    type="text"
-                                    bind:value={keycapColor}
-                                    disabled={!keycapGeometry || processing} />
-                            </div>
-                        </label>
-                        <label
-                            class="grid gap-1.5"
-                            for="keycap-logo-color-text">
-                            <span class="text-xs font-medium text-slate-700"
-                                >Icon color</span>
-                            <div class="flex items-center gap-2">
-                                <input
-                                    id="keycap-logo-color"
-                                    class="h-10 w-10 rounded-xl"
-                                    type="color"
-                                    bind:value={logoColor}
-                                    disabled={processing} />
-                                <input
-                                    id="keycap-logo-color-text"
-                                    class="min-w-0 w-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                                    type="text"
-                                    bind:value={logoColor}
-                                    disabled={processing} />
-                            </div>
-                        </label>
+                        <ColorPalettePicker
+                            bind:value={keycapColor}
+                            {palette}
+                            label="Keycap color"
+                            disabled={!keycapGeometry || processing} />
+                        <ColorPalettePicker
+                            bind:value={logoColor}
+                            {palette}
+                            label="Icon color"
+                            disabled={processing} />
                     </div>
                 {/if}
 
@@ -1047,22 +1011,20 @@
                             camera,
                             "keycap-designer",
                         )}
-                    onExport={exportStl}
+                    onExport={() => (user && subscriptionStatus?.isActive ? exportStl() : onShowPricing?.())}
                     exportDisabled={!keycapGeometry ||
                         (logoMode === "icon" && !optimizedSvg) ||
                         (logoMode === "text" && !logoChar.trim()) ||
                         processing ||
-                        exportLoading ||
-                        !user ||
-                        licenseStatus?.canExport === false}
+                        exportLoading}
                     exportTitle={!user
                         ? "Sign in to export"
-                        : licenseStatus?.canExport === false
-                          ? "License required to export"
-                          : "Export STL"}
+                        : !subscriptionStatus?.isActive
+                            ? "Subscribe to export"
+                            : "Export STL"}
                     onExport3MF={() => void export3MF()}
                     {exportLoading}
-                    showLockIcon={false} />
+                    showLockIcon={!user || !subscriptionStatus?.isActive} />
             </div>
         </section>
     </div>

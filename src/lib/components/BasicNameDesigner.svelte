@@ -1,8 +1,6 @@
 <script lang="ts">
     import { onDestroy, onMount } from "svelte";
-    import type { LicenseStatus } from "$lib/licensing";
     import type { User, Session } from "@supabase/supabase-js";
-    import type LicenseModal from "./LicenseModal.svelte";
     import * as THREE from "three";
     import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
     import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
@@ -22,26 +20,24 @@
         DEFAULT_TEXT,
     } from "$lib/utils";
     import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
+    import { Button } from "$lib/components/ui/button";
+    import { Slider } from "$lib/components/ui/slider";
+    import ColorPalettePicker from "./ColorPalettePicker.svelte";
+    import type { PaletteColor } from "$lib/colorPalette";
+    import type { SubscriptionStatus } from "$lib/subscription";
 
     // ── Props ───────────────────────────────────────────────────────────────
     interface Props {
         user: User | null;
         session: Session | null;
-        licenseStatus: LicenseStatus | null;
-        licenseModalRef: LicenseModal | null;
+        subscriptionStatus: SubscriptionStatus | null;
+        palette: PaletteColor[];
         onBack: () => void;
         onRequestLogin: () => void;
         onShowThankYou: () => void;
+        onShowPricing?: () => void;
     }
-    let {
-        user,
-        session,
-        licenseStatus,
-        licenseModalRef,
-        onBack,
-        onRequestLogin,
-        onShowThankYou,
-    }: Props = $props();
+    let { user, session, subscriptionStatus, palette, onBack, onRequestLogin, onShowThankYou, onShowPricing }: Props = $props();
 
     // ── Storage ──────────────────────────────────────────────────────────────
     const STORAGE_KEY = "keychain-basicname-settings";
@@ -620,10 +616,6 @@
             onRequestLogin();
             return;
         }
-        if (!licenseStatus?.canExport) {
-            licenseModalRef?.open();
-            return;
-        }
         exportError = null;
         exportLoading = true;
         try {
@@ -656,7 +648,7 @@
             const blob = new Blob([buffer], { type: "model/stl" });
             const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
             downloadBlob(`rounded-rect-${timestamp}.stl`, blob);
-            if (licenseStatus?.type === "trial") onShowThankYou();
+        onShowThankYou();
         } catch (e) {
             exportError = e instanceof Error ? e.message : "Export failed";
         } finally {
@@ -667,10 +659,6 @@
     async function export3MF() {
         if (!user) {
             onRequestLogin();
-            return;
-        }
-        if (!licenseStatus?.canExport) {
-            licenseModalRef?.open();
             return;
         }
         exportError = null;
@@ -692,7 +680,7 @@
                 throw new Error("Export produced no geometry");
             const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
             downloadBlob(`rounded-rect-multipart-${timestamp}.3mf`, blob);
-            if (licenseStatus?.type === "trial") onShowThankYou();
+        onShowThankYou();
         } catch (e) {
             exportError = e instanceof Error ? e.message : "Export failed";
         } finally {
@@ -839,12 +827,9 @@
                 <h1 class="text-lg font-semibold tracking-tight text-slate-900">
                     Basic Name Tag
                 </h1>
-                <button
-                    type="button"
-                    class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                    onclick={onBack}>
+                <Button variant="outline" size="sm" onclick={onBack}>
                     Back
-                </button>
+                </Button>
             </div>
 
             <div
@@ -867,26 +852,12 @@
                     <label class="grid gap-1.5">
                         <span class="text-xs font-medium text-slate-700"
                             >Font</span>
-                        <FontSelect
-                            bind:value={textFontKey}
-                            {user}
-                            {licenseStatus}
-                            {licenseModalRef} />
+                        <FontSelect bind:value={textFontKey} />
                     </label>
-                    <label class="grid gap-1.5">
-                        <span class="text-xs font-medium text-slate-700"
-                            >Border & text color</span>
-                        <div class="flex items-center gap-2">
-                            <input
-                                class="h-10 w-10 rounded-xl"
-                                type="color"
-                                bind:value={accentColor} />
-                            <input
-                                class="min-w-0 w-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                                type="text"
-                                bind:value={accentColor} />
-                        </div>
-                    </label>
+                    <ColorPalettePicker
+                        bind:value={accentColor}
+                        {palette}
+                        label="Border & text color" />
                     <label class="grid gap-1.5">
                         <div class="flex items-center justify-between gap-2">
                             <span class="text-xs font-medium text-slate-700"
@@ -894,13 +865,13 @@
                             <span class="text-xs tabular-nums text-slate-600"
                                 >{textDepth}</span>
                         </div>
-                        <input
-                            class="w-full accent-indigo-500"
-                            type="range"
-                            min="0.2"
-                            max="3"
-                            step="0.1"
-                            bind:value={textDepth} />
+                        <Slider
+                            type="single"
+                            bind:value={textDepth}
+                            min={0.2}
+                            max={3}
+                            step={0.1}
+                            class="w-full" />
                     </label>
                 </div>
                 <div class="grid grid-cols-1 gap-4">
@@ -910,20 +881,10 @@
                             class="text-xs font-semibold tracking-tight text-slate-700">
                             Shape
                         </div>
-                        <label class="grid gap-1.5">
-                            <span class="text-xs font-medium text-slate-700"
-                                >Color</span>
-                            <div class="flex items-center gap-2">
-                                <input
-                                    class="h-10 w-10 rounded-xl"
-                                    type="color"
-                                    bind:value={baseColor} />
-                                <input
-                                    class="min-w-0 w-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                                    type="text"
-                                    bind:value={baseColor} />
-                            </div>
-                        </label>
+                        <ColorPalettePicker
+                            bind:value={baseColor}
+                            {palette}
+                            label="Color" />
                         <label class="grid gap-1.5">
                             <div
                                 class="flex items-center justify-between gap-2">
@@ -933,13 +894,13 @@
                                     class="text-xs tabular-nums text-slate-600"
                                     >{baseWidth}</span>
                             </div>
-                            <input
-                                class="w-full accent-indigo-500"
-                                type="range"
-                                min="20"
-                                max="80"
-                                step="1"
-                                bind:value={baseWidth} />
+                            <Slider
+                                type="single"
+                                bind:value={baseWidth}
+                                min={20}
+                                max={80}
+                                step={1}
+                                class="w-full" />
                         </label>
                         <label class="grid gap-1.5">
                             <div
@@ -950,13 +911,13 @@
                                     class="text-xs tabular-nums text-slate-600"
                                     >{baseHeight}</span>
                             </div>
-                            <input
-                                class="w-full accent-indigo-500"
-                                type="range"
-                                min="12"
-                                max="50"
-                                step="1"
-                                bind:value={baseHeight} />
+                            <Slider
+                                type="single"
+                                bind:value={baseHeight}
+                                min={12}
+                                max={50}
+                                step={1}
+                                class="w-full" />
                         </label>
                         <label class="grid gap-1.5">
                             <div
@@ -967,13 +928,13 @@
                                     class="text-xs tabular-nums text-slate-600"
                                     >{cornerRadius}</span>
                             </div>
-                            <input
-                                class="w-full accent-indigo-500"
-                                type="range"
-                                min="0"
+                            <Slider
+                                type="single"
+                                bind:value={cornerRadius}
+                                min={0}
                                 max={Math.min(baseWidth, baseHeight) / 2}
-                                step="0.2"
-                                bind:value={cornerRadius} />
+                                step={0.2}
+                                class="w-full" />
                         </label>
                         <label class="grid gap-1.5">
                             <div
@@ -984,13 +945,13 @@
                                     class="text-xs tabular-nums text-slate-600"
                                     >{baseDepth}</span>
                             </div>
-                            <input
-                                class="w-full accent-indigo-500"
-                                type="range"
-                                min="0.2"
-                                max="20"
-                                step="0.2"
-                                bind:value={baseDepth} />
+                            <Slider
+                                type="single"
+                                bind:value={baseDepth}
+                                min={0.2}
+                                max={20}
+                                step={0.2}
+                                class="w-full" />
                         </label>
                         <label class="grid gap-1.5">
                             <div
@@ -1001,13 +962,13 @@
                                     class="text-xs tabular-nums text-slate-600"
                                     >{topBorderDepth}</span>
                             </div>
-                            <input
-                                class="w-full accent-indigo-500"
-                                type="range"
-                                min="0.2"
-                                max="3"
-                                step="0.2"
-                                bind:value={topBorderDepth} />
+                            <Slider
+                                type="single"
+                                bind:value={topBorderDepth}
+                                min={0.2}
+                                max={3}
+                                step={0.2}
+                                class="w-full" />
                         </label>
                         <div class="grid gap-1.5">
                             <span class="text-xs font-medium text-slate-700"
@@ -1016,72 +977,72 @@
                                 class="grid w-full grid-cols-3 gap-1"
                                 role="group"
                                 aria-label="Keyring position">
-                                <button
-                                    type="button"
-                                    class="flex h-10 w-full items-center justify-center rounded-xl border text-lg transition focus:outline-none focus:ring-2 focus:ring-indigo-500/30 {keyringPosition ===
+                                <Button
+                                    variant="outline"
+                                    class="h-10 w-full text-lg {keyringPosition ===
                                     'topLeft'
                                         ? 'border-indigo-500 bg-indigo-100 text-indigo-700'
-                                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'}"
+                                        : ''}"
                                     onclick={() =>
                                         (keyringPosition = "topLeft")}
                                     title="Top left"
                                     aria-pressed={keyringPosition ===
                                         "topLeft"}>
                                     ↖
-                                </button>
-                                <button
-                                    type="button"
-                                    class="flex h-10 w-full items-center justify-center rounded-xl border text-lg transition focus:outline-none focus:ring-2 focus:ring-indigo-500/30 {keyringPosition ===
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    class="h-10 w-full text-lg {keyringPosition ===
                                     'topCenter'
                                         ? 'border-indigo-500 bg-indigo-100 text-indigo-700'
-                                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'}"
+                                        : ''}"
                                     onclick={() =>
                                         (keyringPosition = "topCenter")}
                                     title="Top center"
                                     aria-pressed={keyringPosition ===
                                         "topCenter"}>
                                     ↑
-                                </button>
-                                <button
-                                    type="button"
-                                    class="flex h-10 w-full items-center justify-center rounded-xl border text-lg transition focus:outline-none focus:ring-2 focus:ring-indigo-500/30 {keyringPosition ===
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    class="h-10 w-full text-lg {keyringPosition ===
                                     'topRight'
                                         ? 'border-indigo-500 bg-indigo-100 text-indigo-700'
-                                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'}"
+                                        : ''}"
                                     onclick={() =>
                                         (keyringPosition = "topRight")}
                                     title="Top right"
                                     aria-pressed={keyringPosition ===
                                         "topRight"}>
                                     ↗
-                                </button>
-                                <button
-                                    type="button"
-                                    class="flex h-10 w-full items-center justify-center rounded-xl border text-lg transition focus:outline-none focus:ring-2 focus:ring-indigo-500/30 {keyringPosition ===
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    class="h-10 w-full text-lg {keyringPosition ===
                                     'leftCenter'
                                         ? 'border-indigo-500 bg-indigo-100 text-indigo-700'
-                                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'}"
+                                        : ''}"
                                     onclick={() =>
                                         (keyringPosition = "leftCenter")}
                                     title="Left center"
                                     aria-pressed={keyringPosition ===
                                         "leftCenter"}>
                                     ←
-                                </button>
+                                </Button>
                                 <div class="h-10" aria-hidden="true"></div>
-                                <button
-                                    type="button"
-                                    class="flex h-10 w-full items-center justify-center rounded-xl border text-lg transition focus:outline-none focus:ring-2 focus:ring-indigo-500/30 {keyringPosition ===
+                                <Button
+                                    variant="outline"
+                                    class="h-10 w-full text-lg {keyringPosition ===
                                     'rightCenter'
                                         ? 'border-indigo-500 bg-indigo-100 text-indigo-700'
-                                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'}"
+                                        : ''}"
                                     onclick={() =>
                                         (keyringPosition = "rightCenter")}
                                     title="Right center"
                                     aria-pressed={keyringPosition ===
                                         "rightCenter"}>
                                     →
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     </div>
@@ -1101,19 +1062,16 @@
                             camera,
                             "rounded-rect",
                         )}
-                    onExport={exportSTL}
-                    onExport3MF={export3MF}
-                    exportDisabled={!user ||
-                        licenseStatus?.canExport === false ||
-                        exportLoading}
+                    onExport={() => (user && subscriptionStatus?.isActive ? exportSTL() : onShowPricing?.())}
+                    onExport3MF={() => (user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.())}
+                    exportDisabled={exportLoading}
                     exportTitle={!user
                         ? "Sign in to export"
-                        : licenseStatus?.canExport === false
-                          ? "License required to export"
-                          : "Export STL (single mesh) or 3MF (multipart) for 3D print"}
+                        : !subscriptionStatus?.isActive
+                            ? "Subscribe to export"
+                            : "Export STL (single mesh) or 3MF (multipart) for 3D print"}
                     {exportLoading}
-                    showLockIcon={!user ||
-                        licenseStatus?.canExport === false} />
+                    showLockIcon={!user || !subscriptionStatus?.isActive} />
                 {#if exportError}
                     <p
                         class="absolute bottom-14 right-4 max-w-[200px] rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 shadow-lg">

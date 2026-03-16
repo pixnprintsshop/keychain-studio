@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { Button } from '$lib/components/ui/button';
+
 	interface Props {
 		onBack: () => void;
 	}
@@ -8,13 +10,9 @@
 <main class="min-h-dvh w-dvw bg-slate-50">
 	<div class="mx-auto max-w-3xl px-4 py-8">
 		<div class="mb-6 flex items-center justify-between">
-			<button
-				type="button"
-				class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-				onclick={onBack}
-			>
+			<Button variant="outline" size="sm" onclick={onBack}>
 				Back
-			</button>
+			</Button>
 		</div>
 		<div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
 			<h1 class="text-2xl font-bold tracking-tight text-slate-900">Refund Policy</h1>
@@ -29,7 +27,7 @@
 			<div class="prose prose-slate mt-8 max-w-none text-sm text-slate-700">
 				<h2 class="text-lg font-semibold text-slate-900">1. Eligibility for Refunds</h2>
 				<p class="mt-2">
-					PixnPrints may offer refunds for Print Studio license subscriptions in certain
+					PixnPrints may offer refunds for Print Studio subscriptions in certain
 					circumstances, including but not limited to: extended or repeated service maintenance that
 					prevents use of the app, duplicate or erroneous charges, or other issues we determine
 					warrant a refund.

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { LicenseStatus } from '$lib/licensing';
+	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
 
 	type StyleName =
@@ -56,15 +56,14 @@
 		{
 			id: 'textOutline',
 			title: 'Text Only',
-			description: 'Make a keychain with just your name or favorite word—simple and fun.',
+			description: 'Floating text model for quick name plates or labels.',
 			imageSrc: '/images/text-only.png',
 			imageAlt: 'Text Only preview'
 		},
 		{
 			id: 'bumpyText',
 			title: 'Bumpy Text',
-			description:
-				'Simple text with no base. Each character has a random thickness. Optional keyring.',
+			description: 'Text-only model where each letter has a different thickness for a playful look.',
 			imageSrc: '/images/bumpy-text.png',
 			imageAlt: 'Bumpy Text preview',
 			previewImageSrc: '/images/bumpy-text-preview.png'
@@ -72,7 +71,7 @@
 		{
 			id: 'bowKeychain',
 			title: 'Bow Keychain',
-			description: 'Text on a bow-shaped base with optional keyring—cute and personal.',
+			description: 'Bow-shaped keychain with raised text, ready to add a keyring.',
 			imageSrc: '/images/bow-keychain.png',
 			imageAlt: 'Bow Keychain preview',
 			previewImageSrc: '/images/bow-keychain-preview.png'
@@ -80,14 +79,14 @@
 		{
 			id: 'initial',
 			title: 'Text & Initial',
-			description: 'Perfect for gifts—show off a big letter and a name together on your keychain.',
+			description: 'Large initial with smaller name text, ideal for bag tags or keychains.',
 			imageSrc: '/images/text+initial.png',
 			imageAlt: 'Text & Initial preview'
 		},
 		{
 			id: 'flower',
 			title: 'Flower + Initial',
-			description: 'Add a colorful flower with your letter for a cute and cheerful keychain.',
+			description: 'Flower-shaped keychain with a single letter in the center.',
 			imageSrc: '/images/flower+initial.png',
 			imageAlt: 'Flower & Initial preview',
 			attribution:
@@ -97,7 +96,7 @@
 		{
 			id: 'basicName',
 			title: 'Basic Name Tag',
-			description: 'Classic name tag style—simple, stylish, and great for any occasion.',
+			description: 'Simple rectangular name tag with clean, readable text.',
 			imageSrc: '/images/nametag.png',
 			imageAlt: 'Basic Name Tag preview',
 			attribution:
@@ -107,7 +106,7 @@
 		{
 			id: 'dogtag',
 			title: 'Dog Tag',
-			description: 'Design a classic pet dog tag—personalized for your furry friend’s collar.',
+			description: 'Pet tag layout with name and optional details for collars.',
 			imageSrc: '/images/dogtag.png',
 			imageAlt: 'Pet Dog Tag preview',
 			previewImageSrc: '/images/dogtag-preview.png',
@@ -117,29 +116,28 @@
 		{
 			id: 'customSvg',
 			title: 'Custom SVG',
-			description:
-				'Want something unique? Upload your drawing or logo to create a custom keychain!',
+			description: 'Import an SVG logo or artwork and turn it into a printable keychain.',
 			imageSrc: '/images/custom-svg.png',
 			imageAlt: 'Custom SVG Designer preview'
 		},
 		{
 			id: 'charm',
 			title: 'Chunky Charm',
-			description: 'Turn your design into a cute charm you can easily thread a cord through.',
+			description: 'Thicker charm with a built-in hole for string, cord, or chain.',
 			imageSrc: '/images/charm.png',
 			imageAlt: 'Chunky Charm preview'
 		},
 		{
 			id: 'keycap',
 			title: 'Keycap Maker',
-			description: 'Upload your keycap base (STL) and add a centered icon on top.',
+			description: 'Add a centered icon or symbol on top of an existing keycap STL.',
 			imageSrc: '/images/keycap-maker.png',
 			imageAlt: 'Keycap Maker preview'
 		},
 		{
 			id: 'whistle',
 			title: 'Custom Whistle',
-			description: 'Add your name or message to a personal whistle.',
+			description: 'Functional whistle with raised text along the side.',
 			imageSrc: '/images/whistle.png',
 			imageAlt: 'Custom Whistle preview',
 			attribution:
@@ -149,7 +147,7 @@
 		{
 			id: 'stanleyTopper',
 			title: 'Stanley Topper',
-			description: 'Add your text on top of the Stanley topper—simple and personal.',
+			description: 'Name plate topper designed to sit on a 40oz Stanley-style tumbler.',
 			imageSrc: '/images/stanley-topper.png',
 			imageAlt: 'Stanley Topper preview',
 			previewImageSrc: '/images/stanley-topper-preview.png',
@@ -159,8 +157,7 @@
 		{
 			id: 'strawTopper',
 			title: 'Straw Topper',
-			description:
-				'Add your name to your favorite tumbler—simply snap this topper on and enjoy a personalized look!',
+			description: 'Name topper that snaps over a tumbler straw for easy cup identification.',
 			imageSrc: '/images/straw-topper.png',
 			imageAlt: 'Preview of Straw Topper',
 			previewImageSrc: '/images/straw-topper-preview.png'
@@ -168,8 +165,7 @@
 		{
 			id: 'pencilTopper',
 			title: 'Pencil Topper',
-			description:
-				'Make your pencil stand out with a unique topper featuring your name—prints easily and slides on in seconds.',
+			description: 'Sleeve-style topper that slides onto a pencil and shows a name or word.',
 			imageSrc: '/images/pencil-topper.png',
 			imageAlt: 'Preview of Pencil Topper personalization',
 			previewImageSrc: '/images/pencil-topper-preview.png'
@@ -177,19 +173,10 @@
 	];
 
 	interface Props {
-		paidOnlyDesigners: ReadonlySet<string>;
-		licenseStatus: LicenseStatus | null;
 		onSelect: (style: StyleName) => void;
-		onOpenLicenseInfo: () => void;
 	}
 
-	let { paidOnlyDesigners, licenseStatus, onSelect, onOpenLicenseInfo }: Props = $props();
-
-	const showLicenseCta = $derived(!licenseStatus || licenseStatus.type !== 'licensed');
-
-	function isPaidDesigner(style: StyleName): boolean {
-		return paidOnlyDesigners.has(style);
-	}
+	let { onSelect }: Props = $props();
 
 	function isUnderMaintenance(style: StyleName): boolean {
 		return DESIGNERS_UNDER_MAINTENANCE.has(style);
@@ -220,13 +207,37 @@
 	}
 </script>
 
-<div class="flex min-h-dvh w-dvw items-center justify-center bg-slate-50 p-6">
+<div class="flex min-h-dvh w-dvw items-center justify-center bg-slate-50 px-4 py-6 pt-20 sm:p-6 sm:pt-25">
 	<div class="w-full max-w-4xl">
-		<div class="mb-10 text-center">
-			<div class="mb-4 flex justify-center">
-				<img src="/app-logo-full.png" alt="PixnPrints Logo" class="h-16 w-auto object-contain" />
+		<!-- Notice banner: mobile only, at top of content -->
+		<div
+			class="mb-4 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-center text-sm font-medium text-indigo-800 sm:hidden"
+			role="banner"
+		>
+			Coming soon: 3MF export for better slicer compatibility.
+		</div>
+
+		<div class="mb-6 text-center sm:mb-10">
+			<div class="mb-3 flex justify-center sm:mb-4">
+				<img
+					src="/app-logo-full.png"
+					alt="PixnPrints Logo"
+					class="h-12 w-auto object-contain sm:h-16"
+				/>
 			</div>
 			<p class="mt-2 text-sm text-slate-500">Choose a style to start designing your 3D keychain</p>
+		</div>
+
+		<!-- Subscription CTA: quick path to purchase -->
+		<div
+			class="mb-6 flex flex-col items-center justify-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 sm:flex-row sm:justify-between sm:gap-4 sm:px-5 sm:py-3"
+		>
+			<p class="text-center text-sm font-medium text-emerald-900 sm:text-left">
+				Subscribe to unlock full export and all designers
+			</p>
+			<Button href="/pricing" class="shrink-0 font-semibold">
+				View pricing
+			</Button>
 		</div>
 
 		<!-- Beta designer confirmation dialog (shadcn for smooth transitions) -->
@@ -255,20 +266,16 @@
 					>
 						Cancel
 					</Dialog.Close>
-					<button
-						type="button"
-						class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
-						onclick={confirmBetaAndEnter}
-					>
+					<Button onclick={confirmBetaAndEnter}>
 						Continue
-					</button>
+					</Button>
 				</div>
 			</Dialog.Content>
 		</Dialog.Root>
 
 		{#if DESIGNERS_UNDER_MAINTENANCE.size > 0}
 			<div
-				class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+				class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 sm:mb-6 sm:px-4 sm:py-3"
 				role="status"
 			>
 				<p class="font-medium">Some designers are under maintenance</p>
@@ -291,12 +298,12 @@
 			</div>
 		{/if}
 
-		<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+		<div class="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-4">
 			{#each DESIGNERS as designer (designer.id)}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
-					class="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition {isUnderMaintenance(
+					class="group relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition sm:rounded-2xl {isUnderMaintenance(
 						designer.id
 					)
 						? 'cursor-not-allowed opacity-60'
@@ -305,30 +312,26 @@
 				>
 					{#if isUnderMaintenance(designer.id)}
 						<span
-							class="absolute top-3 right-3 z-10 rounded-md bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600"
+							class="absolute top-2 right-2 z-10 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 sm:top-3 sm:right-3 sm:rounded-md sm:px-2 sm:text-xs"
 							>Maintenance</span
-						>
-					{:else if isPaidDesigner(designer.id)}
-						<span
-							class="absolute top-3 right-3 z-10 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
-							>PLUS</span
 						>
 					{/if}
 					{#if isBetaDesigner(designer.id)}
 						<span
-							class="absolute top-3 left-3 z-10 rounded-md bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800"
+							class="absolute top-2 left-2 z-10 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-800 sm:top-3 sm:left-3 sm:rounded-md sm:px-2 sm:text-xs"
 							>Beta</span
 						>
 					{/if}
 					{#if designer.previewImageSrc}
 						<!-- svelte-ignore a11y_click_events_have_key_events -->
 						<div class="group/preview pointer-events-none absolute inset-0 z-10" aria-hidden="true">
-							<button
-								type="button"
-								class="pointer-events-auto absolute top-3 right-3 flex size-8 items-center justify-center rounded-full bg-white/90 text-slate-500 shadow-sm transition hover:bg-white hover:text-slate-700 focus:ring-2 focus:ring-indigo-500/50 focus:outline-none {isPaidDesigner(
+							<Button
+								variant="ghost"
+								size="icon"
+								class="pointer-events-auto absolute top-2 right-2 size-6 rounded-full bg-white/90 text-slate-500 shadow-sm hover:bg-white hover:text-slate-700 sm:top-3 sm:right-3 sm:size-8 {isUnderMaintenance(
 									designer.id
-								) || isUnderMaintenance(designer.id)
-									? 'right-12'
+								)
+									? 'right-9 sm:right-12'
 									: ''}"
 								title="Preview"
 								aria-label="Show preview"
@@ -349,15 +352,15 @@
 										d="M12 16v-4m0-4h.01M22 12c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2s10 4.477 10 10z"
 									/>
 								</svg>
-							</button>
+							</Button>
 							<div
-								class="absolute top-0 right-0 left-0 aspect-4/3 overflow-hidden rounded-t-2xl border-b border-slate-100 bg-white opacity-0 transition-opacity duration-150 group-hover/preview:opacity-100"
+								class="absolute top-0 right-0 left-0 aspect-4/3 overflow-hidden rounded-t-xl border-b border-slate-100 bg-white opacity-0 transition-opacity duration-150 group-hover/preview:opacity-100 sm:rounded-t-2xl"
 							>
 								<img src={designer.previewImageSrc} alt="" class="h-full w-full object-cover" />
 							</div>
 						</div>
 					{/if}
-					<div class="aspect-4/3 w-full overflow-hidden bg-slate-100">
+					<div class="aspect-4/3 w-full overflow-hidden rounded-t-xl bg-slate-100 sm:rounded-t-2xl">
 						<img
 							src={designer.imageSrc}
 							alt={designer.imageAlt}
@@ -366,11 +369,11 @@
 								: 'group-hover:scale-105'}"
 						/>
 					</div>
-					<div class="p-5">
-						<h2 class="text-lg font-semibold text-slate-900">
+					<div class="p-2.5 sm:p-5">
+						<h2 class="text-sm font-semibold text-slate-900 sm:text-lg">
 							{designer.title}
 						</h2>
-						<p class="mt-1 text-sm leading-relaxed text-slate-500">
+						<p class="mt-0.5 line-clamp-2 text-xs leading-snug text-slate-500 sm:mt-1 sm:line-clamp-none sm:text-sm">
 							{designer.description}
 						</p>
 						{#if designer.attribution}
@@ -379,7 +382,7 @@
 								href={designer.attribution}
 								target="_blank"
 								rel="noopener noreferrer"
-								class="mt-2 inline-flex items-center gap-1 rounded text-xs text-slate-400 hover:text-slate-600 focus:ring-2 focus:ring-indigo-500/30 focus:ring-offset-1 focus:outline-none"
+								class="mt-1 inline-flex items-center gap-0.5 rounded text-[10px] text-slate-400 hover:text-slate-600 focus:ring-2 focus:ring-indigo-500/30 focus:ring-offset-1 focus:outline-none sm:mt-2 sm:gap-1 sm:text-xs"
 								onclick={(e) => e.stopPropagation()}
 								title="View source / credit"
 							>
@@ -406,42 +409,22 @@
 			{/each}
 		</div>
 
-		<!-- Get a license CTA (hidden when user is already licensed) -->
-		{#if showLicenseCta}
-			<div class="mt-10 flex flex-col items-center justify-center text-center">
-				<p class="mb-4 text-sm text-slate-600">
-					Need a license to unlock all designers and export?
-				</p>
-				<button
-					type="button"
-					class="w-full max-w-sm rounded-xl bg-indigo-600 px-6 py-4 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
-					onclick={onOpenLicenseInfo}
-				>
-					Get a license
-				</button>
-			</div>
-		{/if}
 
 		<!-- Business offer banner -->
 		<div
-			class="mt-8 rounded-2xl border border-indigo-200 bg-indigo-50/80 px-5 py-4 text-center sm:px-6"
+			class="mt-6 rounded-2xl border border-indigo-200 bg-indigo-50/80 px-4 py-3 text-center sm:mt-8 sm:px-6 sm:py-4"
 		>
 			<p class="text-sm font-semibold text-indigo-900">For businesses</p>
 			<p class="mt-1 text-sm text-indigo-800">
 				Want an exclusive model or the whole Print Studio for your brand? We offer custom designs
 				and white-label options.
 			</p>
-			<a
-				href="https://m.me/pixnprints.shop"
-				target="_blank"
-				rel="noopener noreferrer"
-				class="mt-3 inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
-			>
+			<Button href="https://m.me/pixnprints.shop" target="_blank" rel="noopener noreferrer" class="mt-3">
 				Get in touch
-			</a>
+			</Button>
 		</div>
 
-		<div class="mt-8 flex flex-col items-center justify-center gap-3 text-center">
+		<div class="mt-6 flex flex-col items-center justify-center gap-3 text-center sm:mt-8">
 			<div class="flex items-center justify-center gap-2 text-xs text-slate-400">
 				<span>By</span>
 				<img src="/pixnprints-logo.png" alt="PixnPrints" class="h-10 w-auto object-contain" />
@@ -449,15 +432,6 @@
 			<div
 				class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-slate-500"
 			>
-				{#if showLicenseCta}
-					<button
-						type="button"
-						class="rounded underline hover:text-slate-700 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
-						onclick={onOpenLicenseInfo}
-					>
-						Get a license
-					</button>
-				{/if}
 				<a
 					href="/pricing"
 					class="rounded underline hover:text-slate-700 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"

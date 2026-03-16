@@ -3,4 +3,6 @@
     import PricingPage from '$lib/components/PricingPage.svelte';
 </script>
 
-<PricingPage onBack={() => goto('/')} />
+<PricingPage
+    onBack={() => goto('/')}
+    onRequestLogin={() => goto('/?login=1')} />

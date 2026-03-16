@@ -1,11 +1,13 @@
 <script lang="ts">
+	import { Button } from '$lib/components/ui/button';
+
 	interface Props {
 		onSnapshot: () => void;
 		onExport: () => void;
 		exportDisabled: boolean;
 		exportTitle: string;
 		exportLoading?: boolean;
-		/** When true, show lock icon + "Export STL" on the export button (e.g. when login/license required). */
+		/** When true, show lock icon + "Export STL" on the export button (e.g. when login required). */
 		showLockIcon?: boolean;
 		/** Optional: when provided, show a second "Export 3MF" button for multipart 3MF export (base, border, text). */
 		onExport3MF?: () => void;
@@ -28,9 +30,10 @@
 </script>
 
 <div class="flex items-center gap-2">
-	<button
-		class="rounded-full border border-slate-200 bg-white/90 p-2.5 text-slate-600 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:text-slate-900 hover:shadow-xl focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
-		type="button"
+	<Button
+		variant="outline"
+		size="icon"
+		class="rounded-full bg-white/90 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
 		onclick={onSnapshot}
 		aria-label="Download snapshot"
 		title="Download snapshot"
@@ -43,10 +46,10 @@
 			/>
 			<circle cx="12" cy="13" r="3" />
 		</svg>
-	</button>
-	<button
-		class="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-semibold tracking-tight text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl focus:ring-2 focus:ring-indigo-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-		type="button"
+	</Button>
+	<Button
+		variant="outline"
+		class="rounded-full bg-white/90 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
 		onclick={onExport}
 		aria-label="Download STL"
 		disabled={exportDisabled}
@@ -69,11 +72,11 @@
 		{:else}
 			Export STL
 		{/if}
-	</button>
+	</Button>
 	{#if onExportSTL2}
-		<button
-			class="rounded-full border border-slate-200 bg-white/90 px-3 py-2 text-sm font-semibold tracking-tight text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl focus:ring-2 focus:ring-indigo-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-			type="button"
+		<Button
+			variant="outline"
+			class="rounded-full bg-white/90 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
 			onclick={onExportSTL2}
 			disabled={exportDisabled}
 			title="Export bow + text as one STL"
@@ -83,12 +86,12 @@
 			{:else}
 				{exportSTL2Label}
 			{/if}
-		</button>
+		</Button>
 	{/if}
-	<!-- {#if onExport3MF}
-		<button
-			class="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-semibold tracking-tight text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl focus:ring-2 focus:ring-indigo-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-			type="button"
+	{#if onExport3MF}
+		<Button
+			variant="outline"
+			class="rounded-full bg-white/90 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
 			onclick={onExport3MF}
 			aria-label="Download 3MF (multipart)"
 			disabled={exportDisabled}
@@ -99,6 +102,6 @@
 			{:else}
 				Export 3MF
 			{/if}
-		</button>
-	{/if} -->
+		</Button>
+	{/if}
 </div>

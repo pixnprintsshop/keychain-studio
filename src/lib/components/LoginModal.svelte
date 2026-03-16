@@ -1,5 +1,6 @@
 <script lang="ts">
     import { signIn, signInWithGoogle, signUp } from "$lib/auth";
+    import { Button } from '$lib/components/ui/button';
     import * as Dialog from "$lib/components/ui/dialog";
 
     interface Props {
@@ -159,8 +160,8 @@
                 <div class="space-y-4">
                     <p class="text-sm leading-relaxed text-slate-600">
                         {isSignUpMode
-                            ? "Create an account to start your free trial and export your designs."
-                            : "Sign in to your account to export designs and manage your trial or license."}
+                            ? "Create an account to save your designs and export them any time."
+                            : "Sign in to your account to export designs and access all features."}
                     </p>
 
                     <!-- Success Message (after sign up) -->
@@ -184,16 +185,14 @@
                                 <p class="text-sm font-medium text-green-800">
                                     {signUpSuccessMessage}
                                 </p>
-                                <button
-                                    type="button"
-                                    class="mt-2 text-sm font-medium text-green-700 hover:text-green-800 underline focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 rounded"
-                                    onclick={dismissSignUpSuccess}>
+                                <Button variant="link" class="mt-2 text-sm text-green-700 hover:text-green-800" onclick={dismissSignUpSuccess}>
                                     Dismiss
-                                </button>
+                                </Button>
                             </div>
-                            <button
-                                type="button"
-                                class="shrink-0 rounded p-1 text-green-600 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                class="shrink-0 text-green-600 hover:bg-green-100"
                                 onclick={dismissSignUpSuccess}
                                 aria-label="Dismiss">
                                 <svg
@@ -207,7 +206,7 @@
                                         stroke-width="2"
                                         d="M6 18L18 6M6 6l12 12" />
                                 </svg>
-                            </button>
+                            </Button>
                         </div>
                     {/if}
 
@@ -220,9 +219,9 @@
                     {/if}
 
                     <!-- Sign in with Google -->
-                    <button
-                        type="button"
-                        class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    <Button
+                        variant="outline"
+                        class="w-full"
                         onclick={handleGoogleSignIn}
                         disabled={isSigningIn ||
                             isSigningUp ||
@@ -264,7 +263,7 @@
                             </svg>
                             Sign in with Google
                         {/if}
-                    </button>
+                    </Button>
 
                     <div class="relative">
                         <div class="absolute inset-0 flex items-center">
@@ -344,9 +343,8 @@
                     {/if}
 
                     <!-- Submit Button -->
-                    <button
-                        type="button"
-                        class="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    <Button
+                        class="w-full"
                         onclick={handleSubmit}
                         disabled={isSigningIn || isSigningUp}>
                         {#if isSigningIn || isSigningUp}
@@ -379,26 +377,20 @@
                         {:else}
                             {isSignUpMode ? "Create Account" : "Sign In"}
                         {/if}
-                    </button>
+                    </Button>
 
                     <!-- Toggle Sign Up/Sign In -->
                     <div class="text-center text-sm text-slate-600">
                         {#if isSignUpMode}
                             Already have an account?
-                            <button
-                                type="button"
-                                class="ml-1 font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
-                                onclick={toggleMode}>
+                            <Button variant="link" class="ml-1" onclick={toggleMode}>
                                 Sign In
-                            </button>
+                            </Button>
                         {:else}
                             Don't have an account?
-                            <button
-                                type="button"
-                                class="ml-1 font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
-                                onclick={toggleMode}>
+                            <Button variant="link" class="ml-1" onclick={toggleMode}>
                                 Sign Up
-                            </button>
+                            </Button>
                         {/if}
                     </div>
 

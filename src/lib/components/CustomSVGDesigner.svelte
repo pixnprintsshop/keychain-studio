@@ -7,7 +7,6 @@
     import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
     import { SVGLoader } from "three/examples/jsm/loaders/SVGLoader.js";
     import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
-    import type { LicenseStatus } from "$lib/licensing";
     import { uploadSvgToSupabase } from "$lib/svgUpload";
     import {
         centerGeometryXY,
@@ -16,30 +15,27 @@
         downloadSnapshot,
         frameCameraToObject,
     } from "$lib/utils";
-    import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
-    import type LicenseModal from "./LicenseModal.svelte";
+import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
+    import { Button } from "$lib/components/ui/button";
+    import { Slider } from "$lib/components/ui/slider";
+    import ColorPalettePicker from "./ColorPalettePicker.svelte";
+    import type { PaletteColor } from "$lib/colorPalette";
     import LoadingModal from "./LoadingModal.svelte";
     import SvgInfoModal from "./SvgInfoModal.svelte";
+    import type { SubscriptionStatus } from "$lib/subscription";
 
-    interface Props {
-        user: User | null;
-        session: Session | null;
-        licenseStatus: LicenseStatus | null;
-        licenseModalRef: LicenseModal | null;
-        onBack: () => void;
-        onRequestLogin: () => void;
-        onShowThankYou: () => void;
-    }
+interface Props {
+    user: User | null;
+    session: Session | null;
+    subscriptionStatus: SubscriptionStatus | null;
+    palette: PaletteColor[];
+    onBack: () => void;
+    onRequestLogin: () => void;
+    onShowThankYou: () => void;
+    onShowPricing?: () => void;
+}
 
-    let {
-        user,
-        session,
-        licenseStatus,
-        licenseModalRef,
-        onBack,
-        onRequestLogin,
-        onShowThankYou,
-    }: Props = $props();
+let { user, session, subscriptionStatus, palette, onBack, onRequestLogin, onShowThankYou, onShowPricing }: Props = $props();
 
     const PROCESS_URL =
         "https://svg-icon-processor-475432008335.us-central1.run.app/process";
@@ -754,10 +750,6 @@
             onRequestLogin();
             return;
         }
-        if (!licenseStatus?.canExport || !licenseStatus?.isPaid) {
-            licenseModalRef?.open();
-            return;
-        }
         exportError = null;
         if (group.children.length === 0) {
             exportError = "Nothing to export yet";
@@ -810,7 +802,7 @@
             `${slug || "custom-svg"}-${ts}.stl`,
             new Blob([buffer], { type: "model/stl" }),
         );
-        if (licenseStatus?.type === "trial") onShowThankYou();
+        onShowThankYou();
     }
 
     let copyTimeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -974,12 +966,9 @@
                 <h1 class="text-lg font-semibold tracking-tight text-slate-900">
                     Custom SVG
                 </h1>
-                <button
-                    type="button"
-                    class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                    onclick={onBack}>
+                <Button variant="outline" size="sm" onclick={onBack}>
                     Back
-                </button>
+                </Button>
             </div>
 
             <div
@@ -1002,13 +991,13 @@
                             class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
                             bind:value={svgUrl}
                             disabled={processing} />
-                        <button
-                            type="button"
-                            class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        <Button
+                            variant="outline"
+                            size="sm"
                             onclick={() => void processSvgFromUrl()}
                             disabled={processing || !svgUrl.trim()}>
                             Process
-                        </button>
+                        </Button>
                     </div>
                 </div>
 
@@ -1046,13 +1035,12 @@
                         <span class="text-xs text-slate-500"
                             >{uiScale.toFixed(2)}x</span>
                     </div>
-                    <input
-                        id="custom-svg-scale"
-                        type="range"
-                        min="0.2"
-                        max="10"
-                        step="0.01"
+                    <Slider
+                        type="single"
                         bind:value={uiScale}
+                        min={0.2}
+                        max={10}
+                        step={0.01}
                         class="w-full"
                         disabled={!optimizedSvg || processing} />
                 </div>
@@ -1066,13 +1054,12 @@
                         <span class="text-xs text-slate-500"
                             >{thickness.toFixed(1)} mm</span>
                     </div>
-                    <input
-                        id="custom-svg-thickness"
-                        type="range"
-                        min="0.5"
-                        max="20"
-                        step="0.1"
+                    <Slider
+                        type="single"
                         bind:value={thickness}
+                        min={0.5}
+                        max={20}
+                        step={0.1}
                         class="w-full"
                         disabled={!optimizedSvg || processing} />
                 </div>
@@ -1086,13 +1073,12 @@
                         <span class="text-xs text-slate-500"
                             >{baseThickness.toFixed(1)} mm</span>
                     </div>
-                    <input
-                        id="custom-svg-base-thickness"
-                        type="range"
-                        min="0.5"
-                        max="20"
-                        step="0.1"
+                    <Slider
+                        type="single"
                         bind:value={baseThickness}
+                        min={0.5}
+                        max={20}
+                        step={0.1}
                         class="w-full"
                         disabled={!optimizedSvg || processing} />
                 </div>
@@ -1106,13 +1092,12 @@
                         <span class="text-xs text-slate-500"
                             >{baseOffsetMm.toFixed(2)} mm</span>
                     </div>
-                    <input
-                        id="custom-svg-base-offset"
-                        type="range"
-                        min="0"
-                        max="10"
-                        step="0.1"
+                    <Slider
+                        type="single"
                         bind:value={baseOffsetMm}
+                        min={0}
+                        max={10}
+                        step={0.1}
                         class="w-full"
                         disabled={!optimizedSvg || processing} />
                 </div>
@@ -1143,13 +1128,13 @@
                                     class="text-xs tabular-nums text-slate-600"
                                     >{keyringOuterMm.toFixed(1)} mm</span>
                             </div>
-                            <input
-                                class="w-full accent-indigo-500"
-                                type="range"
-                                min="2"
-                                max="20"
-                                step="0.1"
+                            <Slider
+                                type="single"
                                 bind:value={keyringOuterMm}
+                                min={2}
+                                max={20}
+                                step={0.1}
+                                class="w-full"
                                 disabled={!optimizedSvg ||
                                     processing ||
                                     !keyringEnabled} />
@@ -1163,13 +1148,13 @@
                                     class="text-xs tabular-nums text-slate-600"
                                     >{keyringHoleMm.toFixed(1)} mm</span>
                             </div>
-                            <input
-                                class="w-full accent-indigo-500"
-                                type="range"
-                                min="1"
-                                max={Math.max(1.5, keyringOuterMm - 1)}
-                                step="0.1"
+                            <Slider
+                                type="single"
                                 bind:value={keyringHoleMm}
+                                min={1}
+                                max={Math.max(1.5, keyringOuterMm - 1)}
+                                step={0.1}
+                                class="w-full"
                                 disabled={!optimizedSvg ||
                                     processing ||
                                     !keyringEnabled} />
@@ -1185,13 +1170,13 @@
                                     class="text-xs tabular-nums text-slate-600"
                                     >{keyringOffsetXmm.toFixed(1)} mm</span>
                             </div>
-                            <input
-                                class="w-full accent-indigo-500"
-                                type="range"
-                                min="-30"
-                                max="30"
-                                step="0.1"
+                            <Slider
+                                type="single"
                                 bind:value={keyringOffsetXmm}
+                                min={-30}
+                                max={30}
+                                step={0.1}
+                                class="w-full"
                                 disabled={!optimizedSvg ||
                                     processing ||
                                     !keyringEnabled} />
@@ -1205,13 +1190,13 @@
                                     class="text-xs tabular-nums text-slate-600"
                                     >{keyringOffsetYmm.toFixed(1)} mm</span>
                             </div>
-                            <input
-                                class="w-full accent-indigo-500"
-                                type="range"
-                                min="-30"
-                                max="30"
-                                step="0.1"
+                            <Slider
+                                type="single"
                                 bind:value={keyringOffsetYmm}
+                                min={-30}
+                                max={30}
+                                step={0.1}
+                                class="w-full"
                                 disabled={!optimizedSvg ||
                                     processing ||
                                     !keyringEnabled} />
@@ -1220,44 +1205,16 @@
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
-                    <label
-                        class="grid gap-1.5"
-                        for="custom-svg-main-color-text">
-                        <span class="text-xs font-medium text-slate-700"
-                            >Main color</span>
-                        <div class="flex items-center gap-2">
-                            <input
-                                id="custom-svg-main-color"
-                                class="h-10 w-10 rounded-xl"
-                                type="color"
-                                bind:value={mainColor}
-                                disabled={!optimizedSvg || processing} />
-                            <input
-                                id="svg-main-color-text"
-                                class="min-w-0 w-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                                type="text"
-                                bind:value={mainColor}
-                                disabled={!optimizedSvg || processing} />
-                        </div>
-                    </label>
-                    <label class="grid gap-1.5" for="svg-base-color-text">
-                        <span class="text-xs font-medium text-slate-700"
-                            >Base color</span>
-                        <div class="flex items-center gap-2">
-                            <input
-                                id="svg-base-color"
-                                class="h-10 w-10 rounded-xl"
-                                type="color"
-                                bind:value={baseColor}
-                                disabled={!optimizedSvg || processing} />
-                            <input
-                                id="svg-base-color-text"
-                                class="min-w-0 w-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                                type="text"
-                                bind:value={baseColor}
-                                disabled={!optimizedSvg || processing} />
-                        </div>
-                    </label>
+                    <ColorPalettePicker
+                        bind:value={mainColor}
+                        {palette}
+                        label="Main color"
+                        disabled={!optimizedSvg || processing} />
+                    <ColorPalettePicker
+                        bind:value={baseColor}
+                        {palette}
+                        label="Base color"
+                        disabled={!optimizedSvg || processing} />
                 </div>
 
                 {#if processError}
@@ -1281,22 +1238,14 @@
                             camera,
                             "svg-designer",
                         )}
-                    onExport={exportStl}
-                    exportDisabled={!optimizedSvg ||
-                        processing ||
-                        !user ||
-                        licenseStatus?.canExport === false ||
-                        licenseStatus?.isPaid === false}
+                    onExport={() => (user && subscriptionStatus?.isActive ? exportStl() : onShowPricing?.())}
+                    exportDisabled={!optimizedSvg || processing}
                     exportTitle={!user
                         ? "Sign in to export"
-                        : licenseStatus?.canExport === false
-                          ? "License required to export"
-                          : licenseStatus?.isPaid === false
-                            ? "Paid license required to export"
+                        : !subscriptionStatus?.isActive
+                            ? "Subscribe to export"
                             : "Export STL"}
-                    showLockIcon={!user ||
-                        licenseStatus?.canExport === false ||
-                        licenseStatus?.isPaid === false} />
+                    showLockIcon={!user || !subscriptionStatus?.isActive} />
             </div>
         </section>
     </div>

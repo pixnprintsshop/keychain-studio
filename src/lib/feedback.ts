@@ -1,6 +1,5 @@
 import { supabase } from "./supabase";
 import type { User } from "@supabase/supabase-js";
-import type { LicenseStatus } from "./licensing";
 
 export type FeedbackCategory =
     | "general"
@@ -22,67 +21,61 @@ export interface UserFeedbackRow {
 }
 
 export interface CreateFeedbackInput {
-    user: User;
-    category: FeedbackCategory;
-    title?: string;
-    message: string;
-    licenseStatus?: LicenseStatus | null;
-    context?: Record<string, unknown>;
+	user: User;
+	category: FeedbackCategory;
+	title?: string;
+	message: string;
+	context?: Record<string, unknown>;
 }
 
 export async function createFeedback(
-    input: CreateFeedbackInput,
+	input: CreateFeedbackInput
 ): Promise<{ success: true; row: UserFeedbackRow } | { success: false; error: string }> {
-    const { user, category, title, message, licenseStatus, context } = input;
+	const { user, category, title, message, context } = input;
 
-    if (!user) {
-        return { success: false, error: "You must be signed in to send feedback." };
-    }
+	if (!user) {
+		return { success: false, error: 'You must be signed in to send feedback.' };
+	}
 
-    const trimmedMessage = message.trim();
-    if (!trimmedMessage) {
-        return { success: false, error: "Feedback message cannot be empty." };
-    }
+	const trimmedMessage = message.trim();
+	if (!trimmedMessage) {
+		return { success: false, error: 'Feedback message cannot be empty.' };
+	}
 
-    const safeCategory: FeedbackCategory = category;
+	const safeCategory: FeedbackCategory = category;
 
-    const payload: Partial<UserFeedbackRow> & {
-        user_id: string;
-        category: FeedbackCategory;
-        message: string;
-    } = {
-        user_id: user.id,
-        category: safeCategory,
-        title: title?.trim() || null,
-        message: trimmedMessage,
-    };
+	const payload: Partial<UserFeedbackRow> & {
+		user_id: string;
+		category: FeedbackCategory;
+		message: string;
+	} = {
+		user_id: user.id,
+		category: safeCategory,
+		title: title?.trim() || null,
+		message: trimmedMessage
+	};
 
-    const meta: Record<string, unknown> = {
-        ...context,
-    };
-    if (licenseStatus) {
-        meta.license_type = licenseStatus.type;
-        meta.license_is_paid = licenseStatus.isPaid;
-        meta.can_export = licenseStatus.canExport;
-    }
-    if (Object.keys(meta).length > 0) {
-        (payload as any).context = meta;
-    }
+	const meta: Record<string, unknown> = {
+		...context
+	};
+	if (Object.keys(meta).length > 0) {
+		(payload as any).context = meta;
+	}
 
-    const { data, error } = await supabase
-        .from("user_feedback")
-        .insert(payload)
-        .select("*")
-        .single<UserFeedbackRow>();
+	const { data, error } = await supabase
+		.from('user_feedback')
+		.insert(payload)
+		.select('*')
+		.single<UserFeedbackRow>();
 
-    if (error || !data) {
-        return {
-            success: false,
-            error: error?.message || "Failed to submit feedback.",
-        };
-    }
+	if (error || !data) {
+		return {
+			success: false,
+			error: error?.message || 'Failed to submit feedback.'
+		};
+	}
 
-    return { success: true, row: data };
+	return { success: true, row: data };
 }
 
 export async function listFeedbackForUser(

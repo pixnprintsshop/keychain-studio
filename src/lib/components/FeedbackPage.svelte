@@ -1,6 +1,6 @@
 <script lang="ts">
-    import type { LicenseStatus } from "$lib/licensing";
     import type { User } from "@supabase/supabase-js";
+    import { Button } from '$lib/components/ui/button';
     import {
         type FeedbackCategory,
         type UserFeedbackRow,
@@ -10,23 +10,13 @@
 
     interface Props {
         user: User | null;
-        licenseStatus: LicenseStatus | null;
         onRequestLogin: () => void;
-        onOpenLicenseInfo: () => void;
         onBack: () => void;
     }
 
-    let {
-        user,
-        licenseStatus,
-        onRequestLogin,
-        onOpenLicenseInfo,
-        onBack,
-    }: Props = $props();
+    let { user, onRequestLogin, onBack }: Props = $props();
 
-    const canSubmitFeedback = $derived(
-        !!user && !!licenseStatus && licenseStatus.isPaid,
-    );
+    const canSubmitFeedback = $derived(!!user);
 
     let category: FeedbackCategory = $state("general");
     let title = $state("");
@@ -65,10 +55,6 @@
             onRequestLogin();
             return;
         }
-        if (!canSubmitFeedback) {
-            onOpenLicenseInfo();
-            return;
-        }
         submitting = true;
         submitError = null;
         submitSuccess = false;
@@ -85,7 +71,6 @@
             category,
             title,
             message,
-            licenseStatus,
             context,
         });
 
@@ -133,12 +118,9 @@
         class="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm sm:p-6 lg:p-8">
         <header class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex items-center gap-3">
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60"
-                    onclick={onBack}>
+                <Button variant="outline" size="sm" class="rounded-full" onclick={onBack}>
                     ← Back
-                </button>
+                </Button>
                 <div>
                     <h1 class="text-lg font-semibold tracking-tight text-slate-900">
                         Feedback
@@ -155,25 +137,9 @@
                 <p class="mb-2">
                     Please sign in with your PixnPrints account to send feedback and see your previous messages.
                 </p>
-                <button
-                    type="button"
-                    class="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60"
-                    onclick={onRequestLogin}>
+                <Button size="sm" onclick={onRequestLogin}>
                     Sign in
-                </button>
-            </div>
-        {:else if !licenseStatus || !licenseStatus.isPaid}
-            <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 mb-6">
-                <p class="mb-2">
-                    Feedback is available for customers with a paid Print Studio license so we
-                    can prioritize product support and feature requests.
-                </p>
-                <button
-                    type="button"
-                    class="inline-flex items-center rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60"
-                    onclick={onOpenLicenseInfo}>
-                    View licenses
-                </button>
+                </Button>
             </div>
         {/if}
 
@@ -240,16 +206,16 @@
                     {/if}
 
                     <div class="mt-2 flex justify-end">
-                        <button
+                        <Button
                             type="submit"
-                            class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 disabled:opacity-60"
+                            size="sm"
                             disabled={submitting || !message.trim()}>
                             {#if submitting}
                                 Sending…
                             {:else}
                                 Send feedback
                             {/if}
-                        </button>
+                        </Button>
                     </div>
                 </form>
             </section>
@@ -263,12 +229,9 @@
                 {#if loadingList}
                     <span class="text-[11px] text-slate-400">Loading…</span>
                 {:else}
-                    <button
-                        type="button"
-                        class="text-[11px] font-medium text-indigo-600 hover:text-indigo-700"
-                        onclick={loadFeedback}>
+                    <Button variant="link" size="sm" class="text-[11px] p-0 h-auto" onclick={loadFeedback}>
                         Refresh
-                    </button>
+                    </Button>
                 {/if}
             </div>
 

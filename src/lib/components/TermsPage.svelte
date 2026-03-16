@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { Button } from '$lib/components/ui/button';
+
 	interface Props {
 		onBack: () => void;
 	}
@@ -8,13 +10,9 @@
 <main class="min-h-dvh w-dvw bg-slate-50">
 	<div class="mx-auto max-w-3xl px-4 py-8">
 		<div class="mb-6 flex items-center justify-between">
-			<button
-				type="button"
-				class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-				onclick={onBack}
-			>
+			<Button variant="outline" size="sm" onclick={onBack}>
 				Back
-			</button>
+			</Button>
 		</div>
 		<div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
 			<h1 class="text-2xl font-bold tracking-tight text-slate-900">Terms and Conditions</h1>
@@ -36,25 +34,22 @@
 				<h2 class="mt-6 text-lg font-semibold text-slate-900">2. Description of Service</h2>
 				<p class="mt-2">
 					Print Studio allows you to create and customize 3D keychain designs. You may export
-					designs for personal or commercial use subject to your license and these terms.
+					designs for personal or commercial use subject to these terms.
 				</p>
 
-				<h2 class="mt-6 text-lg font-semibold text-slate-900">3. User Accounts and License</h2>
+				<h2 class="mt-6 text-lg font-semibold text-slate-900">3. User Accounts</h2>
 				<p class="mt-2">
-					Some features require an account and a valid license (free trial or paid). You are
-					responsible for keeping your account credentials secure and for all activity under your
-					account. License terms may limit export rights or number of devices; you must comply with
-					the license you have selected.
+					Some features require an account. You are responsible for keeping your account credentials
+					secure and for all activity under your account.
 				</p>
 
 				<h2 class="mt-6 text-lg font-semibold text-slate-900">4. Pricing and Payment</h2>
 				<p class="mt-2">
 					Subscription plans (e.g. monthly and yearly) and current pricing are shown in the app
-					under <strong>Pricing</strong>. Payment is arranged through the channels described in
-					<strong>How to obtain or buy a license</strong> (e.g. contact via Messenger, payment via QR
-					code, then license code delivery). Refunds may be available in certain circumstances (e.g. extended
-					maintenance); contact us to request a refund. We do not store your payment card details in the
-					app; any payment is handled outside the Service.
+					under <strong>Pricing</strong>. Payment is arranged through the channels described in the
+					app (e.g. checkout links or manual arrangements). Refunds may be available in certain
+					circumstances (e.g. extended maintenance); contact us to request a refund. We do not store
+					your payment card details in the app; any payment is handled outside the Service.
 				</p>
 
 				<h2 class="mt-6 text-lg font-semibold text-slate-900">5. Acceptable Use</h2>
@@ -67,7 +62,7 @@
 				<h2 class="mt-6 text-lg font-semibold text-slate-900">6. Intellectual Property</h2>
 				<p class="mt-2">
 					The Service and its design, features, and branding are owned by PixnPrints. Designs you
-					create using the Service are yours; you grant us a limited license to process and store
+					create using the Service are yours; you grant us a limited right to process and store
 					your content as needed to provide the Service.
 				</p>
 
@@ -101,7 +96,7 @@
 					>
 						Facebook Messenger
 					</a>
-					or through the link under <strong>How to obtain or buy a license</strong> in the app.
+					or through the contact link in the app.
 				</p>
 			</div>
 		</div>

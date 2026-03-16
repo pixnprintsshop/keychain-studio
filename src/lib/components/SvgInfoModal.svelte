@@ -1,5 +1,6 @@
 <script lang="ts">
     import type { Snippet } from "svelte";
+    import { Button } from '$lib/components/ui/button';
 
     export interface Props {
         open: boolean;
@@ -71,12 +72,9 @@
                 </ul>
             {/if}
             <div class="mt-5 flex justify-end">
-                <button
-                    type="button"
-                    class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                    onclick={onClose}>
+                <Button onclick={onClose}>
                     Got it
-                </button>
+                </Button>
             </div>
         </div>
     </div>

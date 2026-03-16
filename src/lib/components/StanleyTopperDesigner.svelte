@@ -9,7 +9,6 @@
     import { exportTo3MF } from "three-3mf-exporter";
     import stanleyTopperStlUrl from "$lib/assets/stl/Stanley Topper.stl?url";
     import FontSelect from "$lib/components/FontSelect.svelte";
-    import type { LicenseStatus } from "$lib/licensing";
     import {
         centerGeometryXY,
         disposeObject3D,
@@ -19,26 +18,32 @@
         getFont,
     } from "$lib/utils";
     import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
-    import type LicenseModal from "./LicenseModal.svelte";
+    import { Button } from "$lib/components/ui/button";
+    import { Slider } from "$lib/components/ui/slider";
+    import ColorPalettePicker from "./ColorPalettePicker.svelte";
+    import type { PaletteColor } from "$lib/colorPalette";
+    import type { SubscriptionStatus } from "$lib/subscription";
 
     export interface Props {
         user: User | null;
         session: Session | null;
-        licenseStatus: LicenseStatus | null;
-        licenseModalRef: LicenseModal | null;
+        subscriptionStatus: SubscriptionStatus | null;
+        palette: PaletteColor[];
         onBack: () => void;
         onRequestLogin: () => void;
         onShowThankYou: () => void;
+        onShowPricing?: () => void;
     }
 
     let {
         user,
         session,
-        licenseStatus,
-        licenseModalRef,
+        subscriptionStatus,
+        palette,
         onBack,
         onRequestLogin,
         onShowThankYou,
+        onShowPricing,
     }: Props = $props();
 
     let hostEl: HTMLDivElement | null = null;
@@ -185,10 +190,6 @@
             onRequestLogin();
             return;
         }
-        if (!licenseStatus?.canExport) {
-            licenseModalRef?.open();
-            return;
-        }
         if (!group || group.children.length === 0) {
             exportError = "Nothing to export";
             return;
@@ -246,7 +247,7 @@
                 `${slug}-${ts}.stl`,
                 new Blob([buffer], { type: "model/stl" }),
             );
-            if (licenseStatus?.type === "trial") onShowThankYou();
+            onShowThankYou();
         } catch (e) {
             exportError = e instanceof Error ? e.message : "Export failed";
         } finally {
@@ -258,10 +259,6 @@
         if (!group || !scene) return;
         if (!user) {
             onRequestLogin();
-            return;
-        }
-        if (!licenseStatus?.canExport) {
-            licenseModalRef?.open();
             return;
         }
         rebuildMeshes();
@@ -290,7 +287,7 @@
         if (!blob || blob.size === 0) return;
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         downloadBlob(`stanley-topper-${timestamp}.3mf`, blob);
-        if (licenseStatus?.type === "trial") onShowThankYou();
+        onShowThankYou();
     }
 
     $effect(() => {
@@ -404,12 +401,9 @@
                 <h1 class="text-lg font-semibold tracking-tight text-slate-900">
                     Stanley Topper
                 </h1>
-                <button
-                    type="button"
-                    class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                    onclick={onBack}>
+                <Button variant="outline" size="sm" onclick={onBack}>
                     Back
-                </button>
+                </Button>
             </div>
 
             <div
@@ -452,14 +446,13 @@
                         <span class="text-xs text-slate-500"
                             >{textScale.toFixed(1)}×</span>
                     </div>
-                    <input
-                        id="stanley-text-scale"
-                        type="range"
-                        min="0.3"
-                        max="2"
-                        step="0.1"
+                    <Slider
+                        type="single"
                         bind:value={textScale}
-                        class="w-full accent-indigo-500" />
+                        min={0.3}
+                        max={2}
+                        step={0.1}
+                        class="w-full" />
                 </div>
 
                 <div>
@@ -472,51 +465,24 @@
                         <span class="text-xs text-slate-500"
                             >{textDepth.toFixed(1)} mm</span>
                     </div>
-                    <input
-                        id="stanley-text-depth"
-                        type="range"
-                        min="0.2"
-                        max="2"
-                        step="0.1"
+                    <Slider
+                        type="single"
                         bind:value={textDepth}
-                        class="w-full accent-indigo-500" />
+                        min={0.2}
+                        max={2}
+                        step={0.1}
+                        class="w-full" />
                 </div>
 
-                <div>
-                    <label
-                        class="flex items-center gap-2"
-                        for="stanley-text-color">
-                        <span class="text-xs font-medium text-slate-700"
-                            >Text color</span>
-                        <input
-                            id="stanley-text-color"
-                            class="h-10 w-10 cursor-pointer rounded-xl"
-                            type="color"
-                            bind:value={textColor} />
-                        <input
-                            type="text"
-                            class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                            bind:value={textColor} />
-                    </label>
-                </div>
+                <ColorPalettePicker
+                    bind:value={textColor}
+                    {palette}
+                    label="Text color" />
 
-                <div>
-                    <label
-                        class="flex items-center gap-2"
-                        for="stanley-base-color">
-                        <span class="text-xs font-medium text-slate-700"
-                            >Base color</span>
-                        <input
-                            id="stanley-base-color"
-                            class="h-10 w-10 cursor-pointer rounded-xl"
-                            type="color"
-                            bind:value={baseColor} />
-                        <input
-                            type="text"
-                            class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                            bind:value={baseColor} />
-                    </label>
-                </div>
+                <ColorPalettePicker
+                    bind:value={baseColor}
+                    {palette}
+                    label="Base color" />
 
                 {#if exportError}
                     <p class="text-sm text-red-600">{exportError}</p>
@@ -538,20 +504,16 @@
                                 "stanley-topper",
                             );
                     }}
-                    onExport={() => void exportStl()}
-                    exportDisabled={!baseGeometry ||
-                        exportLoading ||
-                        !user ||
-                        licenseStatus?.canExport === false}
+                    onExport={() => (user && subscriptionStatus?.isActive ? exportStl() : onShowPricing?.())}
+                    exportDisabled={!baseGeometry || exportLoading}
                     exportTitle={!user
                         ? "Sign in to export"
-                        : licenseStatus?.canExport === false
-                          ? "License required to export"
-                          : "Export STL"}
-                    onExport3MF={() => void export3MF()}
+                        : !subscriptionStatus?.isActive
+                            ? "Subscribe to export"
+                            : "Export STL"}
+                    onExport3MF={() => (user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.())}
                     {exportLoading}
-                    showLockIcon={!user ||
-                        licenseStatus?.canExport === false} />
+                    showLockIcon={!user || !subscriptionStatus?.isActive} />
             </div>
         </section>
     </div>

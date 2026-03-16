@@ -1,4 +1,6 @@
 <script lang="ts">
+    import { Button } from '$lib/components/ui/button';
+
     interface Props {
         isOpen?: boolean;
         onClose?: () => void;
@@ -47,9 +49,10 @@
                         class="text-2xl font-bold text-slate-900">
                         Thank You!
                     </h2>
-                    <button
-                        type="button"
-                        class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        class="rounded-lg text-slate-400"
                         onclick={handleClose}
                         aria-label="Close dialog">
                         <svg
@@ -63,7 +66,7 @@
                                 stroke-width="2"
                                 d="M6 18L18 6M6 6l12 12" />
                         </svg>
-                    </button>
+                    </Button>
                 </div>
 
                 <div class="space-y-4">
@@ -145,12 +148,9 @@
                 </div>
 
                 <div class="mt-6 flex justify-end">
-                    <button
-                        type="button"
-                        class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                        onclick={handleClose}>
+                    <Button onclick={handleClose}>
                         Continue
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>
