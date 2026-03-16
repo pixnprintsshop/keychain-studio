@@ -634,9 +634,9 @@
 				</span>
 			</div>
 			{#if subscriptionStatus}
-				{#if subscriptionStatus?.source === 'license'}
+				{#if subscriptionStatus?.isActive}
 					<span class="ml-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-800">
-						Licensed
+						{subscriptionStatus?.source === 'license' ? 'Licensed' : 'Subscribed'}
 					</span>
 				{:else if !subscriptionStatus?.isActive}
 					<Button variant="secondary" size="xs" class="ml-2 rounded-full" onclick={() => (showLicenseModal = true)}>
@@ -707,8 +707,10 @@
 									{user.email}
 								</span>
 								{#if subscriptionStatus}
-									{#if subscriptionStatus?.source === 'license'}
-										<span class="text-[11px] text-emerald-700">Licensed</span>
+									{#if subscriptionStatus?.isActive}
+										<span class="text-[11px] text-emerald-700">
+											{subscriptionStatus?.source === 'license' ? 'Licensed' : 'Subscribed'}
+										</span>
 									{:else if !subscriptionStatus?.isActive}
 										<Button
 											variant="link"
@@ -821,7 +823,11 @@
 	<div>
 		<!-- Router -->
 		{#if currentView === 'home'}
-			<HomeScreen onSelect={handleStyleSelect} />
+			<HomeScreen
+				onSelect={handleStyleSelect}
+				{user}
+				{subscriptionStatus}
+			/>
 		{:else if isMobile && DESIGNER_VIEWS.has(currentView)}
 			<DesktopRequiredView onBack={handleBack} />
 		{:else if currentView === 'textOutline'}

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
+	import type { SubscriptionStatus } from '$lib/subscription';
 
 	type StyleName =
 		| 'textOutline'
@@ -174,9 +175,13 @@
 
 	interface Props {
 		onSelect: (style: StyleName) => void;
+		user?: { id: string } | null;
+		subscriptionStatus?: SubscriptionStatus | null;
 	}
 
-	let { onSelect }: Props = $props();
+	let { onSelect, user = null, subscriptionStatus = null }: Props = $props();
+
+	const hasAccess = $derived(user && subscriptionStatus?.isActive);
 
 	function isUnderMaintenance(style: StyleName): boolean {
 		return DESIGNERS_UNDER_MAINTENANCE.has(style);
@@ -228,17 +233,19 @@
 			<p class="mt-2 text-sm text-slate-500">Choose a style to start designing your 3D keychain</p>
 		</div>
 
-		<!-- Subscription CTA: quick path to purchase -->
-		<div
-			class="mb-6 flex flex-col items-center justify-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 sm:flex-row sm:justify-between sm:gap-4 sm:px-5 sm:py-3"
-		>
-			<p class="text-center text-sm font-medium text-emerald-900 sm:text-left">
-				Subscribe to unlock full export and all designers
-			</p>
-			<Button href="/pricing" class="shrink-0 font-semibold">
-				View pricing
-			</Button>
-		</div>
+		<!-- Subscription CTA: only for guests or users without access -->
+		{#if !hasAccess}
+			<div
+				class="mb-6 flex flex-col items-center justify-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 sm:flex-row sm:justify-between sm:gap-4 sm:px-5 sm:py-3"
+			>
+				<p class="text-center text-sm font-medium text-emerald-900 sm:text-left">
+					Subscribe to unlock full export and all designers
+				</p>
+				<Button href="/pricing" class="shrink-0 font-semibold">
+					View pricing
+				</Button>
+			</div>
+		{/if}
 
 		<!-- Beta designer confirmation dialog (shadcn for smooth transitions) -->
 		<Dialog.Root
