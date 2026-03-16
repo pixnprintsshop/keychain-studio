@@ -639,8 +639,8 @@
 						Licensed
 					</span>
 				{:else if !subscriptionStatus?.isActive}
-					<Button variant="secondary" size="sm" class="ml-2 rounded-full" onclick={() => (showLicenseModal = true)}>
-						Enter license
+					<Button variant="secondary" size="xs" class="ml-2 rounded-full" onclick={() => (showLicenseModal = true)}>
+						Activate license
 					</Button>
 				{/if}
 			{/if}
@@ -710,16 +710,17 @@
 									{#if subscriptionStatus?.source === 'license'}
 										<span class="text-[11px] text-emerald-700">Licensed</span>
 									{:else if !subscriptionStatus?.isActive}
-										<button
-											type="button"
-											class="mt-0.5 text-xs font-medium text-indigo-600 hover:underline"
+										<Button
+											variant="link"
+											size="sm"
+											class="mt-0.5 h-auto p-0 text-xs font-medium text-indigo-600"
 											onclick={() => {
 												menuOpen = false;
 												showLicenseModal = true;
 											}}
 										>
-											Enter license
-										</button>
+											Activate license
+										</Button>
 									{/if}
 								{/if}
 							</div>
