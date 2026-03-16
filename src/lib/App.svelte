@@ -635,9 +635,12 @@
 			</div>
 			{#if subscriptionStatus}
 				{#if subscriptionStatus?.isActive}
-					<span class="ml-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-800">
+					<a
+						href="/subscription"
+						class="ml-2 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-800 transition hover:bg-emerald-100 focus:ring-2 focus:ring-emerald-500/50 focus:outline-none"
+					>
 						{subscriptionStatus?.source === 'license' ? 'Licensed' : 'Subscribed'}
-					</span>
+					</a>
 				{:else if !subscriptionStatus?.isActive}
 					<Button variant="secondary" size="xs" class="ml-2 rounded-full" onclick={() => (showLicenseModal = true)}>
 						Activate license
@@ -708,9 +711,13 @@
 								</span>
 								{#if subscriptionStatus}
 									{#if subscriptionStatus?.isActive}
-										<span class="text-[11px] text-emerald-700">
+										<a
+											href="/subscription"
+											class="text-[11px] font-medium text-emerald-700 hover:underline"
+											onclick={() => (menuOpen = false)}
+										>
 											{subscriptionStatus?.source === 'license' ? 'Licensed' : 'Subscribed'}
-										</span>
+										</a>
 									{:else if !subscriptionStatus?.isActive}
 										<Button
 											variant="link"
