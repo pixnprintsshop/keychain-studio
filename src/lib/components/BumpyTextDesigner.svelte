@@ -662,7 +662,7 @@
             </div>
 
             <div
-                class="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden p-4 pt-0 pr-1">
+                class="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden p-4 pt-0">
                 <p class="text-xs text-slate-500">
                     Simple text with no base. Each character has a random
                     thickness.

@@ -833,7 +833,7 @@
             </div>
 
             <div
-                class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pt-0 pr-1">
+                class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pt-0">
                 <div
                     class="grid grid-cols-1 gap-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-3 mb-2">
                     <div
