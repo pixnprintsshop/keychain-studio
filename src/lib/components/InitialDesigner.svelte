@@ -115,11 +115,14 @@
     let textColor = $state(fontSettings.textColor);
     let outlineColor = $state(fontSettings.outlineColor);
     let fontKey = $state(restoredFont);
-    let initialFontKey = $state(
-        fontSettings.initialFontKey ?? DEFAULT_INITIAL_FONT_KEY,
-    );
-    let keyringEnabled = $state(fontSettings.keyringEnabled ?? true);
-    let keyringDepth = $state(fontSettings.keyringDepth ?? 4);
+	let initialFontKey = $state(
+		fontSettings.initialFontKey ?? DEFAULT_INITIAL_FONT_KEY,
+	);
+	let keyringEnabled = $state(fontSettings.keyringEnabled ?? true);
+	let keyringDepth = $state(fontSettings.keyringDepth ?? 4);
+	// Top text (outline + text) XY offset relative to initial
+	let textOffsetX = $state(0);
+	let textOffsetY = $state(0);
     let keyringOuterSize = $state(charSettings.keyringOuterSize);
     let keyringHoleSize = $state(charSettings.keyringHoleSize);
     let keyringOffsetX = $state(charSettings.keyringOffsetX);
@@ -566,6 +569,10 @@
             initialBaseMesh.name = "initialBase";
             initialBaseMesh.castShadow = true;
             initialBaseMesh.receiveShadow = true;
+			// Move the merged base that sits under the initial together with the top text block
+			// so STL and 3MF exports keep them aligned.
+			initialBaseMesh.position.x = textOffsetX;
+			initialBaseMesh.position.y = textOffsetY;
             initialBaseMesh.position.z = 0;
             group.add(initialBaseMesh);
         }
@@ -584,16 +591,23 @@
         });
         centerGeometryXY(textGeo);
 
-        const baseMesh = new THREE.Mesh(baseGeo, baseMat);
-        baseMesh.name = "outline";
-        const textMesh = new THREE.Mesh(textGeo, textMat);
-        textMesh.name = "text";
+		const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+		baseMesh.name = "outline";
+		const textMesh = new THREE.Mesh(textGeo, textMat);
+		textMesh.name = "text";
         baseMesh.castShadow = true;
         baseMesh.receiveShadow = true;
         textMesh.castShadow = true;
         textMesh.receiveShadow = true;
 
-        if (initialMesh) {
+		// Apply XY offset to the top text stack (outline + text) so user can move
+		// the name block relative to the large initial.
+		baseMesh.position.x = textOffsetX;
+		baseMesh.position.y = textOffsetY;
+		textMesh.position.x = textOffsetX;
+		textMesh.position.y = textOffsetY;
+
+		if (initialMesh) {
             baseMesh.position.z = Math.max(0.1, initialDepth) + 0.01;
             textMesh.position.z =
                 Math.max(0.1, initialDepth) + Math.max(0.1, baseDepth) + 0.02;
@@ -843,9 +857,11 @@
     $effect(() => {
         if (isUpdatingFromStorage || !fontKey) return;
         void textSize;
-        void outlineOffsetPx;
-        void baseDepth;
-        void textDepth;
+		void outlineOffsetPx;
+		void baseDepth;
+		void textDepth;
+		void textOffsetX;
+		void textOffsetY;
         void textColor;
         void outlineColor;
         void keyringEnabled;
@@ -995,6 +1011,40 @@
                             step="1"
                             bind:value={textSize} />
                     </label>
+
+					<!-- Top text position (relative to initial) -->
+					<div class="grid grid-cols-2 gap-3">
+						<label class="grid gap-1.5">
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-xs font-medium text-slate-700"
+									>Text Pos X</span>
+								<span class="text-xs tabular-nums text-slate-600"
+									>{textOffsetX}</span>
+							</div>
+							<input
+								class="w-full accent-indigo-500"
+								type="range"
+								min="-40"
+								max="40"
+								step="0.5"
+								bind:value={textOffsetX} />
+						</label>
+						<label class="grid gap-1.5">
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-xs font-medium text-slate-700"
+									>Text Pos Y</span>
+								<span class="text-xs tabular-nums text-slate-600"
+									>{textOffsetY}</span>
+							</div>
+							<input
+								class="w-full accent-indigo-500"
+								type="range"
+								min="-40"
+								max="40"
+								step="0.5"
+								bind:value={textOffsetY} />
+						</label>
+					</div>
 
                     <label class="grid gap-1.5">
                         <div class="flex items-center justify-between gap-2">
