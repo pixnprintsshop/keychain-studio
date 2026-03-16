@@ -85,7 +85,7 @@
 			{/if}
 		</button>
 	{/if}
-	{#if onExport3MF}
+	<!-- {#if onExport3MF}
 		<button
 			class="rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-semibold tracking-tight text-slate-900 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl focus:ring-2 focus:ring-indigo-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
 			type="button"
@@ -100,5 +100,5 @@
 				Export 3MF
 			{/if}
 		</button>
-	{/if}
+	{/if} -->
 </div>

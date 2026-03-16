@@ -224,9 +224,8 @@
 	<div class="w-full max-w-4xl">
 		<div class="mb-10 text-center">
 			<div class="mb-4 flex justify-center">
-				<img src="/app-logo.png" alt="PixnPrints Logo" class="h-16 w-auto object-contain" />
+				<img src="/app-logo-full.png" alt="PixnPrints Logo" class="h-16 w-auto object-contain" />
 			</div>
-			<h1 class="text-3xl font-bold tracking-tight text-slate-900">Print Studio</h1>
 			<p class="mt-2 text-sm text-slate-500">Choose a style to start designing your 3D keychain</p>
 		</div>
 
