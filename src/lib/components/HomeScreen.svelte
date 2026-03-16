@@ -214,14 +214,6 @@
 
 <div class="flex min-h-dvh w-dvw items-center justify-center bg-slate-50 px-4 py-6 pt-20 sm:p-6 sm:pt-25">
 	<div class="w-full max-w-4xl">
-		<!-- Notice banner: mobile only, at top of content -->
-		<div
-			class="mb-4 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-center text-sm font-medium text-indigo-800 sm:hidden"
-			role="banner"
-		>
-			Coming soon: 3MF export for better slicer compatibility.
-		</div>
-
 		<div class="mb-6 text-center sm:mb-10">
 			<div class="mb-3 flex justify-center sm:mb-4">
 				<img

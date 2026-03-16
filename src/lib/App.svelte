@@ -47,6 +47,7 @@
 	const STORAGE_KEY_WELCOME = 'designer-has-seen-welcome';
 	const STORAGE_KEY_VIEW = 'designer-current-view';
 	const STORAGE_KEY_SHARE_SHOWN = 'designer-share-dialog-shown';
+	const STORAGE_KEY_3MF_ANNOUNCEMENT = 'designer-has-seen-3mf-announcement';
 
 	/** Designers under maintenance; not accessible from home and redirect to home if selected. */
 	const MAINTENANCE_VIEWS = new Set<ViewName>([]);
@@ -188,6 +189,7 @@
 	// ── Dialog state ────────────────────────────────────────────────────────
 	let showThankYouDialog = $state(false);
 	let showSupportShareDialog = $state(false);
+	let show3MFAnnouncementDialog = $state(false);
 	let menuOpen = $state(false);
 	let userPalette: PaletteColor[] | null = $state(null);
 	let authCleanup: (() => void) | null = null;
@@ -364,6 +366,14 @@
 	function closeWelcomeDialog() {
 		showWelcomeDialog = false;
 		localStorage.setItem(STORAGE_KEY_WELCOME, 'true');
+		if (!localStorage.getItem(STORAGE_KEY_3MF_ANNOUNCEMENT)) {
+			show3MFAnnouncementDialog = true;
+		}
+	}
+
+	function close3MFAnnouncementDialog() {
+		show3MFAnnouncementDialog = false;
+		localStorage.setItem(STORAGE_KEY_3MF_ANNOUNCEMENT, 'true');
 	}
 
 	// ── Lifecycle ───────────────────────────────────────────────────────────
@@ -386,6 +396,11 @@
 		// Welcome dialog
 		const hasSeenWelcome = localStorage.getItem(STORAGE_KEY_WELCOME);
 		if (!hasSeenWelcome) showWelcomeDialog = true;
+
+		// 3MF announcement: show once for returning users (who've seen welcome)
+		if (hasSeenWelcome && !localStorage.getItem(STORAGE_KEY_3MF_ANNOUNCEMENT)) {
+			show3MFAnnouncementDialog = true;
+		}
 
 		// Open login modal if redirected from pricing with ?login=1
 		if (typeof window !== 'undefined' && new URL(window.location.href).searchParams.get('login') === '1') {
@@ -435,16 +450,6 @@
 {#if MAINTENANCE_MODE}
 	<MaintenancePage />
 {:else}
-	<!-- Coming soon banner: floating on desktop only -->
-	{#if currentView === 'home'}
-		<div
-			class="fixed top-5 left-5 right-24 z-30 hidden rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-800 shadow-sm sm:block sm:right-auto"
-			role="banner"
-		>
-			Coming soon: 3MF export for better slicer compatibility.
-		</div>
-	{/if}
-
 	<!-- Welcome Dialog -->
 	{#if showWelcomeDialog}
 		<div
@@ -552,6 +557,62 @@
 						</div>
 						<Button onclick={closeWelcomeDialog}>
 							Get Started
+						</Button>
+					</div>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- 3MF announcement dialog (show once) -->
+	{#if show3MFAnnouncementDialog}
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+			onclick={close3MFAnnouncementDialog}
+			onkeydown={(e) => {
+				if (e.key === 'Escape') close3MFAnnouncementDialog();
+			}}
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="3mf-announcement-title"
+			tabindex="-1"
+		>
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-xl"
+				onclick={(e) => e.stopPropagation()}
+			>
+				<div class="p-6">
+					<div class="mb-4 flex justify-center">
+						<div
+							class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600"
+							aria-hidden="true"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="size-6"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke-width="2"
+								stroke="currentColor"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+							</svg>
+						</div>
+					</div>
+					<h2 id="3mf-announcement-title" class="text-center text-xl font-bold text-slate-900">
+						3MF export is now available
+					</h2>
+					<p class="mt-3 text-center text-sm text-slate-600">
+						Export your designs as 3MF for better slicer compatibility and multi-material printing.
+						Look for the "Export 3MF" button in any designer.
+					</p>
+					<div class="mt-6 flex justify-center">
+						<Button onclick={close3MFAnnouncementDialog}>
+							Got it
 						</Button>
 					</div>
 				</div>
