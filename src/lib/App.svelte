@@ -402,8 +402,9 @@
 			session = initialSession;
 			user = initialSession?.user ?? null;
 			if (!user) {
-				// Guest users see the support dialog once per session (not while welcome is open)
-				if (!showWelcomeDialog) showSupportShareDialog = true;
+				// Guest users see the support dialog once ever (not while welcome is open)
+				const hasSeenSupport = localStorage.getItem(STORAGE_KEY_SHARE_SHOWN);
+				if (!showWelcomeDialog && !hasSeenSupport) showSupportShareDialog = true;
 			}
 			const {
 				data: { subscription }
@@ -580,7 +581,10 @@
 	<ThankYouDialog bind:isOpen={showThankYouDialog} />
 
 	<!-- Support / Share Dialog -->
-	<SupportShareDialog bind:isOpen={showSupportShareDialog} />
+	<SupportShareDialog
+		bind:isOpen={showSupportShareDialog}
+		onClose={() => localStorage.setItem(STORAGE_KEY_SHARE_SHOWN, 'true')}
+	/>
 
 	<!-- Logout confirmation -->
 	<Dialog.Root

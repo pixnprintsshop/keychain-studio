@@ -46,7 +46,12 @@
 	}
 </script>
 
-<Dialog.Root bind:open={isOpen}>
+<Dialog.Root
+		bind:open={isOpen}
+		onOpenChange={(open) => {
+			if (!open) onClose?.();
+		}}
+	>
 	<Dialog.Content>
 		<div class="space-y-3 text-sm text-slate-600">
 			<h2 class="text-lg font-semibold text-slate-900">
