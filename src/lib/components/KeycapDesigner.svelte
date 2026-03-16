@@ -10,7 +10,7 @@
     	FONT_OPTIONS,
     	frameCameraToObject,
     	getFont,
-    } from "$lib/utils";
+    } from "$lib/utils-3d";
     import type { Session, User } from "@supabase/supabase-js";
     import ClipperLib from "clipper-lib";
     import { onDestroy, onMount } from "svelte";

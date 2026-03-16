@@ -18,7 +18,7 @@
         FONT_OPTIONS,
         frameCameraToObject,
         getFont,
-    } from "$lib/utils";
+    } from "$lib/utils-3d";
     import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
     import { Button } from "$lib/components/ui/button";
     import { Slider } from "$lib/components/ui/slider";

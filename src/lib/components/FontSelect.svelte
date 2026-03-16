@@ -3,8 +3,9 @@
     import LockIcon from "@lucide/svelte/icons/lock";
     import CheckIcon from "@lucide/svelte/icons/check";
     import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
-    import { FONT_OPTIONS, cn } from "$lib/utils";
-    import type { FontOption } from "$lib/utils";
+    import { cn } from "$lib/utils";
+    import { FONT_OPTIONS } from "$lib/utils-3d";
+    import type { FontOption } from "$lib/utils-3d";
     import * as Command from "./ui/command/index.js";
     import * as Popover from "./ui/popover/index.js";
 
