@@ -10,6 +10,9 @@ interface VariantAttrs {
 	interval?: string | null;
 	interval_count?: number | null;
 	is_subscription?: boolean;
+	has_free_trial?: boolean;
+	trial_interval?: string | null;
+	trial_interval_count?: number | null;
 }
 
 interface StoreAttrs {
@@ -27,6 +30,21 @@ function formatPrice(cents: number, currency: string): string {
 	} catch {
 		return `${currency} ${(cents / 100).toFixed(0)}`;
 	}
+}
+
+interface PriceAttrs {
+	trial_interval_unit?: string | null;
+	trial_interval_quantity?: number | null;
+}
+
+function formatTrialLabelFromVariant(attrs: VariantAttrs | undefined): string | null {
+	if (!attrs?.has_free_trial || !attrs.trial_interval_count || !attrs.trial_interval) return null;
+	return `${attrs.trial_interval_count}-${attrs.trial_interval} free trial`;
+}
+
+function formatTrialLabelFromPrice(attrs: PriceAttrs | undefined): string | null {
+	if (!attrs?.trial_interval_quantity || !attrs?.trial_interval_unit) return null;
+	return `${attrs.trial_interval_quantity}-${attrs.trial_interval_unit} free trial`;
 }
 
 export const GET: RequestHandler = async () => {
@@ -55,22 +73,34 @@ export const GET: RequestHandler = async () => {
 		const storeData = (await storeRes.json()) as { data?: { attributes?: StoreAttrs } };
 		const currency = storeData?.data?.attributes?.currency ?? 'USD';
 
-		// Fetch both variants in parallel
-		const [monthlyRes, yearlyRes] = await Promise.all([
+		// Fetch variants and prices in parallel
+		const [monthlyVariantRes, yearlyVariantRes, monthlyPricesRes, yearlyPricesRes] = await Promise.all([
 			fetch(`${LEMONSQUEEZY_API}/variants/${variantMonthlyId}`, { headers }),
-			fetch(`${LEMONSQUEEZY_API}/variants/${variantYearlyId}`, { headers })
+			fetch(`${LEMONSQUEEZY_API}/variants/${variantYearlyId}`, { headers }),
+			fetch(`${LEMONSQUEEZY_API}/prices?filter[variant_id]=${variantMonthlyId}`, { headers }),
+			fetch(`${LEMONSQUEEZY_API}/prices?filter[variant_id]=${variantYearlyId}`, { headers })
 		]);
 
-		if (!monthlyRes.ok || !yearlyRes.ok) {
+		if (!monthlyVariantRes.ok || !yearlyVariantRes.ok) {
 			console.error('Lemon Squeezy variant fetch error');
 			return json({ error: 'Failed to load pricing' }, { status: 502 });
 		}
 
-		const monthlyJson = (await monthlyRes.json()) as { data?: { attributes?: VariantAttrs } };
-		const yearlyJson = (await yearlyRes.json()) as { data?: { attributes?: VariantAttrs } };
+		const monthlyJson = (await monthlyVariantRes.json()) as { data?: { attributes?: VariantAttrs } };
+		const yearlyJson = (await yearlyVariantRes.json()) as { data?: { attributes?: VariantAttrs } };
 
 		const monthlyAttrs = monthlyJson?.data?.attributes;
 		const yearlyAttrs = yearlyJson?.data?.attributes;
+
+		// Get trial from Price object (trial moved from Variant to Price in newer API)
+		const monthlyPriceAttrs = (await monthlyPricesRes.json()) as {
+			data?: Array<{ attributes?: PriceAttrs }>;
+		};
+		const yearlyPriceAttrs = (await yearlyPricesRes.json()) as {
+			data?: Array<{ attributes?: PriceAttrs }>;
+		};
+		const monthlyPriceObj = monthlyPriceAttrs?.data?.[0]?.attributes;
+		const yearlyPriceObj = yearlyPriceAttrs?.data?.[0]?.attributes;
 
 		const monthlyPrice = monthlyAttrs?.price ?? 0;
 		const yearlyPrice = yearlyAttrs?.price ?? 0;
@@ -81,6 +111,11 @@ export const GET: RequestHandler = async () => {
 		const yearlySavingsDollars = monthlyFullPriceDollars - yearlyPriceDollars;
 		const yearlySavingsCents = Math.round(yearlySavingsDollars * 100);
 
+		const monthlyTrial =
+			formatTrialLabelFromVariant(monthlyAttrs) ?? formatTrialLabelFromPrice(monthlyPriceObj);
+		const yearlyTrial =
+			formatTrialLabelFromVariant(yearlyAttrs) ?? formatTrialLabelFromPrice(yearlyPriceObj);
+
 		return json({
 			currency,
 			monthly: {
@@ -89,6 +124,7 @@ export const GET: RequestHandler = async () => {
 				priceFormatted: formatPrice(monthlyPrice, currency),
 				interval: monthlyAttrs?.interval ?? 'month',
 				intervalCount: monthlyAttrs?.interval_count ?? 1,
+				trialLabel: monthlyTrial,
 				description: 'Billed every month. Cancel anytime.'
 			},
 			yearly: {
@@ -97,6 +133,7 @@ export const GET: RequestHandler = async () => {
 				priceFormatted: formatPrice(yearlyPrice, currency),
 				interval: yearlyAttrs?.interval ?? 'year',
 				intervalCount: yearlyAttrs?.interval_count ?? 1,
+				trialLabel: yearlyTrial,
 				monthlyEquivalentCents: monthlyPerMonthCents,
 				monthlyEquivalentFormatted: formatPrice(monthlyPerMonthCents, currency),
 				savings: yearlySavingsDollars,

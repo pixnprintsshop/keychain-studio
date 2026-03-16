@@ -14,19 +14,20 @@
 
     let session = $state<Session | null>(null);
     let pricing = $state<{
-        monthly: { name: string; priceFormatted: string; description: string };
+        monthly: { name: string; priceFormatted: string; description: string; trialLabel?: string | null };
         yearly: {
             name: string;
             priceFormatted: string;
             monthlyEquivalentFormatted: string;
             savingsFormatted: string;
+            trialLabel?: string | null;
         };
     } | null>(null);
     let pricingError = $state<string | null>(null);
     let showLicenseModal = $state(false);
     let subscriptionStatus = $state<{ isActive: boolean; source?: 'subscription' | 'license' } | null>(null);
 
-    const PRICING_CACHE_KEY = 'pixnprints-pricing';
+    const PRICING_CACHE_KEY = 'pixnprints-pricing-v2';
     const PRICING_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
     function getCachedPricing(): typeof pricing {
@@ -84,25 +85,28 @@
                 throw new Error(data?.error ?? 'Failed to load pricing');
             }
             const data = (await res.json()) as {
-                monthly: { name: string; priceFormatted: string; description: string };
+                monthly: { name: string; priceFormatted: string; description: string; trialLabel?: string | null };
                 yearly: {
                     name: string;
                     priceFormatted: string;
                     monthlyEquivalentFormatted: string;
                     savingsFormatted: string;
+                    trialLabel?: string | null;
                 };
             };
             const parsed = {
                 monthly: {
                     name: data.monthly.name,
                     priceFormatted: data.monthly.priceFormatted,
-                    description: data.monthly.description
+                    description: data.monthly.description,
+                    trialLabel: data.monthly.trialLabel ?? null
                 },
                 yearly: {
                     name: data.yearly.name,
                     priceFormatted: data.yearly.priceFormatted,
                     monthlyEquivalentFormatted: data.yearly.monthlyEquivalentFormatted,
-                    savingsFormatted: data.yearly.savingsFormatted
+                    savingsFormatted: data.yearly.savingsFormatted,
+                    trialLabel: data.yearly.trialLabel ?? null
                 }
             };
             pricing = parsed;
@@ -113,13 +117,15 @@
                 monthly: {
                     name: 'Monthly',
                     priceFormatted: '₱300',
-                    description: 'Billed every month. Cancel anytime.'
+                    description: 'Billed every month. Cancel anytime.',
+                    trialLabel: '7-day free trial'
                 },
                 yearly: {
                     name: 'Yearly',
                     priceFormatted: '₱3,000',
                     monthlyEquivalentFormatted: '₱250',
-                    savingsFormatted: '₱600'
+                    savingsFormatted: '₱600',
+                    trialLabel: '7-day free trial'
                 }
             };
         }
@@ -186,6 +192,12 @@
                         <h2 class="text-lg font-semibold text-slate-900">
                             {pricing.monthly.name}
                         </h2>
+                        {#if pricing.monthly.trialLabel}
+                            <span
+                                class="mt-2 inline-block w-fit rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                                {pricing.monthly.trialLabel}
+                            </span>
+                        {/if}
                         <p class="mt-2 text-2xl font-bold text-slate-900">
                             {pricing.monthly.priceFormatted}
                             <span class="text-sm font-normal text-slate-500"
@@ -197,7 +209,9 @@
                         </p>
                         <div class="flex-1"></div>
                         <Button class="mt-4 w-full" onclick={() => (user ? startCheckout('monthly') : onRequestLogin?.())}>
-                            {user ? 'Start monthly subscription' : 'Sign in to subscribe'}
+                            {user
+                                ? (pricing.monthly.trialLabel ? 'Start trial' : 'Start monthly subscription')
+                                : 'Sign in to subscribe'}
                         </Button>
                     </div>
                     <div
@@ -209,6 +223,12 @@
                         <h2 class="mt-2 text-lg font-semibold text-slate-900">
                             {pricing.yearly.name}
                         </h2>
+                        {#if pricing.yearly.trialLabel}
+                            <span
+                                class="mt-2 inline-block w-fit rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                                {pricing.yearly.trialLabel}
+                            </span>
+                        {/if}
                         <p class="mt-2 text-2xl font-bold text-slate-900">
                             {pricing.yearly.priceFormatted}
                             <span class="text-sm font-normal text-slate-500"
@@ -219,7 +239,9 @@
                             {pricing.yearly.monthlyEquivalentFormatted}/month — save {pricing.yearly.savingsFormatted} per year
                         </p>
                         <Button class="mt-4 w-full" onclick={() => (user ? startCheckout('yearly') : onRequestLogin?.())}>
-                            {user ? 'Start yearly subscription' : 'Sign in to subscribe'}
+                            {user
+                                ? (pricing.yearly.trialLabel ? 'Start trial' : 'Start yearly subscription')
+                                : 'Sign in to subscribe'}
                         </Button>
                     </div>
                 </div>
