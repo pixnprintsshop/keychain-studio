@@ -48,7 +48,7 @@
 	const STORAGE_KEY_WELCOME = 'designer-has-seen-welcome';
 	const STORAGE_KEY_VIEW = 'designer-current-view';
 	const STORAGE_KEY_SHARE_SHOWN = 'designer-share-dialog-shown';
-	const STORAGE_KEY_3MF_ANNOUNCEMENT = 'designer-has-seen-3mf-announcement';
+	const STORAGE_KEY_BAMBU_ANNOUNCEMENT = 'designer-has-seen-bambu-studio-announcement';
 
 	/** Designers under maintenance; not accessible from home and redirect to home if selected. */
 	const MAINTENANCE_VIEWS = new Set<ViewName>([]);
@@ -370,14 +370,14 @@
 	function closeWelcomeDialog() {
 		showWelcomeDialog = false;
 		localStorage.setItem(STORAGE_KEY_WELCOME, 'true');
-		if (!localStorage.getItem(STORAGE_KEY_3MF_ANNOUNCEMENT)) {
+		if (!localStorage.getItem(STORAGE_KEY_BAMBU_ANNOUNCEMENT)) {
 			show3MFAnnouncementDialog = true;
 		}
 	}
 
 	function close3MFAnnouncementDialog() {
 		show3MFAnnouncementDialog = false;
-		localStorage.setItem(STORAGE_KEY_3MF_ANNOUNCEMENT, 'true');
+		localStorage.setItem(STORAGE_KEY_BAMBU_ANNOUNCEMENT, 'true');
 	}
 
 	// ── Lifecycle ───────────────────────────────────────────────────────────
@@ -402,7 +402,7 @@
 		if (!hasSeenWelcome) showWelcomeDialog = true;
 
 		// 3MF announcement: show once for returning users (who've seen welcome)
-		if (hasSeenWelcome && !localStorage.getItem(STORAGE_KEY_3MF_ANNOUNCEMENT)) {
+		if (hasSeenWelcome && !localStorage.getItem(STORAGE_KEY_BAMBU_ANNOUNCEMENT)) {
 			show3MFAnnouncementDialog = true;
 		}
 
