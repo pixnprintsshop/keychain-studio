@@ -21,6 +21,7 @@
         makeKeyringGeometry,
     } from "$lib/utils-3d";
     import { notifyExportEvent } from "$lib/exportNotify";
+    import { upload3mfToSupabase } from "$lib/upload3mf";
     import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
     import { Button } from "$lib/components/ui/button";
     import { Slider } from "$lib/components/ui/slider";
@@ -133,6 +134,7 @@
 
     let exportError = $state<string | null>(null);
     let exportLoading = $state(false);
+    let openBambuStudioLoading = $state(false);
 
     function resize() {
         if (!renderer || !camera || !hostEl) return;
@@ -584,6 +586,97 @@
             exportError = e instanceof Error ? e.message : "3MF export failed";
         } finally {
             exportLoading = false;
+        }
+    }
+
+    async function openWithBambuStudio() {
+        if (!group || group.children.length === 0) return;
+        openBambuStudioLoading = true;
+        try {
+            group.updateWorldMatrix(true, true);
+            const byName: Record<string, THREE.Mesh> = {};
+            for (const child of group.children) {
+                if ((child as THREE.Mesh).isMesh && (child as THREE.Mesh).name) {
+                    byName[(child as THREE.Mesh).name] = child as THREE.Mesh;
+                }
+            }
+            const baseMesh = byName.base;
+            const topMesh = byName.top;
+            const textMesh = byName.text;
+            const textTopMesh = byName.textTop;
+            const keyringMesh = byName.keyring;
+            if (!baseMesh) return;
+            const geoWorld = (mesh: THREE.Mesh) =>
+                mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+            const mergeAll = (meshes: THREE.Mesh[]) => {
+                const geos = meshes.map(geoWorld);
+                const merged =
+                    geos.length === 1
+                        ? geos[0]
+                        : BufferGeometryUtils.mergeGeometries(geos);
+                if (!merged) return null;
+                if (geos.length > 1) geos.forEach((g) => g !== merged && g.dispose());
+                return BufferGeometryUtils.mergeVertices(merged, 1e-3);
+            };
+            const exportGroup = new THREE.Group();
+            const bottomMeshes = [baseMesh].concat(keyringMesh ? [keyringMesh] : []);
+            if (textMesh) bottomMeshes.push(textMesh);
+            const bottomGeo = mergeAll(bottomMeshes);
+            if (bottomGeo) {
+                exportGroup.add(
+                    new THREE.Mesh(
+                        bottomGeo,
+                        new THREE.MeshBasicMaterial({
+                            color: new THREE.Color(baseColor),
+                        }),
+                    ),
+                );
+            }
+            const bowTextMeshes = topMesh ? [topMesh] : [];
+            if (textTopMesh) bowTextMeshes.push(textTopMesh);
+            const bowTextGeo =
+                bowTextMeshes.length > 0 ? mergeAll(bowTextMeshes) : null;
+            if (bowTextGeo) {
+                exportGroup.add(
+                    new THREE.Mesh(
+                        bowTextGeo,
+                        new THREE.MeshBasicMaterial({
+                            color: new THREE.Color(topColor),
+                        }),
+                    ),
+                );
+            }
+            const textTopMostMesh = byName.textTopMost;
+            if (textTopMostMesh) {
+                const textOnlyGeo = mergeAll([textTopMostMesh]);
+                if (textOnlyGeo) {
+                    exportGroup.add(
+                        new THREE.Mesh(
+                            textOnlyGeo,
+                            new THREE.MeshBasicMaterial({
+                                color: new THREE.Color(textColor),
+                            }),
+                        ),
+                    );
+                }
+            }
+            if (exportGroup.children.length === 0) return;
+            exportGroup.updateWorldMatrix(true, true);
+            const blob = await exportTo3MF(exportGroup);
+            if (!blob || blob.size === 0) return;
+            const publicUrl = await upload3mfToSupabase(blob);
+            notifyExportEvent({
+                email: user?.email,
+                name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+                subscriptionStatus,
+                designName: "Bow Keychain",
+                format: "bambu_studio"
+            });
+            window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+        } catch (err) {
+            console.error('Open with Bambu Studio failed:', err);
+        } finally {
+            openBambuStudioLoading = false;
         }
     }
 
@@ -1146,6 +1239,8 @@
                     }}
                     onExport={() => (user && subscriptionStatus?.isActive ? exportSTL() : onShowPricing?.())}
                     onExport3MF={() => (user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.())}
+                    onOpenWithBambuStudio={() => (user && subscriptionStatus?.isActive ? openWithBambuStudio() : onShowPricing?.())}
+                    openBambuStudioLoading={openBambuStudioLoading}
                     exportDisabled={false}
                     exportTitle={!user
                         ? "Sign in to export"

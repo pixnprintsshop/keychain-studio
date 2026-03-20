@@ -17,6 +17,7 @@
         makeKeyringGeometry,
     } from "$lib/utils-3d";
     import { notifyExportEvent } from "$lib/exportNotify";
+    import { upload3mfToSupabase } from "$lib/upload3mf";
     import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
     import { Button } from "$lib/components/ui/button";
     import { Slider } from "$lib/components/ui/slider";
@@ -205,6 +206,7 @@
     let didInitFrame = false;
     let exportLoading = $state(false);
     let exportError = $state<string | null>(null);
+    let openBambuStudioLoading = $state(false);
 
     function resize() {
         if (!renderer || !camera || !hostEl) return;
@@ -489,6 +491,46 @@
             exportError = e instanceof Error ? e.message : "3MF export failed";
         } finally {
             exportLoading = false;
+        }
+    }
+
+    async function openWithBambuStudio() {
+        if (!group || !scene) return;
+        openBambuStudioLoading = true;
+        try {
+            rebuildMeshes();
+            group.updateWorldMatrix(true, true);
+            const exportGroup = new THREE.Group();
+            const mat = new THREE.MeshBasicMaterial({
+                color: new THREE.Color(textColor || "#24b6ff"),
+            });
+            for (let i = 0; i < group.children.length; i++) {
+                const child = group.children[i];
+                if (child && (child as THREE.Mesh).isMesh) {
+                    const mesh = child as THREE.Mesh;
+                    const geo = mesh.geometry
+                        .clone()
+                        .applyMatrix4(mesh.matrixWorld);
+                    exportGroup.add(new THREE.Mesh(geo, mat));
+                }
+            }
+            if (exportGroup.children.length === 0) return;
+            exportGroup.updateWorldMatrix(true, true);
+            const blob = await exportTo3MF(exportGroup);
+            if (!blob || blob.size === 0) return;
+            const publicUrl = await upload3mfToSupabase(blob);
+            notifyExportEvent({
+                email: user?.email,
+                name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+                subscriptionStatus,
+                designName: "Bumpy Text",
+                format: "bambu_studio"
+            });
+            window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+        } catch (err) {
+            console.error('Open with Bambu Studio failed:', err);
+        } finally {
+            openBambuStudioLoading = false;
         }
     }
 
@@ -877,6 +919,8 @@
                     }}
                     onExport={() => (user && subscriptionStatus?.isActive ? exportSTL() : onShowPricing?.())}
                     onExport3MF={() => (user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.())}
+                    onOpenWithBambuStudio={() => (user && subscriptionStatus?.isActive ? openWithBambuStudio() : onShowPricing?.())}
+                    openBambuStudioLoading={openBambuStudioLoading}
                     exportDisabled={false}
                     exportTitle={!user
                         ? "Sign in to export"

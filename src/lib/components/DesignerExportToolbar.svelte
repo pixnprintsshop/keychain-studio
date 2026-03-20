@@ -12,6 +12,10 @@
 		showLockIcon?: boolean;
 		/** Optional: when provided, show a second "Export 3MF" button for multipart 3MF export (base, border, text). */
 		onExport3MF?: () => void;
+		/** Optional: when provided, show "Open with Bambu Studio" button (uploads 3MF and opens via deeplink). */
+		onOpenWithBambuStudio?: () => void;
+		/** When true, "Open with Bambu Studio" shows loading state. */
+		openBambuStudioLoading?: boolean;
 	}
 
 	let {
@@ -22,6 +26,8 @@
 		exportLoading = false,
 		showLockIcon = false,
 		onExport3MF,
+		onOpenWithBambuStudio,
+		openBambuStudioLoading = false,
 	}: Props = $props();
 
 	function handleSnapshot() {
@@ -37,6 +43,13 @@
 	function handleExport3MF() {
 		if (!exportDisabled) posthog.capture('design_exported_3mf', { format: '3mf' });
 		onExport3MF?.();
+	}
+
+	function handleOpenWithBambuStudio() {
+		if (!exportDisabled && !openBambuStudioLoading) {
+			posthog.capture('design_opened_bambu_studio');
+		}
+		onOpenWithBambuStudio?.();
 	}
 </script>
 
@@ -97,6 +110,22 @@
 				Exporting…
 			{:else}
 				Export 3MF
+			{/if}
+		</Button>
+	{/if}
+	{#if onOpenWithBambuStudio}
+		<Button
+			variant="outline"
+			class="rounded-full bg-[#08BF08] hover:bg-[#08BF08]/90 hover:text-white text-white shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
+			onclick={handleOpenWithBambuStudio}
+			aria-label="Open with Bambu Studio"
+			disabled={exportDisabled || exportLoading || openBambuStudioLoading}
+			title="Upload 3MF and open in Bambu Studio"
+		>
+			{#if openBambuStudioLoading}
+				Opening…
+			{:else}
+				Open with Bambu Studio
 			{/if}
 		</Button>
 	{/if}

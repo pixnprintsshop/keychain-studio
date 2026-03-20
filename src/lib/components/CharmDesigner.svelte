@@ -20,6 +20,7 @@
 		stlToBufferGeometry
 	} from '$lib/utils-3d';
 	import { notifyExportEvent } from '$lib/exportNotify';
+	import { upload3mfToSupabase } from '$lib/upload3mf';
 	import DesignerExportToolbar from './DesignerExportToolbar.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Slider } from '$lib/components/ui/slider';
@@ -139,6 +140,7 @@ let { user, session, subscriptionStatus, palette, onBack, onRequestLogin, onShow
 	let showSvgInfoModal = $state(true);
 	let exportError = $state<string | null>(null);
 	let exportLoading = $state(false);
+	let openBambuStudioLoading = $state(false);
 	const CLIPPER_SCALE = 1000;
 	const DETAIL_AREA_RATIO = 0.08;
 	let sizeMm = $state(20);
@@ -1120,6 +1122,54 @@ difference() {
 		}
 	}
 
+	async function openWithBambuStudio() {
+		if (!optimizedSvg?.trim()) return;
+		openBambuStudioLoading = true;
+		try {
+			const baseGeo = await buildOpenScadBaseGeometry();
+			const baseMatExport = new THREE.MeshBasicMaterial({
+				color: new THREE.Color(baseColor)
+			});
+			const exportGroup = new THREE.Group();
+			exportGroup.add(new THREE.Mesh(baseGeo, baseMatExport));
+
+			if (scene && group) {
+				rebuildMeshes();
+				group.updateWorldMatrix(true, true);
+				for (const child of group.children) {
+					const mesh = child as THREE.Mesh;
+					if (!(mesh as unknown as { isMesh?: boolean }).isMesh || !mesh.geometry) continue;
+					if (mesh.name === 'base') continue;
+					const cloneGeo = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+					const sceneMat = (
+						Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
+					) as THREE.MeshStandardMaterial;
+					const color =
+						sceneMat?.color != null ? sceneMat.color.clone() : new THREE.Color(0xffffff);
+					const cloneMat = new THREE.MeshBasicMaterial({ color });
+					exportGroup.add(new THREE.Mesh(cloneGeo, cloneMat));
+				}
+			}
+			exportGroup.updateWorldMatrix(true, true);
+
+			const blob = await exportTo3MF(exportGroup);
+			if (!blob || blob.size === 0) return;
+			const publicUrl = await upload3mfToSupabase(blob);
+			notifyExportEvent({
+				email: user?.email,
+				name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+				subscriptionStatus,
+				designName: "Chunky Charm",
+				format: "bambu_studio"
+			});
+			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+		} catch (err) {
+			console.error('Open with Bambu Studio failed:', err);
+		} finally {
+			openBambuStudioLoading = false;
+		}
+	}
+
 	let copyTimeoutId: ReturnType<typeof setTimeout> | null = null;
 	let prevOptimizedSvg = '';
 	const COMMIT_DEBOUNCE_MS = 350;
@@ -1507,6 +1557,8 @@ difference() {
 					onSnapshot={() => downloadSnapshot(renderer, scene, camera, 'charm-designer')}
 					onExport={() => (user && subscriptionStatus?.isActive ? exportStl() : onShowPricing?.())}
 					onExport3MF={() => (user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.())}
+					onOpenWithBambuStudio={() => (user && subscriptionStatus?.isActive ? openWithBambuStudio() : onShowPricing?.())}
+					openBambuStudioLoading={openBambuStudioLoading}
 					exportDisabled={!optimizedSvg || processing || exportLoading}
 					exportTitle={!user
 						? 'Sign in to export'

@@ -20,6 +20,7 @@
         DEFAULT_TEXT,
     } from "$lib/utils-3d";
     import { notifyExportEvent } from "$lib/exportNotify";
+    import { upload3mfToSupabase } from "$lib/upload3mf";
     import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
     import { Button } from "$lib/components/ui/button";
     import { Slider } from "$lib/components/ui/slider";
@@ -142,6 +143,7 @@
     let didInitFrame = false;
     let exportLoading = $state(false);
     let exportError = $state<string | null>(null);
+    let openBambuStudioLoading = $state(false);
 
     function resize() {
         if (!renderer || !camera || !hostEl) return;
@@ -703,6 +705,37 @@
         }
     }
 
+    async function openWithBambuStudio() {
+        if (!group || !scene) return;
+        openBambuStudioLoading = true;
+        try {
+            rebuildMeshes();
+            group.updateWorldMatrix(true, true);
+            const exportGroup = group.clone(true);
+            exportGroup.traverse((obj: THREE.Object3D) => {
+                if (obj instanceof THREE.Mesh && obj.name === "text") {
+                    obj.position.z += TEXT_BASE_EMBED;
+                }
+            });
+            exportGroup.updateWorldMatrix(true, true);
+            const blob = await exportTo3MF(exportGroup);
+            if (!blob || blob.size === 0) return;
+            const publicUrl = await upload3mfToSupabase(blob);
+            notifyExportEvent({
+                email: user?.email,
+                name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+                subscriptionStatus,
+                designName: "Basic Name Tag",
+                format: "bambu_studio"
+            });
+            window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+        } catch (err) {
+            console.error('Open with Bambu Studio failed:', err);
+        } finally {
+            openBambuStudioLoading = false;
+        }
+    }
+
     onMount(() => {
         if (!hostEl) return;
 
@@ -1079,6 +1112,8 @@
                         )}
                     onExport={() => (user && subscriptionStatus?.isActive ? exportSTL() : onShowPricing?.())}
                     onExport3MF={() => (user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.())}
+                    onOpenWithBambuStudio={() => (user && subscriptionStatus?.isActive ? openWithBambuStudio() : onShowPricing?.())}
+                    openBambuStudioLoading={openBambuStudioLoading}
                     exportDisabled={exportLoading}
                     exportTitle={!user
                         ? "Sign in to export"

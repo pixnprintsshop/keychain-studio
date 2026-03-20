@@ -19,6 +19,7 @@
         getFont,
     } from "$lib/utils-3d";
     import { notifyExportEvent } from "$lib/exportNotify";
+    import { upload3mfToSupabase } from "$lib/upload3mf";
     import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
     import { Button } from '$lib/components/ui/button';
     import { Slider } from '$lib/components/ui/slider';
@@ -127,6 +128,7 @@
     let rafId = 0;
     let ro: ResizeObserver | null = null;
     let didInitFrame = false;
+    let openBambuStudioLoading = $state(false);
 
     // Loaded geometries (cached)
     let baseGeometry: THREE.BufferGeometry | null = null;
@@ -420,6 +422,83 @@
             format: "3mf"
         });
         onShowThankYou();
+    }
+
+    async function openWithBambuStudio() {
+        if (!group || !scene) return;
+        openBambuStudioLoading = true;
+        try {
+            rebuildMeshes();
+            group.updateWorldMatrix(true, true);
+            const exportGroup = new THREE.Group();
+            const meshes = group.children.filter(
+                (c: THREE.Object3D) => (c as THREE.Mesh).isMesh,
+            ) as THREE.Mesh[];
+            if (meshes.length === 0) return;
+            const geoWorld = (m: THREE.Mesh) =>
+                m.geometry.clone().applyMatrix4(m.matrixWorld);
+            const getColor = (m: THREE.Mesh) => {
+                const mat = (Array.isArray(m.material)
+                    ? m.material[0]
+                    : m.material) as THREE.MeshStandardMaterial;
+                return mat?.color != null
+                    ? mat.color.clone()
+                    : new THREE.Color(0xffffff);
+            };
+            if (meshes.length >= 1) {
+                exportGroup.add(
+                    new THREE.Mesh(
+                        geoWorld(meshes[0]),
+                        new THREE.MeshBasicMaterial({ color: getColor(meshes[0]) }),
+                    ),
+                );
+            }
+            if (meshes.length >= 2) {
+                exportGroup.add(
+                    new THREE.Mesh(
+                        geoWorld(meshes[1]),
+                        new THREE.MeshBasicMaterial({ color: getColor(meshes[1]) }),
+                    ),
+                );
+            }
+            if (meshes.length > 2) {
+                const textGeos = meshes.slice(2).map(geoWorld);
+                const mergedText =
+                    textGeos.length === 1
+                        ? textGeos[0]
+                        : BufferGeometryUtils.mergeGeometries(textGeos);
+                if (mergedText) {
+                    if (textGeos.length > 1) {
+                        textGeos.forEach((g) => g.dispose());
+                    }
+                    exportGroup.add(
+                        new THREE.Mesh(
+                            BufferGeometryUtils.mergeVertices(mergedText, 1e-3),
+                            new THREE.MeshBasicMaterial({
+                                color: new THREE.Color(charColor),
+                            }),
+                        ),
+                    );
+                }
+            }
+            if (exportGroup.children.length === 0) return;
+            exportGroup.updateWorldMatrix(true, true);
+            const blob = await exportTo3MF(exportGroup);
+            if (!blob || blob.size === 0) return;
+            const publicUrl = await upload3mfToSupabase(blob);
+            notifyExportEvent({
+                email: user?.email,
+                name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+                subscriptionStatus,
+                designName: "Flower",
+                format: "bambu_studio"
+            });
+            window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+        } catch (err) {
+            console.error('Open with Bambu Studio failed:', err);
+        } finally {
+            openBambuStudioLoading = false;
+        }
     }
 
     // ── Lifecycle ───────────────────────────────────────────────────────────
@@ -772,6 +851,8 @@
                         downloadSnapshot(renderer, scene, camera, "flower")}
                     onExport={() => (user && subscriptionStatus?.isActive ? exportSTL() : onShowPricing?.())}
                     onExport3MF={() => (user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.())}
+                    onOpenWithBambuStudio={() => (user && subscriptionStatus?.isActive ? openWithBambuStudio() : onShowPricing?.())}
+                    openBambuStudioLoading={openBambuStudioLoading}
                     exportDisabled={false}
                     exportTitle={!user
                         ? "Sign in to export"

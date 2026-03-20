@@ -590,31 +590,18 @@
 				onclick={(e) => e.stopPropagation()}
 			>
 				<div class="p-6">
-					<div class="mb-4 flex justify-center">
-						<div
-							class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600"
-							aria-hidden="true"
-						>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								class="size-6"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke-width="2"
-								stroke="currentColor"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-							>
-								<path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-							</svg>
-						</div>
+					<div class="mb-4 overflow-hidden rounded-xl">
+						<img
+							src="/bambustudio.png"
+							alt="Open with Bambu Studio feature"
+							class="w-full object-cover"
+						/>
 					</div>
 					<h2 id="3mf-announcement-title" class="text-center text-xl font-bold text-slate-900">
-						3MF export is now available
+						Open with Bambu Studio
 					</h2>
 					<p class="mt-3 text-center text-sm text-slate-600">
-						Export your designs as 3MF for better slicer compatibility and multi-material printing.
-						Look for the "Export 3MF" button in any designer.
+						One-click to open it in Bambu Studio. Look for the green "Open with Bambu Studio" button in any designer.
 					</p>
 					<div class="mt-6 flex justify-center">
 						<Button onclick={close3MFAnnouncementDialog}>Got it</Button>

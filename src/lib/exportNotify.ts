@@ -5,7 +5,7 @@ export interface ExportNotifyPayload {
 	name: string | undefined;
 	subscriptionStatus: SubscriptionStatus | null;
 	designName: string;
-	format: 'stl' | '3mf';
+	format: 'stl' | '3mf' | 'bambu_studio';
 }
 
 function formatSubscriptionStatus(s: SubscriptionStatus | null): string {
