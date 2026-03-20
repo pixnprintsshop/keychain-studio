@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '$env/dynamic/private';
+import { getPostHogClient } from '$lib/server/posthog';
 
 export const POST: RequestHandler = async ({ request }) => {
 	const authHeader = request.headers.get('Authorization');
@@ -36,7 +37,10 @@ export const POST: RequestHandler = async ({ request }) => {
 		error: authError
 	} = await supabaseAnon.auth.getUser(token);
 	if (authError || !user) {
-		return json({ success: false, error: 'Invalid or expired session. Please sign in again.' }, { status: 401 });
+		return json(
+			{ success: false, error: 'Invalid or expired session. Please sign in again.' },
+			{ status: 401 }
+		);
 	}
 
 	if (!supabaseServiceKey) {
@@ -67,7 +71,10 @@ export const POST: RequestHandler = async ({ request }) => {
 	}
 
 	if (license.tier !== 'paid') {
-		return json({ success: false, error: 'This license does not grant export access' }, { status: 400 });
+		return json(
+			{ success: false, error: 'This license does not grant export access' },
+			{ status: 400 }
+		);
 	}
 
 	const now = new Date();
@@ -114,6 +121,14 @@ export const POST: RequestHandler = async ({ request }) => {
 		console.error('License activation error:', upsertError);
 		return json({ success: false, error: 'Failed to activate license' }, { status: 500 });
 	}
+
+	const posthog = getPostHogClient();
+	posthog.capture({
+		distinctId: user.id,
+		event: 'license_activated',
+		properties: { tier: license.tier, $set: { email: user.email } }
+	});
+	await posthog.flush();
 
 	return json({ success: true });
 };

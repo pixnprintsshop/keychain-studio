@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '$env/dynamic/private';
+import { getPostHogClient } from '$lib/server/posthog';
 
 const LEMONSQUEEZY_API = 'https://api.lemonsqueezy.com/v1/checkouts';
 
@@ -50,7 +51,8 @@ export const POST: RequestHandler = async ({ request }) => {
 	}
 
 	const variantId = plan === 'monthly' ? variantMonthlyId : variantYearlyId;
-	const origin = request.headers.get('origin') || request.url.replace(/\/api\/lemonsqueezy\/checkout.*$/, '');
+	const origin =
+		request.headers.get('origin') || request.url.replace(/\/api\/lemonsqueezy\/checkout.*$/, '');
 	const redirectUrl = `${origin}/?subscription=success`;
 
 	const payload = {
@@ -94,6 +96,14 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (!url) {
 		return json({ error: 'No checkout URL returned' }, { status: 502 });
 	}
+
+	const posthog = getPostHogClient();
+	posthog.capture({
+		distinctId: user.id,
+		event: 'checkout_session_created',
+		properties: { plan, $set: { email: user.email } }
+	});
+	await posthog.flush();
 
 	return json({ url });
 };

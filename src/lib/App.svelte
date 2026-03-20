@@ -37,6 +37,7 @@
 	} from '$lib/colorPalette';
 	import type { Session, User } from '@supabase/supabase-js';
 	import { onDestroy, onMount } from 'svelte';
+	import posthog from 'posthog-js';
 
 	/** When true, only the maintenance page is shown. Set via VITE_MAINTENANCE_MODE (e.g. "true" or "1"). */
 	const MAINTENANCE_MODE =
@@ -326,6 +327,7 @@
 			| 'bowKeychain'
 	) {
 		if (MAINTENANCE_VIEWS.has(style)) return;
+		posthog.capture('designer_selected', { designer: style });
 		navigateTo(style);
 	}
 
@@ -356,6 +358,8 @@
 
 	async function handleSignOut() {
 		const userId = user?.id ?? null;
+		posthog.capture('user_signed_out');
+		posthog.reset();
 		await signOut();
 		clearLicenseCache(userId);
 		user = null;
@@ -403,7 +407,10 @@
 		}
 
 		// Open login modal if redirected from pricing with ?login=1
-		if (typeof window !== 'undefined' && new URL(window.location.href).searchParams.get('login') === '1') {
+		if (
+			typeof window !== 'undefined' &&
+			new URL(window.location.href).searchParams.get('login') === '1'
+		) {
 			showLoginModal = true;
 			// Clear the param from URL without full reload
 			const url = new URL(window.location.href);
@@ -427,6 +434,7 @@
 				session = newSession;
 				user = newSession?.user ?? null;
 				if (event === 'SIGNED_IN' && user) {
+					posthog.identify(user.id, { email: user.email });
 					showLoginModal = false;
 					// Clean OAuth callback hash from URL after Supabase has processed it
 					if (isSupabaseAuthHash()) {
@@ -555,9 +563,7 @@
 							<span>By</span>
 							<img src="/pixnprints-logo.png" alt="PixnPrints" class="h-4 w-auto object-contain" />
 						</div>
-						<Button onclick={closeWelcomeDialog}>
-							Get Started
-						</Button>
+						<Button onclick={closeWelcomeDialog}>Get Started</Button>
 					</div>
 				</div>
 			</div>
@@ -611,9 +617,7 @@
 						Look for the "Export 3MF" button in any designer.
 					</p>
 					<div class="mt-6 flex justify-center">
-						<Button onclick={close3MFAnnouncementDialog}>
-							Got it
-						</Button>
+						<Button onclick={close3MFAnnouncementDialog}>Got it</Button>
 					</div>
 				</div>
 			</div>
@@ -633,10 +637,7 @@
 	/>
 
 	<!-- License Activation Modal -->
-	<LicenseActivationModal
-		bind:isOpen={showLicenseModal}
-		onSuccess={refreshAccessStatus}
-	/>
+	<LicenseActivationModal bind:isOpen={showLicenseModal} onSuccess={refreshAccessStatus} />
 
 	<!-- Thank You Dialog -->
 	<ThankYouDialog bind:isOpen={showThankYouDialog} />
@@ -703,7 +704,12 @@
 						{subscriptionStatus?.source === 'license' ? 'Licensed' : 'Subscribed'}
 					</a>
 				{:else if !subscriptionStatus?.isActive}
-					<Button variant="secondary" size="xs" class="ml-2 rounded-full" onclick={() => (showLicenseModal = true)}>
+					<Button
+						variant="secondary"
+						size="xs"
+						class="ml-2 rounded-full"
+						onclick={() => (showLicenseModal = true)}
+					>
 						Activate license
 					</Button>
 				{/if}
@@ -714,23 +720,41 @@
 			<Button variant="secondary" size="xs" class="rounded-full" onclick={openFeedback}>
 				Feedback
 			</Button>
-			<Button variant="secondary" size="xs" class="rounded-full" onclick={() => (showSupportShareDialog = true)}>
+			<Button
+				variant="secondary"
+				size="xs"
+				class="rounded-full"
+				onclick={() => (showSupportShareDialog = true)}
+			>
 				Support Print Studio
 			</Button>
-			<Button variant="outline" size="xs" class="rounded-full text-slate-700" onclick={() => (showLogoutConfirm = true)}>
+			<Button
+				variant="outline"
+				size="xs"
+				class="rounded-full text-slate-700"
+				onclick={() => (showLogoutConfirm = true)}
+			>
 				Sign Out
 			</Button>
 		{:else}
-			<Button size="xs" href="/pricing">
-				View pricing
-			</Button>
-			<Button variant="secondary" size="xs" class="rounded-full" onclick={() => (showLoginModal = true)}>
+			<Button size="xs" href="/pricing">View pricing</Button>
+			<Button
+				variant="secondary"
+				size="xs"
+				class="rounded-full"
+				onclick={() => (showLoginModal = true)}
+			>
 				Sign In
 			</Button>
 			<Button variant="secondary" size="xs" class="rounded-full" onclick={openSettings}>
 				Settings
 			</Button>
-			<Button variant="secondary" size="xs" class="rounded-full" onclick={() => (showSupportShareDialog = true)}>
+			<Button
+				variant="secondary"
+				size="xs"
+				class="rounded-full"
+				onclick={() => (showSupportShareDialog = true)}
+			>
 				Support Print Studio
 			</Button>
 		{/if}
@@ -840,12 +864,7 @@
 							Sign Out
 						</Button>
 					{:else}
-						<Button
-							size="sm"
-							class="w-full"
-							href="/pricing"
-							onclick={() => (menuOpen = false)}
-						>
+						<Button size="sm" class="w-full" href="/pricing" onclick={() => (menuOpen = false)}>
 							View pricing
 						</Button>
 						<Button
@@ -891,11 +910,7 @@
 	<div>
 		<!-- Router -->
 		{#if currentView === 'home'}
-			<HomeScreen
-				onSelect={handleStyleSelect}
-				{user}
-				{subscriptionStatus}
-			/>
+			<HomeScreen onSelect={handleStyleSelect} {user} {subscriptionStatus} />
 		{:else if isMobile && DESIGNER_VIEWS.has(currentView)}
 			<DesktopRequiredView onBack={handleBack} />
 		{:else if currentView === 'textOutline'}
@@ -1053,11 +1068,7 @@
 				onShowPricing={showPricing}
 			/>
 		{:else if currentView === 'feedback'}
-			<FeedbackPage
-				{user}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-			/>
+			<FeedbackPage {user} onBack={handleBack} onRequestLogin={() => (showLoginModal = true)} />
 		{:else if currentView === 'settings'}
 			<SettingsPage
 				{user}

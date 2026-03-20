@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
+	import posthog from 'posthog-js';
 
 	interface Props {
 		onSnapshot: () => void;
@@ -11,9 +12,6 @@
 		showLockIcon?: boolean;
 		/** Optional: when provided, show a second "Export 3MF" button for multipart 3MF export (base, border, text). */
 		onExport3MF?: () => void;
-		/** Optional: when provided, show a second STL button (e.g. "Bow+text STL"). */
-		onExportSTL2?: () => void;
-		exportSTL2Label?: string;
 	}
 
 	let {
@@ -24,9 +22,22 @@
 		exportLoading = false,
 		showLockIcon = false,
 		onExport3MF,
-		onExportSTL2,
-		exportSTL2Label = 'Bow+text STL'
 	}: Props = $props();
+
+	function handleSnapshot() {
+		posthog.capture('snapshot_downloaded');
+		onSnapshot();
+	}
+
+	function handleExportSTL() {
+		if (!exportDisabled) posthog.capture('design_exported_stl', { format: 'stl' });
+		onExport();
+	}
+
+	function handleExport3MF() {
+		if (!exportDisabled) posthog.capture('design_exported_3mf', { format: '3mf' });
+		onExport3MF?.();
+	}
 </script>
 
 <div class="flex items-center gap-2">
@@ -34,7 +45,7 @@
 		variant="outline"
 		size="icon"
 		class="rounded-full bg-white/90 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
-		onclick={onSnapshot}
+		onclick={handleSnapshot}
 		aria-label="Download snapshot"
 		title="Download snapshot"
 	>
@@ -50,7 +61,7 @@
 	<Button
 		variant="outline"
 		class="rounded-full bg-white/90 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
-		onclick={onExport}
+		onclick={handleExportSTL}
 		aria-label="Download STL"
 		disabled={exportDisabled}
 		title={exportTitle}
@@ -73,26 +84,11 @@
 			Export STL
 		{/if}
 	</Button>
-	{#if onExportSTL2}
-		<Button
-			variant="outline"
-			class="rounded-full bg-white/90 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
-			onclick={onExportSTL2}
-			disabled={exportDisabled}
-			title="Export bow + text as one STL"
-		>
-			{#if exportLoading}
-				Exporting…
-			{:else}
-				{exportSTL2Label}
-			{/if}
-		</Button>
-	{/if}
 	{#if onExport3MF}
 		<Button
 			variant="outline"
 			class="rounded-full bg-white/90 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
-			onclick={onExport3MF}
+			onclick={handleExport3MF}
 			aria-label="Download 3MF (multipart)"
 			disabled={exportDisabled}
 			title="Export 3MF with separate parts (base, border, text) for multi-material printing"

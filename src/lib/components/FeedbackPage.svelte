@@ -1,276 +1,270 @@
 <script lang="ts">
-    import type { User } from "@supabase/supabase-js";
-    import { Button } from '$lib/components/ui/button';
-    import {
-        type FeedbackCategory,
-        type UserFeedbackRow,
-        createFeedback,
-        listFeedbackForUser,
-    } from "$lib/feedback";
+	import type { User } from '@supabase/supabase-js';
+	import { Button } from '$lib/components/ui/button';
+	import {
+		type FeedbackCategory,
+		type UserFeedbackRow,
+		createFeedback,
+		listFeedbackForUser
+	} from '$lib/feedback';
+	import posthog from 'posthog-js';
 
-    interface Props {
-        user: User | null;
-        onRequestLogin: () => void;
-        onBack: () => void;
-    }
+	interface Props {
+		user: User | null;
+		onRequestLogin: () => void;
+		onBack: () => void;
+	}
 
-    let { user, onRequestLogin, onBack }: Props = $props();
+	let { user, onRequestLogin, onBack }: Props = $props();
 
-    const canSubmitFeedback = $derived(!!user);
+	const canSubmitFeedback = $derived(!!user);
 
-    let category: FeedbackCategory = $state("general");
-    let title = $state("");
-    let message = $state("");
-    let includeContext = $state(true);
+	let category: FeedbackCategory = $state('general');
+	let title = $state('');
+	let message = $state('');
+	let includeContext = $state(true);
 
-    let submitting = $state(false);
-    let submitError: string | null = $state(null);
-    let submitSuccess = $state(false);
+	let submitting = $state(false);
+	let submitError: string | null = $state(null);
+	let submitSuccess = $state(false);
 
-    let loadingList = $state(false);
-    let listError: string | null = $state(null);
-    let items: UserFeedbackRow[] = $state([]);
+	let loadingList = $state(false);
+	let listError: string | null = $state(null);
+	let items: UserFeedbackRow[] = $state([]);
 
-    async function loadFeedback() {
-        if (!user) {
-            items = [];
-            return;
-        }
-        loadingList = true;
-        listError = null;
-        const { rows, error } = await listFeedbackForUser(user);
-        if (error) listError = error;
-        items = rows;
-        loadingList = false;
-    }
+	async function loadFeedback() {
+		if (!user) {
+			items = [];
+			return;
+		}
+		loadingList = true;
+		listError = null;
+		const { rows, error } = await listFeedbackForUser(user);
+		if (error) listError = error;
+		items = rows;
+		loadingList = false;
+	}
 
-    $effect(() => {
-        void user;
-        loadFeedback();
-    });
+	$effect(() => {
+		void user;
+		loadFeedback();
+	});
 
-    async function handleSubmit(e: SubmitEvent) {
-        e.preventDefault();
-        if (!user) {
-            onRequestLogin();
-            return;
-        }
-        submitting = true;
-        submitError = null;
-        submitSuccess = false;
+	async function handleSubmit(e: SubmitEvent) {
+		e.preventDefault();
+		if (!user) {
+			onRequestLogin();
+			return;
+		}
+		submitting = true;
+		submitError = null;
+		submitSuccess = false;
 
-        const context = includeContext
-            ? {
-                  view: "feedback",
-                  timestamp: new Date().toISOString(),
-              }
-            : undefined;
+		const context = includeContext
+			? {
+					view: 'feedback',
+					timestamp: new Date().toISOString()
+				}
+			: undefined;
 
-        const result = await createFeedback({
-            user,
-            category,
-            title,
-            message,
-            context,
-        });
+		const result = await createFeedback({
+			user,
+			category,
+			title,
+			message,
+			context
+		});
 
-        if (!result.success) {
-            submitError = result.error;
-            submitting = false;
-            return;
-        }
+		if (!result.success) {
+			submitError = result.error;
+			submitting = false;
+			return;
+		}
 
-        // Best-effort email notification (Resend via backend route)
-        try {
-            if (user.email) {
-                await fetch("/api/feedback-notify", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        userEmail: user.email,
-                        category,
-                        title,
-                        message,
-                        createdAt: result.row.created_at,
-                    }),
-                });
-            }
-        } catch {
-            // Non-fatal: ignore notification failures
-        }
+		posthog.capture('feedback_submitted', { category });
 
-        // Optimistically prepend new entry
-        items = [result.row, ...items];
+		// Best-effort email notification (Resend via backend route)
+		try {
+			if (user.email) {
+				await fetch('/api/feedback-notify', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						userEmail: user.email,
+						category,
+						title,
+						message,
+						createdAt: result.row.created_at
+					})
+				});
+			}
+		} catch {
+			// Non-fatal: ignore notification failures
+		}
 
-        // Reset form to defaults after successful submit
-        category = "general";
-        title = "";
-        message = "";
-        includeContext = true;
+		// Optimistically prepend new entry
+		items = [result.row, ...items];
 
-        submitSuccess = true;
-        submitting = false;
-    }
+		// Reset form to defaults after successful submit
+		category = 'general';
+		title = '';
+		message = '';
+		includeContext = true;
+
+		submitSuccess = true;
+		submitting = false;
+	}
 </script>
 
 <main class="flex min-h-dvh w-dvw items-center justify-center bg-slate-50 p-4">
-    <div
-        class="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm sm:p-6 lg:p-8">
-        <header class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div class="flex items-center gap-3">
-                <Button variant="outline" size="sm" class="rounded-full" onclick={onBack}>
-                    ← Back
-                </Button>
-                <div>
-                    <h1 class="text-lg font-semibold tracking-tight text-slate-900">
-                        Feedback
-                    </h1>
-                    <p class="mt-1 text-xs text-slate-500">
-                        Share questions, requests, or issues so we can improve Print Studio.
-                    </p>
-                </div>
-            </div>
-        </header>
+	<div
+		class="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-sm sm:p-6 lg:p-8"
+	>
+		<header class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+			<div class="flex items-center gap-3">
+				<Button variant="outline" size="sm" class="rounded-full" onclick={onBack}>← Back</Button>
+				<div>
+					<h1 class="text-lg font-semibold tracking-tight text-slate-900">Feedback</h1>
+					<p class="mt-1 text-xs text-slate-500">
+						Share questions, requests, or issues so we can improve Print Studio.
+					</p>
+				</div>
+			</div>
+		</header>
 
-        {#if !user}
-            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700 mb-6">
-                <p class="mb-2">
-                    Please sign in with your PixnPrints account to send feedback and see your previous messages.
-                </p>
-                <Button size="sm" onclick={onRequestLogin}>
-                    Sign in
-                </Button>
-            </div>
-        {/if}
+		{#if !user}
+			<div
+				class="mb-6 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700"
+			>
+				<p class="mb-2">
+					Please sign in with your PixnPrints account to send feedback and see your previous
+					messages.
+				</p>
+				<Button size="sm" onclick={onRequestLogin}>Sign in</Button>
+			</div>
+		{/if}
 
-        {#if canSubmitFeedback}
-            <section class="mb-8 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-                <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Submit feedback
-                </h2>
-                <form class="grid gap-3 text-xs" onsubmit={handleSubmit}>
-                    <div class="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] sm:items-center">
-                        <label class="text-slate-700 font-medium" for="feedback-category">Category</label>
-                        <select
-                            id="feedback-category"
-                            class="min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                            bind:value={category}>
-                            <option value="general">General</option>
-                            <option value="questions">Questions</option>
-                            <option value="request">Request</option>
-                            <option value="bug_report">Bug report</option>
-                            <option value="feature_request">Feature request</option>
-                        </select>
-                    </div>
+		{#if canSubmitFeedback}
+			<section class="mb-8 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+				<h2 class="mb-3 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+					Submit feedback
+				</h2>
+				<form class="grid gap-3 text-xs" onsubmit={handleSubmit}>
+					<div class="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] sm:items-center">
+						<label class="font-medium text-slate-700" for="feedback-category">Category</label>
+						<select
+							id="feedback-category"
+							class="min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-900 shadow-sm ring-indigo-500/25 outline-none focus:border-indigo-400 focus:ring-2"
+							bind:value={category}
+						>
+							<option value="general">General</option>
+							<option value="questions">Questions</option>
+							<option value="request">Request</option>
+							<option value="bug_report">Bug report</option>
+							<option value="feature_request">Feature request</option>
+						</select>
+					</div>
 
-                    <label class="grid gap-1.5">
-                        <span class="text-slate-700 font-medium">Title (optional)</span>
-                        <input
-                            class="min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                            type="text"
-                            maxlength="150"
-                            bind:value={title}
-                            placeholder="Short summary" />
-                    </label>
+					<label class="grid gap-1.5">
+						<span class="font-medium text-slate-700">Title (optional)</span>
+						<input
+							class="min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 shadow-sm ring-indigo-500/25 outline-none focus:border-indigo-400 focus:ring-2"
+							type="text"
+							maxlength="150"
+							bind:value={title}
+							placeholder="Short summary"
+						/>
+					</label>
 
-                    <label class="grid gap-1.5">
-                        <div class="flex items-center justify-between gap-2">
-                            <span class="text-slate-700 font-medium">Message</span>
-                            <span class="text-[10px] text-slate-400">
-                                {message.length}/2000
-                            </span>
-                        </div>
-                        <textarea
-                            class="min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                            rows="4"
-                            maxlength="2000"
-                            bind:value={message}
-                            placeholder="Describe your question, request, or issue in detail"></textarea>
-                    </label>
+					<label class="grid gap-1.5">
+						<div class="flex items-center justify-between gap-2">
+							<span class="font-medium text-slate-700">Message</span>
+							<span class="text-[10px] text-slate-400">
+								{message.length}/2000
+							</span>
+						</div>
+						<textarea
+							class="min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 shadow-sm ring-indigo-500/25 outline-none focus:border-indigo-400 focus:ring-2"
+							rows="4"
+							maxlength="2000"
+							bind:value={message}
+							placeholder="Describe your question, request, or issue in detail"
+						></textarea>
+					</label>
 
-                    <label class="flex items-center gap-2 text-[11px] text-slate-600">
-                        <input
-                            type="checkbox"
-                            class="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                            bind:checked={includeContext} />
-                        <span>Include basic app context (view and timestamp) with this feedback.</span>
-                    </label>
+					<label class="flex items-center gap-2 text-[11px] text-slate-600">
+						<input
+							type="checkbox"
+							class="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+							bind:checked={includeContext}
+						/>
+						<span>Include basic app context (view and timestamp) with this feedback.</span>
+					</label>
 
-                    {#if submitError}
-                        <p class="text-[11px] text-red-600">{submitError}</p>
-                    {/if}
-                    {#if submitSuccess}
-                        <p class="text-[11px] text-green-700">
-                            Thank you! Your feedback has been sent.
-                        </p>
-                    {/if}
+					{#if submitError}
+						<p class="text-[11px] text-red-600">{submitError}</p>
+					{/if}
+					{#if submitSuccess}
+						<p class="text-[11px] text-green-700">Thank you! Your feedback has been sent.</p>
+					{/if}
 
-                    <div class="mt-2 flex justify-end">
-                        <Button
-                            type="submit"
-                            size="sm"
-                            disabled={submitting || !message.trim()}>
-                            {#if submitting}
-                                Sending…
-                            {:else}
-                                Send feedback
-                            {/if}
-                        </Button>
-                    </div>
-                </form>
-            </section>
-        {/if}
+					<div class="mt-2 flex justify-end">
+						<Button type="submit" size="sm" disabled={submitting || !message.trim()}>
+							{#if submitting}
+								Sending…
+							{:else}
+								Send feedback
+							{/if}
+						</Button>
+					</div>
+				</form>
+			</section>
+		{/if}
 
-        <section>
-            <div class="mb-3 flex items-center justify-between gap-2">
-                <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Your feedback
-                </h2>
-                {#if loadingList}
-                    <span class="text-[11px] text-slate-400">Loading…</span>
-                {:else}
-                    <Button variant="link" size="sm" class="text-[11px] p-0 h-auto" onclick={loadFeedback}>
-                        Refresh
-                    </Button>
-                {/if}
-            </div>
+		<section>
+			<div class="mb-3 flex items-center justify-between gap-2">
+				<h2 class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Your feedback</h2>
+				{#if loadingList}
+					<span class="text-[11px] text-slate-400">Loading…</span>
+				{:else}
+					<Button variant="link" size="sm" class="h-auto p-0 text-[11px]" onclick={loadFeedback}>
+						Refresh
+					</Button>
+				{/if}
+			</div>
 
-            {#if !user}
-                <p class="text-[11px] text-slate-500">
-                    Sign in to see feedback you’ve sent.
-                </p>
-            {:else if listError}
-                <p class="text-[11px] text-red-600">{listError}</p>
-            {:else if !items.length}
-                <p class="text-[11px] text-slate-500">
-                    You haven’t sent any feedback yet.
-                </p>
-            {:else}
-                <ul class="space-y-3 text-xs">
-                    {#each items as item (item.id)}
-                        <li class="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2">
-                            <div class="mb-1 flex items-center justify-between gap-2">
-                                <span
-                                    class="inline-flex items-center rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-700">
-                                    {item.category.replace("_", " ")}
-                                </span>
-                                <span class="text-[10px] text-slate-400">
-                                    {new Date(item.created_at).toLocaleString()}
-                                </span>
-                            </div>
-                            {#if item.title}
-                                <p class="mb-1 text-[11px] font-semibold text-slate-900">
-                                    {item.title}
-                                </p>
-                            {/if}
-                            <p class="text-[11px] leading-snug text-slate-700 whitespace-pre-wrap">
-                                {item.message}
-                            </p>
-                        </li>
-                    {/each}
-                </ul>
-            {/if}
-        </section>
-    </div>
+			{#if !user}
+				<p class="text-[11px] text-slate-500">Sign in to see feedback you’ve sent.</p>
+			{:else if listError}
+				<p class="text-[11px] text-red-600">{listError}</p>
+			{:else if !items.length}
+				<p class="text-[11px] text-slate-500">You haven’t sent any feedback yet.</p>
+			{:else}
+				<ul class="space-y-3 text-xs">
+					{#each items as item (item.id)}
+						<li class="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2">
+							<div class="mb-1 flex items-center justify-between gap-2">
+								<span
+									class="inline-flex items-center rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium tracking-wide text-slate-700 uppercase"
+								>
+									{item.category.replace('_', ' ')}
+								</span>
+								<span class="text-[10px] text-slate-400">
+									{new Date(item.created_at).toLocaleString()}
+								</span>
+							</div>
+							{#if item.title}
+								<p class="mb-1 text-[11px] font-semibold text-slate-900">
+									{item.title}
+								</p>
+							{/if}
+							<p class="text-[11px] leading-snug whitespace-pre-wrap text-slate-700">
+								{item.message}
+							</p>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
+	</div>
 </main>
-
