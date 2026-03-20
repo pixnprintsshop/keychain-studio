@@ -20,6 +20,7 @@
         getFont,
         makeKeyringGeometry,
     } from "$lib/utils-3d";
+    import { notifyExportEvent } from "$lib/exportNotify";
     import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
     import { Button } from "$lib/components/ui/button";
     import { Slider } from "$lib/components/ui/slider";
@@ -450,6 +451,13 @@
                 `${safe || "bow"}-${ts}.stl`,
                 new Blob([buffer], { type: "model/stl" }),
             );
+            notifyExportEvent({
+                email: user?.email,
+                name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+                subscriptionStatus,
+                designName: "Bow Keychain",
+                format: "stl"
+            });
             onShowThankYou();
         } catch (e) {
             exportError = e instanceof Error ? e.message : "Export failed";
@@ -564,6 +572,13 @@
                 `${safe || "bow"}-${ts}.3mf`,
                 blob,
             );
+            notifyExportEvent({
+                email: user?.email,
+                name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+                subscriptionStatus,
+                designName: "Bow Keychain",
+                format: "3mf"
+            });
             onShowThankYou();
         } catch (e) {
             exportError = e instanceof Error ? e.message : "3MF export failed";

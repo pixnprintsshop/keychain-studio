@@ -64,7 +64,8 @@
 		{
 			id: 'bumpyText',
 			title: 'Bumpy Text',
-			description: 'Text-only model where each letter has a different thickness for a playful look.',
+			description:
+				'Text-only model where each letter has a different thickness for a playful look.',
 			imageSrc: '/images/bumpy-text.png',
 			imageAlt: 'Bumpy Text preview',
 			previewImageSrc: '/images/bumpy-text-preview.png'
@@ -72,7 +73,7 @@
 		{
 			id: 'bowKeychain',
 			title: 'Bow Keychain',
-			description: 'Bow-shaped keychain with raised text, ready to add a keyring.',
+			description: 'Bow-shaped keychain with raised text',
 			imageSrc: '/images/bow-keychain.png',
 			imageAlt: 'Bow Keychain preview',
 			previewImageSrc: '/images/bow-keychain-preview.png'
@@ -80,7 +81,7 @@
 		{
 			id: 'initial',
 			title: 'Text & Initial',
-			description: 'Large initial with smaller name text, ideal for bag tags or keychains.',
+			description: 'Large initial with smaller name text',
 			imageSrc: '/images/text+initial.png',
 			imageAlt: 'Text & Initial preview'
 		},
@@ -107,7 +108,7 @@
 		{
 			id: 'dogtag',
 			title: 'Dog Tag',
-			description: 'Pet tag layout with name and optional details for collars.',
+			description: 'Pet tag layout with name for collars.',
 			imageSrc: '/images/dogtag.png',
 			imageAlt: 'Pet Dog Tag preview',
 			previewImageSrc: '/images/dogtag-preview.png',
@@ -138,7 +139,7 @@
 		{
 			id: 'whistle',
 			title: 'Custom Whistle',
-			description: 'Functional whistle with raised text along the side.',
+			description: 'Functional whistle with raised text.',
 			imageSrc: '/images/whistle.png',
 			imageAlt: 'Custom Whistle preview',
 			attribution:
@@ -212,7 +213,9 @@
 	}
 </script>
 
-<div class="flex min-h-dvh w-dvw items-center justify-center bg-slate-50 px-4 py-6 pt-20 sm:p-6 sm:pt-25">
+<div
+	class="flex min-h-dvh w-dvw items-center justify-center bg-slate-50 px-4 py-6 pt-20 sm:p-6 sm:pt-25"
+>
 	<div class="w-full max-w-4xl">
 		<div class="mb-6 text-center sm:mb-10">
 			<div class="mb-3 flex justify-center sm:mb-4">
@@ -233,9 +236,7 @@
 				<p class="text-center text-sm font-medium text-emerald-900 sm:text-left">
 					Subscribe to unlock full export and all designers
 				</p>
-				<Button href="/pricing" class="shrink-0 font-semibold">
-					View pricing
-				</Button>
+				<Button href="/pricing" class="shrink-0 font-semibold">View pricing</Button>
 			</div>
 		{/if}
 
@@ -265,9 +266,7 @@
 					>
 						Cancel
 					</Dialog.Close>
-					<Button onclick={confirmBetaAndEnter}>
-						Continue
-					</Button>
+					<Button onclick={confirmBetaAndEnter}>Continue</Button>
 				</div>
 			</Dialog.Content>
 		</Dialog.Root>
@@ -372,7 +371,9 @@
 						<h2 class="text-sm font-semibold text-slate-900 sm:text-lg">
 							{designer.title}
 						</h2>
-						<p class="mt-0.5 line-clamp-2 text-xs leading-snug text-slate-500 sm:mt-1 sm:line-clamp-none sm:text-sm">
+						<p
+							class="mt-0.5 line-clamp-2 text-xs leading-snug text-slate-500 sm:mt-1 sm:line-clamp-none sm:text-sm"
+						>
 							{designer.description}
 						</p>
 						{#if designer.attribution}
@@ -408,7 +409,6 @@
 			{/each}
 		</div>
 
-
 		<!-- Business offer banner -->
 		<div
 			class="mt-6 rounded-2xl border border-indigo-200 bg-indigo-50/80 px-4 py-3 text-center sm:mt-8 sm:px-6 sm:py-4"
@@ -418,7 +418,12 @@
 				Want an exclusive model or the whole Print Studio for your brand? We offer custom designs
 				and white-label options.
 			</p>
-			<Button href="https://m.me/pixnprints.shop" target="_blank" rel="noopener noreferrer" class="mt-3">
+			<Button
+				href="https://m.me/pixnprints.shop"
+				target="_blank"
+				rel="noopener noreferrer"
+				class="mt-3"
+			>
 				Get in touch
 			</Button>
 		</div>

@@ -18,6 +18,7 @@
         frameCameraToObject,
         getFont,
     } from "$lib/utils-3d";
+    import { notifyExportEvent } from "$lib/exportNotify";
     import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
     import { Button } from "$lib/components/ui/button";
     import { Slider } from "$lib/components/ui/slider";
@@ -247,6 +248,13 @@
                 `${slug}-${ts}.stl`,
                 new Blob([buffer], { type: "model/stl" }),
             );
+            notifyExportEvent({
+                email: user?.email,
+                name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+                subscriptionStatus,
+                designName: "Custom Whistle",
+                format: "stl"
+            });
             onShowThankYou();
         } catch (e) {
             exportError = e instanceof Error ? e.message : "Export failed";
@@ -287,6 +295,13 @@
         if (!blob || blob.size === 0) return;
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         downloadBlob(`custom-whistle-${timestamp}.3mf`, blob);
+        notifyExportEvent({
+            email: user?.email,
+            name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+            subscriptionStatus,
+            designName: "Custom Whistle",
+            format: "3mf"
+        });
         onShowThankYou();
     }
 

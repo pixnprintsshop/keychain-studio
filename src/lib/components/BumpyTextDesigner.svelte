@@ -16,6 +16,7 @@
         getFont,
         makeKeyringGeometry,
     } from "$lib/utils-3d";
+    import { notifyExportEvent } from "$lib/exportNotify";
     import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
     import { Button } from "$lib/components/ui/button";
     import { Slider } from "$lib/components/ui/slider";
@@ -416,6 +417,13 @@
                     .toISOString()
                     .replace(/[:.]/g, "-");
                 downloadBlob(`${safe || "text"}-${timestamp}.stl`, blob);
+                notifyExportEvent({
+                    email: user?.email,
+                    name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+                    subscriptionStatus,
+                    designName: "Bumpy Text",
+                    format: "stl"
+                });
                 onShowThankYou();
             }
         } catch (e) {
@@ -469,6 +477,13 @@
                 .toISOString()
                 .replace(/[:.]/g, "-");
             downloadBlob(`${safe || "text"}-${timestamp}.3mf`, blob);
+            notifyExportEvent({
+                email: user?.email,
+                name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+                subscriptionStatus,
+                designName: "Bumpy Text",
+                format: "3mf"
+            });
             onShowThankYou();
         } catch (e) {
             exportError = e instanceof Error ? e.message : "3MF export failed";

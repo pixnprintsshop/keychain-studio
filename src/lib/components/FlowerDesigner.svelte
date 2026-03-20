@@ -18,6 +18,7 @@
         frameCameraToObject,
         getFont,
     } from "$lib/utils-3d";
+    import { notifyExportEvent } from "$lib/exportNotify";
     import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
     import { Button } from '$lib/components/ui/button';
     import { Slider } from '$lib/components/ui/slider';
@@ -334,6 +335,13 @@
             const blob = new Blob([buffer], { type: "model/stl" });
             const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
             downloadBlob(`flower-${timestamp}.stl`, blob);
+            notifyExportEvent({
+                email: user?.email,
+                name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+                subscriptionStatus,
+                designName: "Flower + Initial",
+                format: "stl"
+            });
         }
         onShowThankYou();
     }
@@ -404,6 +412,13 @@
         if (!blob || blob.size === 0) return;
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         downloadBlob(`flower-${timestamp}.3mf`, blob);
+        notifyExportEvent({
+            email: user?.email,
+            name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+            subscriptionStatus,
+            designName: "Flower + Initial",
+            format: "3mf"
+        });
         onShowThankYou();
     }
 

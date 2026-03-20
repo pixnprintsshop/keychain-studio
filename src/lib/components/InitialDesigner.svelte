@@ -27,6 +27,7 @@
         loadFontSettingsFromStorage,
         makeKeyringGeometry,
     } from "$lib/utils-3d";
+    import { notifyExportEvent } from "$lib/exportNotify";
     import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
     import { Button } from "$lib/components/ui/button";
     import { Slider } from "$lib/components/ui/slider";
@@ -262,6 +263,13 @@
             .replace(/(^-|-$)/g, "");
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         downloadBlob(`${safe || "model"}-initial-${timestamp}.stl`, blob);
+        notifyExportEvent({
+            email: user?.email,
+            name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+            subscriptionStatus,
+            designName: "Text & Initial",
+            format: "stl"
+        });
         onShowThankYou();
     }
 
@@ -355,6 +363,13 @@
                 .replace(/(^-|-$)/g, "");
             const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
             downloadBlob(`${safe || "model"}-initial-${timestamp}.3mf`, blob);
+            notifyExportEvent({
+                email: user?.email,
+                name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+                subscriptionStatus,
+                designName: "Text & Initial",
+                format: "3mf"
+            });
             onShowThankYou();
         } catch (e) {
             console.error("3MF export failed", e);

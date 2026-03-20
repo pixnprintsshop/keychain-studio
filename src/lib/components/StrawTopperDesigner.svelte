@@ -19,6 +19,7 @@
 		getFont,
 		stlToBufferGeometry
 	} from '$lib/utils-3d';
+	import { notifyExportEvent } from '$lib/exportNotify';
 	import DesignerExportToolbar from './DesignerExportToolbar.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Slider } from '$lib/components/ui/slider';
@@ -668,6 +669,13 @@ difference() {
 
 			const ts = new Date().toISOString().replace(/[:.]/g, '-');
 			downloadBlob(`straw-topper-${ts}.stl`, blob);
+			notifyExportEvent({
+				email: user?.email,
+				name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+				subscriptionStatus,
+				designName: "Straw Topper",
+				format: "stl"
+			});
 			onShowThankYou();
 		} catch (e) {
 			exportError = e instanceof Error ? e.message : 'Export failed';
@@ -718,6 +726,13 @@ difference() {
 			if (!blob || blob.size === 0) throw new Error('Export produced no geometry');
 			const ts = new Date().toISOString().replace(/[:.]/g, '-');
 			downloadBlob(`straw-topper-${ts}.3mf`, blob);
+			notifyExportEvent({
+				email: user?.email,
+				name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+				subscriptionStatus,
+				designName: "Straw Topper",
+				format: "3mf"
+			});
 			onShowThankYou();
 		} catch (e) {
 			exportError = e instanceof Error ? e.message : 'Export failed';

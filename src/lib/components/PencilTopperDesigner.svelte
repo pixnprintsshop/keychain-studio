@@ -1,5 +1,9 @@
 <script lang="ts">
+	import type { PaletteColor } from '$lib/colorPalette';
+	import { Button } from '$lib/components/ui/button';
+	import { Slider } from '$lib/components/ui/slider';
 	import { runOpenScad } from '$lib/openscad';
+	import type { SubscriptionStatus } from '$lib/subscription';
 	import {
 		centerGeometryXY,
 		disposeObject3D,
@@ -10,6 +14,7 @@
 		getFont,
 		stlToBufferGeometry
 	} from '$lib/utils-3d';
+	import { notifyExportEvent } from '$lib/exportNotify';
 	import type { Session, User } from '@supabase/supabase-js';
 	import ClipperLib from 'clipper-lib';
 	import { onDestroy, onMount } from 'svelte';
@@ -19,27 +24,32 @@
 	import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 	import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 	import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import DesignerExportToolbar from './DesignerExportToolbar.svelte';
-import { Button } from '$lib/components/ui/button';
-import { Slider } from '$lib/components/ui/slider';
-import ColorPalettePicker from './ColorPalettePicker.svelte';
-import type { PaletteColor } from '$lib/colorPalette';
-import FontSelect from './FontSelect.svelte';
+	import ColorPalettePicker from './ColorPalettePicker.svelte';
+	import DesignerExportToolbar from './DesignerExportToolbar.svelte';
+	import FontSelect from './FontSelect.svelte';
 	import LoadingModal from './LoadingModal.svelte';
-	import type { SubscriptionStatus } from '$lib/subscription';
 
-interface Props {
-	user: User | null;
-	session: Session | null;
-	subscriptionStatus: SubscriptionStatus | null;
-	palette: PaletteColor[];
-	onBack: () => void;
-	onRequestLogin: () => void;
-	onShowThankYou: () => void;
-	onShowPricing?: () => void;
-}
+	interface Props {
+		user: User | null;
+		session: Session | null;
+		subscriptionStatus: SubscriptionStatus | null;
+		palette: PaletteColor[];
+		onBack: () => void;
+		onRequestLogin: () => void;
+		onShowThankYou: () => void;
+		onShowPricing?: () => void;
+	}
 
-let { user, session, subscriptionStatus, palette, onBack, onRequestLogin, onShowThankYou, onShowPricing }: Props = $props();
+	let {
+		user,
+		session,
+		subscriptionStatus,
+		palette,
+		onBack,
+		onRequestLogin,
+		onShowThankYou,
+		onShowPricing
+	}: Props = $props();
 
 	let hostEl: HTMLDivElement | null = null;
 	let renderer: THREE.WebGLRenderer | null = null;
@@ -697,6 +707,13 @@ difference() {
 
 			const ts = new Date().toISOString().replace(/[:.]/g, '-');
 			downloadBlob(`pencil-topper-${ts}.stl`, blob);
+			notifyExportEvent({
+				email: user?.email,
+				name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+				subscriptionStatus,
+				designName: "Pencil Topper",
+				format: "stl"
+			});
 			onShowThankYou();
 		} catch (e) {
 			exportError = e instanceof Error ? e.message : 'Export failed';
@@ -747,6 +764,13 @@ difference() {
 			if (!blob || blob.size === 0) throw new Error('Export produced no geometry');
 			const ts = new Date().toISOString().replace(/[:.]/g, '-');
 			downloadBlob(`pencil-topper-${ts}.3mf`, blob);
+			notifyExportEvent({
+				email: user?.email,
+				name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+				subscriptionStatus,
+				designName: "Pencil Topper",
+				format: "3mf"
+			});
 			onShowThankYou();
 		} catch (e) {
 			exportError = e instanceof Error ? e.message : 'Export failed';
@@ -947,9 +971,7 @@ difference() {
 		>
 			<div class="flex shrink-0 items-center justify-between p-4">
 				<h1 class="text-lg font-semibold tracking-tight text-slate-900">Pencil name topper</h1>
-				<Button variant="outline" size="sm" onclick={onBack}>
-					Back
-				</Button>
+				<Button variant="outline" size="sm" onclick={onBack}>Back</Button>
 			</div>
 
 			<div class="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto p-4 pt-0">
@@ -1075,12 +1097,14 @@ difference() {
 						bind:value={mainColor}
 						{palette}
 						label="Top color"
-						disabled={!textContent?.trim()} />
+						disabled={!textContent?.trim()}
+					/>
 					<ColorPalettePicker
 						bind:value={baseColor}
 						{palette}
 						label="Base color"
-						disabled={!textContent?.trim()} />
+						disabled={!textContent?.trim()}
+					/>
 				</div>
 
 				{#if exportError}
@@ -1097,7 +1121,8 @@ difference() {
 				<DesignerExportToolbar
 					onSnapshot={() => downloadSnapshot(renderer, scene, camera, 'pencil-topper')}
 					onExport={() => (user && subscriptionStatus?.isActive ? exportStl() : onShowPricing?.())}
-					onExport3MF={() => (user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.())}
+					onExport3MF={() =>
+						user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.()}
 					exportDisabled={!textContent?.trim() || exportLoading}
 					exportTitle={!user
 						? 'Sign in to export'

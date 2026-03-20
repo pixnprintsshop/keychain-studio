@@ -19,6 +19,7 @@
         FONT_OPTIONS,
         DEFAULT_TEXT,
     } from "$lib/utils-3d";
+    import { notifyExportEvent } from "$lib/exportNotify";
     import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
     import { Button } from "$lib/components/ui/button";
     import { Slider } from "$lib/components/ui/slider";
@@ -648,6 +649,13 @@
             const blob = new Blob([buffer], { type: "model/stl" });
             const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
             downloadBlob(`rounded-rect-${timestamp}.stl`, blob);
+            notifyExportEvent({
+                email: user?.email,
+                name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+                subscriptionStatus,
+                designName: "Basic Name Tag",
+                format: "stl"
+            });
         onShowThankYou();
         } catch (e) {
             exportError = e instanceof Error ? e.message : "Export failed";
@@ -680,6 +688,13 @@
                 throw new Error("Export produced no geometry");
             const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
             downloadBlob(`rounded-rect-multipart-${timestamp}.3mf`, blob);
+            notifyExportEvent({
+                email: user?.email,
+                name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+                subscriptionStatus,
+                designName: "Basic Name Tag",
+                format: "3mf"
+            });
         onShowThankYou();
         } catch (e) {
             exportError = e instanceof Error ? e.message : "Export failed";

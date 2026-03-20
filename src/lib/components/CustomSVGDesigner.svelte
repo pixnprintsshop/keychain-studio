@@ -15,7 +15,8 @@
         downloadSnapshot,
         frameCameraToObject,
     } from "$lib/utils-3d";
-import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
+    import { notifyExportEvent } from "$lib/exportNotify";
+    import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
     import { Button } from "$lib/components/ui/button";
     import { Slider } from "$lib/components/ui/slider";
     import ColorPalettePicker from "./ColorPalettePicker.svelte";
@@ -802,6 +803,13 @@ let { user, session, subscriptionStatus, palette, onBack, onRequestLogin, onShow
             `${slug || "custom-svg"}-${ts}.stl`,
             new Blob([buffer], { type: "model/stl" }),
         );
+        notifyExportEvent({
+            email: user?.email,
+            name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+            subscriptionStatus,
+            designName: "Custom SVG",
+            format: "stl"
+        });
         onShowThankYou();
     }
 

@@ -19,7 +19,8 @@
 		frameCameraToObject,
 		stlToBufferGeometry
 	} from '$lib/utils-3d';
-import DesignerExportToolbar from './DesignerExportToolbar.svelte';
+	import { notifyExportEvent } from '$lib/exportNotify';
+	import DesignerExportToolbar from './DesignerExportToolbar.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Slider } from '$lib/components/ui/slider';
 	import ColorPalettePicker from './ColorPalettePicker.svelte';
@@ -1022,6 +1023,13 @@ difference() {
 
 			const ts = new Date().toISOString().replace(/[:.]/g, '-');
 			downloadBlob(`${baseName || 'charm'}-${ts}.stl`, blob);
+			notifyExportEvent({
+				email: user?.email,
+				name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+				subscriptionStatus,
+				designName: "Chunky Charm",
+				format: "stl"
+			});
 			onShowThankYou();
 		} catch (e) {
 			exportError = e instanceof Error ? e.message : 'Export failed';
@@ -1097,6 +1105,13 @@ difference() {
 			}
 			const ts = new Date().toISOString().replace(/[:.]/g, '-');
 			downloadBlob(`${baseName || 'charm'}-${ts}.3mf`, blob);
+			notifyExportEvent({
+				email: user?.email,
+				name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+				subscriptionStatus,
+				designName: "Chunky Charm",
+				format: "3mf"
+			});
 			onShowThankYou();
 		} catch (e) {
 			exportError = e instanceof Error ? e.message : 'Export failed';

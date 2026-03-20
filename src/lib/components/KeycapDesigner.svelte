@@ -11,6 +11,7 @@
     	frameCameraToObject,
     	getFont,
     } from "$lib/utils-3d";
+    import { notifyExportEvent } from "$lib/exportNotify";
     import type { Session, User } from "@supabase/supabase-js";
     import ClipperLib from "clipper-lib";
     import { onDestroy, onMount } from "svelte";
@@ -629,6 +630,13 @@
                 `${slug || "keycap"}-${ts}.stl`,
                 new Blob([buffer], { type: "model/stl" }),
             );
+            notifyExportEvent({
+                email: user?.email,
+                name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+                subscriptionStatus,
+                designName: "Keycap Maker",
+                format: "stl"
+            });
             onShowThankYou();
         } catch (e) {
             exportError = e instanceof Error ? e.message : "Export failed";
@@ -674,6 +682,13 @@
             .replace(/(^-|-$)/g, "");
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         downloadBlob(`${slug || "keycap"}-${timestamp}.3mf`, blob);
+        notifyExportEvent({
+            email: user?.email,
+            name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
+            subscriptionStatus,
+            designName: "Keycap Maker",
+            format: "3mf"
+        });
         onShowThankYou();
     }
 
