@@ -53,6 +53,8 @@ export interface SubscriptionStatus {
 	plan?: 'monthly' | 'yearly';
 	endsAt?: string;
 	renewsAt?: string;
+	/** True when subscription status is 'on_trial' (Lemon Squeezy) */
+	onTrial?: boolean;
 }
 
 const ACTIVE_STATUSES = new Set(['active', 'on_trial']);
@@ -77,7 +79,8 @@ export async function getSubscriptionStatus(userId: string | null): Promise<Subs
 				source: 'subscription',
 				plan: subData.plan as 'monthly' | 'yearly' | undefined,
 				endsAt: endsAt ?? undefined,
-				renewsAt: (subData.renews_at as string | null) ?? undefined
+				renewsAt: (subData.renews_at as string | null) ?? undefined,
+				onTrial: status === 'on_trial'
 			};
 		}
 	}

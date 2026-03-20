@@ -11,7 +11,10 @@ export interface ExportNotifyPayload {
 function formatSubscriptionStatus(s: SubscriptionStatus | null): string {
 	if (!s) return 'none';
 	if (!s.isActive) return 'inactive';
-	if (s.source === 'subscription') return `subscription (${s.plan ?? '—'})`;
+	if (s.source === 'subscription') {
+		const trial = s.onTrial ? ' [on trial]' : '';
+		return `subscription (${s.plan ?? '—'})${trial}`;
+	}
 	if (s.source === 'license') return 'license';
 	return 'active';
 }
@@ -25,6 +28,7 @@ export function notifyExportEvent(payload: ExportNotifyPayload): void {
 		email: email ?? undefined,
 		name: name ?? undefined,
 		subscriptionStatus: formatSubscriptionStatus(subscriptionStatus),
+		onTrial: subscriptionStatus?.onTrial ?? false,
 		designName,
 		format
 	};
