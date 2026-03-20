@@ -23,7 +23,7 @@
     import type { PaletteColor } from "$lib/colorPalette";
     import LoadingModal from "./LoadingModal.svelte";
     import SvgInfoModal from "./SvgInfoModal.svelte";
-    import type { SubscriptionStatus } from "$lib/subscription";
+    import { getExportTitle, type SubscriptionStatus } from "$lib/subscription";
 
 interface Props {
     user: User | null;
@@ -1248,11 +1248,7 @@ let { user, session, subscriptionStatus, palette, onBack, onRequestLogin, onShow
                         )}
                     onExport={() => (user && subscriptionStatus?.isActive ? exportStl() : onShowPricing?.())}
                     exportDisabled={!optimizedSvg || processing}
-                    exportTitle={!user
-                        ? "Sign in to export"
-                        : !subscriptionStatus?.isActive
-                            ? "Subscribe to export"
-                            : "Export STL"}
+                    exportTitle={getExportTitle(user, subscriptionStatus, "Export STL")}
                     showLockIcon={!user || !subscriptionStatus?.isActive} />
             </div>
         </section>

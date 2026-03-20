@@ -26,7 +26,7 @@
     import { Slider } from "$lib/components/ui/slider";
     import ColorPalettePicker from "./ColorPalettePicker.svelte";
     import type { PaletteColor } from "$lib/colorPalette";
-    import type { SubscriptionStatus } from "$lib/subscription";
+    import { getExportTitle, type SubscriptionStatus } from "$lib/subscription";
 
     // ── Props ───────────────────────────────────────────────────────────────
     interface Props {
@@ -1115,11 +1115,7 @@
                     onOpenWithBambuStudio={() => (user && subscriptionStatus?.isActive ? openWithBambuStudio() : onShowPricing?.())}
                     openBambuStudioLoading={openBambuStudioLoading}
                     exportDisabled={exportLoading}
-                    exportTitle={!user
-                        ? "Sign in to export"
-                        : !subscriptionStatus?.isActive
-                            ? "Subscribe to export"
-                            : "Export STL (single mesh) or 3MF (multipart) for 3D print"}
+                    exportTitle={getExportTitle(user, subscriptionStatus, "Export STL (single mesh) or 3MF (multipart) for 3D print")}
                     {exportLoading}
                     showLockIcon={!user || !subscriptionStatus?.isActive} />
                 {#if exportError}

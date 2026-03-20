@@ -55,6 +55,8 @@ export interface SubscriptionStatus {
 	renewsAt?: string;
 	/** True when subscription status is 'on_trial' (Lemon Squeezy) */
 	onTrial?: boolean;
+	/** True when user had a license that has expired */
+	licenseExpired?: boolean;
 }
 
 const ACTIVE_STATUSES = new Set(['active', 'on_trial']);
@@ -85,21 +87,44 @@ export async function getSubscriptionStatus(userId: string | null): Promise<Subs
 		}
 	}
 
-	// 2. Check legacy license activation (via RPC or cache)
-	const cached = getCachedLicenseStatus(userId);
-	if (cached?.source === 'license') {
-		return cached;
-	}
-
+	// 2. Check license activation via RPC (never use cache for license - always verify expiration on each session)
 	const { data: hasLicenseAccess, error: rpcError } = await supabase.rpc('get_user_export_access', {
 		p_user_id: userId
 	});
 
 	if (!rpcError && hasLicenseAccess === true) {
-		const status: SubscriptionStatus = { isActive: true, source: 'license' };
-		setCachedLicenseStatus(userId, status);
-		return status;
+		return { isActive: true, source: 'license' };
+	}
+
+	// 3. If no access, check if user had an expired license (so we can show "License expired")
+	const { data: { session } } = await supabase.auth.getSession();
+	if (session?.access_token) {
+		try {
+			const res = await fetch('/api/license/status', {
+				headers: { Authorization: `Bearer ${session.access_token}` }
+			});
+			if (res.ok) {
+				const data = (await res.json()) as { activated?: boolean; expires_at?: string | null };
+				if (data.activated && data.expires_at && new Date(data.expires_at) <= new Date()) {
+					return { isActive: false, source: 'license', licenseExpired: true };
+				}
+			}
+		} catch {
+			// ignore
+		}
 	}
 
 	return { isActive: false };
+}
+
+/** Returns the export button title based on user and subscription status. */
+export function getExportTitle(
+	user: { id: string } | null,
+	subscriptionStatus: SubscriptionStatus | null,
+	activeTitle: string = 'Export STL or 3MF'
+): string {
+	if (!user) return 'Sign in to export';
+	if (subscriptionStatus?.licenseExpired) return 'License expired';
+	if (!subscriptionStatus?.isActive) return 'Subscribe to export';
+	return activeTitle;
 }

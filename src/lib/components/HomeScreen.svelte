@@ -231,10 +231,18 @@
 		<!-- Subscription CTA: only for guests or users without access -->
 		{#if !hasAccess}
 			<div
-				class="mb-6 flex flex-col items-center justify-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 sm:flex-row sm:justify-between sm:gap-4 sm:px-5 sm:py-3"
+				class="mb-6 flex flex-col items-center justify-center gap-3 rounded-xl border px-4 py-3 sm:flex-row sm:justify-between sm:gap-4 sm:px-5 sm:py-3 {subscriptionStatus?.licenseExpired
+					? 'border-amber-200 bg-amber-50/80'
+					: 'border-emerald-200 bg-emerald-50/80'}"
 			>
-				<p class="text-center text-sm font-medium text-emerald-900 sm:text-left">
-					Subscribe to unlock full export and all designers
+				<p
+					class="text-center text-sm font-medium sm:text-left {subscriptionStatus?.licenseExpired
+						? 'text-amber-900'
+						: 'text-emerald-900'}"
+				>
+					{subscriptionStatus?.licenseExpired
+						? 'Your license has expired. Subscribe or activate a new license to restore access.'
+						: 'Subscribe to unlock full export and all designers'}
 				</p>
 				<Button href="/pricing" class="shrink-0 font-semibold">View pricing</Button>
 			</div>

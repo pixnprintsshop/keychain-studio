@@ -195,6 +195,7 @@
 	let userPalette: PaletteColor[] | null = $state(null);
 	let authCleanup: (() => void) | null = null;
 	let hashCleanup: (() => void) | null = null;
+	let visibilityCleanup: (() => void) | null = null;
 
 	// ── Persist view on change ──────────────────────────────────────────────
 	$effect(() => {
@@ -397,6 +398,17 @@
 		window.addEventListener('hashchange', syncViewFromHash);
 		hashCleanup = () => window.removeEventListener('hashchange', syncViewFromHash);
 
+		// Refresh license status when tab becomes visible (ensures expired licenses are caught)
+		const onVisibilityChange = () => {
+			if (document.visibilityState === 'visible' && user?.id) {
+				getSubscriptionStatus(user.id).then((s) => {
+					subscriptionStatus = s;
+				});
+			}
+		};
+		document.addEventListener('visibilitychange', onVisibilityChange);
+		visibilityCleanup = () => document.removeEventListener('visibilitychange', onVisibilityChange);
+
 		// Welcome dialog
 		const hasSeenWelcome = localStorage.getItem(STORAGE_KEY_WELCOME);
 		if (!hasSeenWelcome) showWelcomeDialog = true;
@@ -452,6 +464,7 @@
 	onDestroy(() => {
 		if (authCleanup) authCleanup();
 		if (hashCleanup) hashCleanup();
+		if (visibilityCleanup) visibilityCleanup();
 	});
 </script>
 
@@ -690,6 +703,12 @@
 					>
 						{subscriptionStatus?.source === 'license' ? 'Licensed' : 'Subscribed'}
 					</a>
+				{:else if subscriptionStatus?.licenseExpired}
+					<span
+						class="ml-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-medium text-amber-800"
+					>
+						License expired
+					</span>
 				{:else if !subscriptionStatus?.isActive}
 					<Button
 						variant="secondary"
@@ -790,6 +809,8 @@
 										>
 											{subscriptionStatus?.source === 'license' ? 'Licensed' : 'Subscribed'}
 										</a>
+									{:else if subscriptionStatus?.licenseExpired}
+										<span class="text-[11px] font-medium text-amber-700">License expired</span>
 									{:else if !subscriptionStatus?.isActive}
 										<Button
 											variant="link"

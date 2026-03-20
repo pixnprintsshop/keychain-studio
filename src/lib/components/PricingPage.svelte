@@ -34,6 +34,7 @@
 	let subscriptionStatus = $state<{
 		isActive: boolean;
 		source?: 'subscription' | 'license';
+		licenseExpired?: boolean;
 	} | null>(null);
 
 	const PRICING_CACHE_KEY = 'pixnprints-pricing-v2';
@@ -272,7 +273,22 @@
 			</p>
 
 			{#if subscriptionStatus}
-				{#if !subscriptionStatus?.isActive}
+				{#if subscriptionStatus?.licenseExpired}
+					<div class="mt-8 rounded-xl border border-amber-200 bg-amber-50/80 p-4">
+						<p class="text-sm font-medium text-amber-900">License expired</p>
+						<p class="mt-1 text-sm text-amber-800">
+							Your license has expired. Subscribe above or activate a new license code to restore access.
+						</p>
+						<Button
+							variant="outline"
+							size="sm"
+							class="mt-3"
+							onclick={() => (showLicenseModal = true)}
+						>
+							Activate new license
+						</Button>
+					</div>
+				{:else if !subscriptionStatus?.isActive}
 					<div class="mt-8 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
 						<p class="text-sm font-medium text-slate-900">Already have a license code?</p>
 						<p class="mt-1 text-sm text-slate-600">

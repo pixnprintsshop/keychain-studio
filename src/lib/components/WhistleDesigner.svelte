@@ -25,7 +25,7 @@
     import { Slider } from "$lib/components/ui/slider";
     import ColorPalettePicker from "./ColorPalettePicker.svelte";
     import type { PaletteColor } from "$lib/colorPalette";
-    import type { SubscriptionStatus } from "$lib/subscription";
+    import { getExportTitle, type SubscriptionStatus } from "$lib/subscription";
 
     interface Props {
         user: User | null;
@@ -561,11 +561,7 @@
                         )}
                     onExport={() => (user && subscriptionStatus?.isActive ? exportStl() : onShowPricing?.())}
                     exportDisabled={!whistleGeometry || exportLoading}
-                    exportTitle={!user
-                        ? "Sign in to export"
-                        : !subscriptionStatus?.isActive
-                            ? "Subscribe to export"
-                            : "Export STL"}
+                    exportTitle={getExportTitle(user, subscriptionStatus, "Export STL")}
                     onExport3MF={() => (user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.())}
                     onOpenWithBambuStudio={() => (user && subscriptionStatus?.isActive ? openWithBambuStudio() : onShowPricing?.())}
                     openBambuStudioLoading={openBambuStudioLoading}

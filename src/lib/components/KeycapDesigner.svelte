@@ -30,7 +30,7 @@
     import type { PaletteColor } from "$lib/colorPalette";
     import LoadingModal from "./LoadingModal.svelte";
     import SvgInfoModal from "./SvgInfoModal.svelte";
-    import type { SubscriptionStatus } from "$lib/subscription";
+    import { getExportTitle, type SubscriptionStatus } from "$lib/subscription";
 
     interface Props {
         user: User | null;
@@ -1078,11 +1078,7 @@
                         (logoMode === "text" && !logoChar.trim()) ||
                         processing ||
                         exportLoading}
-                    exportTitle={!user
-                        ? "Sign in to export"
-                        : !subscriptionStatus?.isActive
-                            ? "Subscribe to export"
-                            : "Export STL"}
+                    exportTitle={getExportTitle(user, subscriptionStatus, "Export STL")}
                     onExport3MF={() => void export3MF()}
                     onOpenWithBambuStudio={() => void openWithBambuStudio()}
                     openBambuStudioLoading={openBambuStudioLoading}

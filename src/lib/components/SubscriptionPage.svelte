@@ -98,6 +98,17 @@
 				<div class="mt-8 flex items-center justify-center py-12">
 					<div class="h-8 w-8 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent"></div>
 				</div>
+			{:else if subscriptionStatus?.licenseExpired}
+				<div class="mt-8 rounded-xl border border-amber-200 bg-amber-50/80 p-6">
+					<p class="text-sm font-medium text-amber-900">License expired</p>
+					<p class="mt-2 text-sm text-amber-800">
+						Your license has expired. Subscribe or activate a new license to restore full export access.
+					</p>
+					<div class="mt-4 flex gap-3">
+						<Button href="/pricing">View pricing</Button>
+						<Button variant="outline" href="/pricing#home">Back to app</Button>
+					</div>
+				</div>
 			{:else if !subscriptionStatus?.isActive}
 				<div class="mt-8 rounded-xl border border-slate-200 bg-slate-50/80 p-6">
 					<p class="text-sm font-medium text-slate-900">No active subscription</p>

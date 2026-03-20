@@ -28,7 +28,7 @@
 	import type { PaletteColor } from '$lib/colorPalette';
 	import FontSelect from './FontSelect.svelte';
 	import LoadingModal from './LoadingModal.svelte';
-	import type { SubscriptionStatus } from '$lib/subscription';
+	import { getExportTitle, type SubscriptionStatus } from '$lib/subscription';
 
 	interface Props {
 		user: User | null;
@@ -1120,11 +1120,7 @@ difference() {
 					onOpenWithBambuStudio={() => (user && subscriptionStatus?.isActive ? openWithBambuStudio() : onShowPricing?.())}
 					openBambuStudioLoading={openBambuStudioLoading}
 					exportDisabled={!textContent?.trim() || exportLoading}
-					exportTitle={!user
-						? 'Sign in to export'
-						: !subscriptionStatus?.isActive
-							? 'Subscribe to export'
-							: 'Export STL or 3MF (multipart) for 3D print'}
+					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF (multipart) for 3D print')}
 					{exportLoading}
 					showLockIcon={!user || !subscriptionStatus?.isActive}
 				/>
