@@ -78,6 +78,7 @@
 	const NEW_DESIGNERS = getNewDesigners();
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper']);
+	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set(['namePuzzle']);
 	let pendingBetaDesigner: StyleName | null = $state(null);
 
 	const DESIGNERS: DesignerItem[] = [
@@ -228,11 +229,16 @@
 		return BETA_DESIGNERS.has(style);
 	}
 
+	function isComingSoonDesigner(style: StyleName): boolean {
+		return COMING_SOON_DESIGNERS.has(style);
+	}
+
 	function isNewDesigner(style: StyleName): boolean {
 		return NEW_DESIGNERS.has(style);
 	}
 
 	function handleCardClick(designer: DesignerItem) {
+		if (isComingSoonDesigner(designer.id)) return;
 		if (isUnderMaintenance(designer.id)) return;
 		if (isBetaDesigner(designer.id)) {
 			pendingBetaDesigner = designer.id;
@@ -353,11 +359,19 @@
 						designer.id
 					)
 						? 'cursor-not-allowed border-slate-200 opacity-60'
+						: isComingSoonDesigner(designer.id)
+							? 'cursor-not-allowed border-slate-200 opacity-60'
 						: isNewDesigner(designer.id)
 							? 'cursor-pointer border-emerald-300 ring-2 ring-emerald-200/70 hover:-translate-y-1 hover:border-emerald-400 hover:shadow-lg'
 							: 'cursor-pointer border-slate-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-lg'}"
 					onclick={() => handleCardClick(designer)}
 				>
+					{#if isComingSoonDesigner(designer.id)}
+						<span
+							class="pointer-events-none absolute top-2 right-2 z-20 rounded bg-slate-900/80 px-1.5 py-0.5 text-[10px] font-medium text-white sm:top-3 sm:right-3 sm:rounded-md sm:px-2 sm:text-xs"
+							>Coming soon</span
+						>
+					{/if}
 					{#if isUnderMaintenance(designer.id)}
 						<span
 							class="absolute top-2 right-2 z-10 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 sm:top-3 sm:right-3 sm:rounded-md sm:px-2 sm:text-xs"
@@ -390,6 +404,8 @@
 									designer.id
 								)
 									? 'right-9 sm:right-12'
+									: isComingSoonDesigner(designer.id)
+										? 'right-9 sm:right-12'
 									: ''}"
 								title="Preview"
 								aria-label="Show preview"
