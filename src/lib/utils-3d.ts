@@ -1,16 +1,17 @@
-import * as THREE from "three";
-import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
-import titanOneJson from "./assets/fonts/Titan One_Regular.json";
-import showpopJson from "./assets/fonts/Showpop_Regular.json";
-import retroDollyJson from "./assets/fonts/Retro Dolly_Book.json";
-import kindergoJson from "./assets/fonts/Kindergo_Regular.json";
-import beautifulHarmonyJson from "./assets/fonts/Beautiful Harmony_Regular.json";
-import milkywayJson from "./assets/fonts/Milkyway_Regular.json";
-import bebasNeueJson from "./assets/fonts/Bebas Neue_Regular.json";
-import dynaPuffJson from "./assets/fonts/DynaPuff_Bold.json";
-import coinyJson from "./assets/fonts/Coiny_Regular.json";
-import pacificoJson from "./assets/fonts/Pacifico_Regular.json";
-import lobsterTwoJson from "./assets/fonts/Lobster Two_Regular.json";
+import * as THREE from 'three';
+import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
+import titanOneJson from './assets/fonts/Titan One_Regular.json';
+import showpopJson from './assets/fonts/Showpop_Regular.json';
+import retroDollyJson from './assets/fonts/Retro Dolly_Book.json';
+import kindergoJson from './assets/fonts/Kindergo_Regular.json';
+import beautifulHarmonyJson from './assets/fonts/Beautiful Harmony_Regular.json';
+import milkywayJson from './assets/fonts/Milkyway_Regular.json';
+import bebasNeueJson from './assets/fonts/Bebas Neue_Regular.json';
+import dynaPuffJson from './assets/fonts/DynaPuff_Bold.json';
+import coinyJson from './assets/fonts/Coiny_Regular.json';
+import pacificoJson from './assets/fonts/Pacifico_Regular.json';
+import lobsterTwoJson from './assets/fonts/Lobster Two_Regular.json';
+import roadsideSansJson from './assets/fonts/Roadside Sans_Regular.json';
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -45,17 +46,63 @@ export interface FontOption {
 }
 
 export const FONT_OPTIONS: FontOption[] = [
-	{ key: "Titan One_Regular", label: "Titan One (Regular)", json: titanOneJson, fontFamily: "Titan One" },
-	{ key: "Showpop_Regular", label: "Showpop (Regular)", json: showpopJson, fontFamily: "Showpop" },
-	{ key: "Retro Dolly_Book", label: "Retro Dolly (Book)", json: retroDollyJson, fontFamily: "Retro Dolly" },
-	{ key: "Kindergo_Regular", label: "Kindergo (Regular)", json: kindergoJson, fontFamily: "Kindergo" },
-	{ key: "Beautiful Harmony_Regular", label: "Beautiful Harmony (Regular)", json: beautifulHarmonyJson, fontFamily: "Beautiful Harmony" },
-	{ key: "Milkyway_Regular", label: "Milkyway (Regular)", json: milkywayJson, fontFamily: "Milkyway" },
-	{ key: "Bebas Neue_Regular", label: "Bebas Neue (Regular)", json: bebasNeueJson, fontFamily: "Bebas Neue" },
-	{ key: "DynaPuff_Bold", label: "DynaPuff (Bold)", json: dynaPuffJson, fontFamily: "DynaPuff" },
-	{ key: "Coiny_Regular", label: "Coiny (Regular)", json: coinyJson, fontFamily: "Coiny" },
-	{ key: "Pacifico_Regular", label: "Pacifico (Regular)", json: pacificoJson, fontFamily: "Pacifico" },
-	{ key: "Lobster Two_Regular", label: "Lobster Two (Regular)", json: lobsterTwoJson, fontFamily: "Lobster Two" },
+	{
+		key: 'Titan One_Regular',
+		label: 'Titan One (Regular)',
+		json: titanOneJson,
+		fontFamily: 'Titan One'
+	},
+	{ key: 'Showpop_Regular', label: 'Showpop (Regular)', json: showpopJson, fontFamily: 'Showpop' },
+	{
+		key: 'Retro Dolly_Book',
+		label: 'Retro Dolly (Book)',
+		json: retroDollyJson,
+		fontFamily: 'Retro Dolly'
+	},
+	{
+		key: 'Kindergo_Regular',
+		label: 'Kindergo (Regular)',
+		json: kindergoJson,
+		fontFamily: 'Kindergo'
+	},
+	{
+		key: 'Beautiful Harmony_Regular',
+		label: 'Beautiful Harmony (Regular)',
+		json: beautifulHarmonyJson,
+		fontFamily: 'Beautiful Harmony'
+	},
+	{
+		key: 'Milkyway_Regular',
+		label: 'Milkyway (Regular)',
+		json: milkywayJson,
+		fontFamily: 'Milkyway'
+	},
+	{
+		key: 'Bebas Neue_Regular',
+		label: 'Bebas Neue (Regular)',
+		json: bebasNeueJson,
+		fontFamily: 'Bebas Neue'
+	},
+	{ key: 'DynaPuff_Bold', label: 'DynaPuff (Bold)', json: dynaPuffJson, fontFamily: 'DynaPuff' },
+	{ key: 'Coiny_Regular', label: 'Coiny (Regular)', json: coinyJson, fontFamily: 'Coiny' },
+	{
+		key: 'Pacifico_Regular',
+		label: 'Pacifico (Regular)',
+		json: pacificoJson,
+		fontFamily: 'Pacifico'
+	},
+	{
+		key: 'Lobster Two_Regular',
+		label: 'Lobster Two (Regular)',
+		json: lobsterTwoJson,
+		fontFamily: 'Lobster Two'
+	},
+	{
+		key: 'Roadside Sans_Regular',
+		label: 'Roadside Sans (Regular)',
+		json: roadsideSansJson,
+		fontFamily: 'Roadside Sans'
+	}
 ];
 
 export const DEFAULT_FONT_SETTINGS_OUTLINE: FontSettings = {
@@ -63,9 +110,9 @@ export const DEFAULT_FONT_SETTINGS_OUTLINE: FontSettings = {
 	outlineOffsetPx: 10,
 	baseDepth: 3,
 	textDepth: 2,
-	textColor: "#ffffff",
-	outlineColor: "#ec4899",
-	keyringEnabled: true,
+	textColor: '#ffffff',
+	outlineColor: '#ec4899',
+	keyringEnabled: true
 };
 
 export const DEFAULT_FONT_SETTINGS_INITIAL: FontSettings = {
@@ -73,25 +120,25 @@ export const DEFAULT_FONT_SETTINGS_INITIAL: FontSettings = {
 	outlineOffsetPx: 10,
 	baseDepth: 1,
 	textDepth: 1,
-	textColor: "#ec4899",
-	outlineColor: "#ffffff",
+	textColor: '#ec4899',
+	outlineColor: '#ffffff',
 	keyringEnabled: true,
 	initialDepth: 10,
 	initialTextSize: 39,
-	initialFontKey: "Milkyway_Regular",
+	initialFontKey: 'Milkyway_Regular'
 };
 
 export const DEFAULT_CHAR_SETTINGS: CharSettings = {
 	keyringOffsetX: 0,
 	keyringOffsetY: 0,
 	keyringOuterSize: 8,
-	keyringHoleSize: 4,
+	keyringHoleSize: 4
 };
 
-export const DEFAULT_FONT_KEY_OUTLINE = "Titan One_Regular";
-export const DEFAULT_FONT_KEY_INITIAL = "Beautiful Harmony_Regular";
-export const DEFAULT_INITIAL_FONT_KEY = "Milkyway_Regular";
-export const DEFAULT_TEXT = "Name";
+export const DEFAULT_FONT_KEY_OUTLINE = 'Titan One_Regular';
+export const DEFAULT_FONT_KEY_INITIAL = 'Beautiful Harmony_Regular';
+export const DEFAULT_INITIAL_FONT_KEY = 'Milkyway_Regular';
+export const DEFAULT_TEXT = 'Name';
 
 const fontLoader = new FontLoader();
 const fontCache = new Map<string, any>();
@@ -118,14 +165,19 @@ export function centerGeometryXY(geo: any, offsetX: number = 0) {
 export function createRoundedRectShape(
 	halfW: number,
 	halfH: number,
-	cornerRadius: number,
+	cornerRadius: number
 ): THREE.Shape {
 	const w = Math.max(0.01, halfW);
 	const h = Math.max(0.01, halfH);
 	const r = Math.max(0, Math.min(cornerRadius, w, h));
 	const shape = new THREE.Shape();
 	const segments = Math.max(2, Math.min(16, Math.ceil((r * Math.PI) / 2)));
-	function arcPoints(cx: number, cy: number, startAngle: number, endAngle: number): { x: number; y: number }[] {
+	function arcPoints(
+		cx: number,
+		cy: number,
+		startAngle: number,
+		endAngle: number
+	): { x: number; y: number }[] {
 		const points: { x: number; y: number }[] = [];
 		for (let i = 1; i <= segments; i++) {
 			const t = i / segments;
@@ -141,7 +193,8 @@ export function createRoundedRectShape(
 	shape.lineTo(w, -h + r);
 	if (r > 0) arcPoints(w - r, -h + r, 0, -Math.PI / 2).forEach((p) => shape.lineTo(p.x, p.y));
 	shape.lineTo(-w + r, -h);
-	if (r > 0) arcPoints(-w + r, -h + r, -Math.PI / 2, -Math.PI).forEach((p) => shape.lineTo(p.x, p.y));
+	if (r > 0)
+		arcPoints(-w + r, -h + r, -Math.PI / 2, -Math.PI).forEach((p) => shape.lineTo(p.x, p.y));
 	shape.lineTo(-w, h - r);
 	return shape;
 }
@@ -150,7 +203,7 @@ export function makeKeyringGeometry(
 	outerDiameter: number,
 	innerDiameter: number,
 	depth: number,
-	segments = 64,
+	segments = 64
 ) {
 	const outerRadius = Math.max(0.1, outerDiameter / 2);
 	const innerRadius = Math.min(Math.max(0.05, innerDiameter / 2), outerRadius - 0.1);
@@ -159,7 +212,11 @@ export function makeKeyringGeometry(
 	const hole = new THREE.Path();
 	hole.absarc(0, 0, innerRadius, 0, Math.PI * 2, true);
 	shape.holes.push(hole);
-	return new THREE.ExtrudeGeometry([shape], { depth: Math.max(0.1, depth), bevelEnabled: false, curveSegments: segments });
+	return new THREE.ExtrudeGeometry([shape], {
+		depth: Math.max(0.1, depth),
+		bevelEnabled: false,
+		curveSegments: segments
+	});
 }
 
 export function disposeObject3D(obj: any) {
@@ -178,11 +235,11 @@ export function disposeObject3D(obj: any) {
  */
 export function stlToBufferGeometry(data: string | ArrayBuffer): THREE.BufferGeometry {
 	const isBinary =
-		typeof data !== "string" &&
+		typeof data !== 'string' &&
 		data.byteLength >= 84 &&
-		new TextDecoder().decode(new Uint8Array(data, 0, 5)) !== "solid";
+		new TextDecoder().decode(new Uint8Array(data, 0, 5)) !== 'solid';
 
-	if (isBinary && typeof data !== "string") {
+	if (isBinary && typeof data !== 'string') {
 		const view = new DataView(data);
 		const numTriangles = view.getUint32(80, true);
 		const positions: number[] = [];
@@ -197,22 +254,23 @@ export function stlToBufferGeometry(data: string | ArrayBuffer): THREE.BufferGeo
 				positions.push(
 					view.getFloat32(offset + 12 + v * 12, true),
 					view.getFloat32(offset + 12 + v * 12 + 4, true),
-					view.getFloat32(offset + 12 + v * 12 + 8, true),
+					view.getFloat32(offset + 12 + v * 12 + 8, true)
 				);
 			}
 			offset += 50;
 		}
 		const geo = new THREE.BufferGeometry();
-		geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-		geo.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+		geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+		geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
 		return geo;
 	}
 
 	// ASCII STL: parse facet-by-facet so normals and vertices stay aligned
-	const text = typeof data === "string" ? data : new TextDecoder().decode(data);
+	const text = typeof data === 'string' ? data : new TextDecoder().decode(data);
 	const pos: number[] = [];
 	const norm: number[] = [];
-	const facetBlockRe = /facet normal\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+outer loop\s+vertex\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+vertex\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+vertex\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)/g;
+	const facetBlockRe =
+		/facet normal\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+outer loop\s+vertex\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+vertex\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+vertex\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)/g;
 	let m = facetBlockRe.exec(text);
 	while (m) {
 		const nx = parseFloat(m[1]);
@@ -225,14 +283,14 @@ export function stlToBufferGeometry(data: string | ArrayBuffer): THREE.BufferGeo
 		m = facetBlockRe.exec(text);
 	}
 	const geo = new THREE.BufferGeometry();
-	geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-	geo.setAttribute("normal", new THREE.Float32BufferAttribute(norm, 3));
+	geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+	geo.setAttribute('normal', new THREE.Float32BufferAttribute(norm, 3));
 	return geo;
 }
 
 export function downloadBlob(filename: string, blob: Blob) {
 	const url = URL.createObjectURL(blob);
-	const a = document.createElement("a");
+	const a = document.createElement('a');
 	a.href = url;
 	a.download = filename;
 	document.body.appendChild(a);
@@ -249,9 +307,9 @@ export function downloadSnapshot(renderer: any, scene: any, camera: any, filenam
 	const canvas = renderer.domElement as HTMLCanvasElement;
 	canvas.toBlob((blob: Blob | null) => {
 		if (!blob) return;
-		const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+		const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 		downloadBlob(`${filenamePrefix}-${timestamp}.png`, blob);
-	}, "image/png");
+	}, 'image/png');
 }
 
 export function frameCameraToObject(box: any, camera: any, controls: any) {
@@ -278,23 +336,25 @@ export function loadFontSettingsFromStorage(storageKey: string): Record<string, 
 		const stored = localStorage.getItem(storageKey);
 		if (stored) {
 			const parsed = JSON.parse(stored);
-			if (parsed && typeof parsed === "object") return parsed;
+			if (parsed && typeof parsed === 'object') return parsed;
 		}
 	} catch (e) {
-		console.error("Failed to load font settings:", e);
+		console.error('Failed to load font settings:', e);
 	}
 	return {};
 }
 
-export function loadCharSettingsFromStorage(storageKey: string): Record<string, Record<string, CharSettings>> {
+export function loadCharSettingsFromStorage(
+	storageKey: string
+): Record<string, Record<string, CharSettings>> {
 	try {
 		const stored = localStorage.getItem(storageKey);
 		if (stored) {
 			const parsed = JSON.parse(stored);
-			if (parsed && typeof parsed === "object") return parsed;
+			if (parsed && typeof parsed === 'object') return parsed;
 		}
 	} catch (e) {
-		console.error("Failed to load char settings:", e);
+		console.error('Failed to load char settings:', e);
 	}
 	return {};
 }

@@ -722,7 +722,7 @@
             exportGroup.updateWorldMatrix(true, true);
             const blob = await exportTo3MF(exportGroup);
             if (!blob || blob.size === 0) return;
-            const publicUrl = await upload3mfToSupabase(blob);
+            const publicUrl = await upload3mfToSupabase(blob, 'keycap');
             notifyExportEvent({
                 email: user?.email,
                 name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),

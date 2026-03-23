@@ -191,14 +191,26 @@
 	font-style: normal;
 }
 
+@font-face {
+	font-family: 'Roadside Sans';
+	src: url('/fonts/RoadsideSans-Regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+}
+
 @layer base {
 	* {
 		@apply border-border outline-ring/50;
 	}
 	body {
-		@apply bg-slate-50 text-foreground font-sans antialiased;
+		@apply bg-slate-50 font-sans text-foreground antialiased;
 	}
-	h1, h2, h3, h4, h5, h6 {
+	h1,
+	h2,
+	h3,
+	h4,
+	h5,
+	h6 {
 		font-family: var(--font-display);
 	}
 }

@@ -14,6 +14,7 @@
 	import HomeScreen from '$lib/components/HomeScreen.svelte';
 	import InitialDesigner from '$lib/components/InitialDesigner.svelte';
 	import KeycapDesigner from '$lib/components/KeycapDesigner.svelte';
+	import NamePuzzleDesigner from '$lib/components/NamePuzzleDesigner.svelte';
 	import LicenseActivationModal from '$lib/components/LicenseActivationModal.svelte';
 	import LoginModal from '$lib/components/LoginModal.svelte';
 	import MaintenancePage from '$lib/components/MaintenancePage.svelte';
@@ -70,6 +71,7 @@
 		| 'dogtag'
 		| 'bumpyText'
 		| 'bowKeychain'
+		| 'namePuzzle'
 		| 'feedback'
 		| 'settings';
 
@@ -89,6 +91,7 @@
 		'dogtag',
 		'bumpyText',
 		'bowKeychain',
+		'namePuzzle',
 		'feedback',
 		'settings'
 	];
@@ -108,7 +111,8 @@
 		'pencilTopper',
 		'dogtag',
 		'bumpyText',
-		'bowKeychain'
+		'bowKeychain',
+		'namePuzzle'
 	]);
 
 	/** True when the URL hash contains Supabase OAuth callback params (tokens or error). Do not overwrite hash until Supabase has processed it. */
@@ -165,6 +169,7 @@
 				stored === 'dogtag' ||
 				stored === 'bumpyText' ||
 				stored === 'bowKeychain' ||
+				stored === 'namePuzzle' ||
 				stored === 'feedback' ||
 				stored === 'settings' ||
 				stored === 'home'
@@ -326,6 +331,7 @@
 			| 'dogtag'
 			| 'bumpyText'
 			| 'bowKeychain'
+			| 'namePuzzle'
 	) {
 		if (MAINTENANCE_VIEWS.has(style)) return;
 		posthog.capture('designer_selected', { designer: style });
@@ -1066,6 +1072,17 @@
 			/>
 		{:else if currentView === 'bowKeychain'}
 			<BowKeychainDesigner
+				{user}
+				{session}
+				{subscriptionStatus}
+				palette={effectivePalette}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
+			/>
+		{:else if currentView === 'namePuzzle'}
+			<NamePuzzleDesigner
 				{user}
 				{session}
 				{subscriptionStatus}

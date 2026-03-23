@@ -1,7 +1,14 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
+	import { getFont } from '$lib/utils-3d';
 	import type { SubscriptionStatus } from '$lib/subscription';
+
+	// Preload font so Name Puzzle designer opens faster
+	onMount(() => {
+		getFont('Roadside Sans_Regular');
+	});
 
 	type StyleName =
 		| 'textOutline'
@@ -17,7 +24,8 @@
 		| 'pencilTopper'
 		| 'dogtag'
 		| 'bumpyText'
-		| 'bowKeychain';
+		| 'bowKeychain'
+		| 'namePuzzle';
 
 	interface DesignerItem {
 		id: StyleName;
@@ -50,6 +58,25 @@
 	}
 	const DESIGNERS_UNDER_MAINTENANCE = getUnderMaintenanceDesigners();
 
+	/**
+	 * Designers marked as "New".
+	 * This uses the VITE_NEW_DESIGNERS env variable (comma separated ids).
+	 */
+	function getNewDesigners(): Set<StyleName> {
+		// The env variable should be set in .env as:
+		// VITE_NEW_DESIGNERS=namePuzzle,bumpyText
+		// (for example, can be empty string or undefined for none)
+		const envList = import.meta.env.VITE_NEW_DESIGNERS as string | undefined;
+		if (!envList) return new Set();
+		return new Set(
+			envList
+				.split(',')
+				.map((x) => x.trim())
+				.filter(Boolean) as StyleName[]
+		);
+	}
+	const NEW_DESIGNERS = getNewDesigners();
+
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper']);
 	let pendingBetaDesigner: StyleName | null = $state(null);
 
@@ -77,6 +104,15 @@
 			imageSrc: '/images/bow-keychain.png',
 			imageAlt: 'Bow Keychain preview',
 			previewImageSrc: '/images/bow-keychain-preview.png'
+		},
+		{
+			id: 'namePuzzle',
+			title: 'Baby / Toddler Name Puzzle',
+			description:
+				'Rectangular puzzle base with letter cutouts. Letters fit into slots as removable pieces.',
+			imageSrc: '/images/name-puzzle.png',
+			imageAlt: 'Name Puzzle preview',
+			previewImageSrc: '/images/name-puzzle-preview.png'
 		},
 		{
 			id: 'initial',
@@ -190,6 +226,10 @@
 
 	function isBetaDesigner(style: StyleName): boolean {
 		return BETA_DESIGNERS.has(style);
+	}
+
+	function isNewDesigner(style: StyleName): boolean {
+		return NEW_DESIGNERS.has(style);
 	}
 
 	function handleCardClick(designer: DesignerItem) {
@@ -309,11 +349,13 @@
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
-					class="group relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition sm:rounded-2xl {isUnderMaintenance(
+					class="group relative overflow-hidden rounded-xl border bg-white shadow-sm transition sm:rounded-2xl {isUnderMaintenance(
 						designer.id
 					)
-						? 'cursor-not-allowed opacity-60'
-						: 'cursor-pointer hover:-translate-y-1 hover:border-indigo-300 hover:shadow-lg'}"
+						? 'cursor-not-allowed border-slate-200 opacity-60'
+						: isNewDesigner(designer.id)
+							? 'cursor-pointer border-emerald-300 ring-2 ring-emerald-200/70 hover:-translate-y-1 hover:border-emerald-400 hover:shadow-lg'
+							: 'cursor-pointer border-slate-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-lg'}"
 					onclick={() => handleCardClick(designer)}
 				>
 					{#if isUnderMaintenance(designer.id)}
@@ -322,9 +364,19 @@
 							>Maintenance</span
 						>
 					{/if}
+					{#if isNewDesigner(designer.id)}
+						<span
+							class="absolute top-2 left-2 z-10 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-emerald-800 sm:top-3 sm:left-3 sm:rounded-md sm:px-2 sm:text-xs"
+							>New</span
+						>
+					{/if}
 					{#if isBetaDesigner(designer.id)}
 						<span
-							class="absolute top-2 left-2 z-10 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-800 sm:top-3 sm:left-3 sm:rounded-md sm:px-2 sm:text-xs"
+							class="absolute left-2 z-10 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-800 sm:left-3 sm:rounded-md sm:px-2 sm:text-xs {isNewDesigner(
+								designer.id
+							)
+								? 'top-8 sm:top-10'
+								: 'top-2 sm:top-3'}"
 							>Beta</span
 						>
 					{/if}
