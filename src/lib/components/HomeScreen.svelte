@@ -78,7 +78,7 @@
 	const NEW_DESIGNERS = getNewDesigners();
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper']);
-	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set(['namePuzzle']);
+	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set([]);
 	let pendingBetaDesigner: StyleName | null = $state(null);
 
 	const DESIGNERS: DesignerItem[] = [
@@ -361,9 +361,9 @@
 						? 'cursor-not-allowed border-slate-200 opacity-60'
 						: isComingSoonDesigner(designer.id)
 							? 'cursor-not-allowed border-slate-200 opacity-60'
-						: isNewDesigner(designer.id)
-							? 'cursor-pointer border-emerald-300 ring-2 ring-emerald-200/70 hover:-translate-y-1 hover:border-emerald-400 hover:shadow-lg'
-							: 'cursor-pointer border-slate-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-lg'}"
+							: isNewDesigner(designer.id)
+								? 'cursor-pointer border-emerald-300 ring-2 ring-emerald-200/70 hover:-translate-y-1 hover:border-emerald-400 hover:shadow-lg'
+								: 'cursor-pointer border-slate-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-lg'}"
 					onclick={() => handleCardClick(designer)}
 				>
 					{#if isComingSoonDesigner(designer.id)}
@@ -390,8 +390,7 @@
 								designer.id
 							)
 								? 'top-8 sm:top-10'
-								: 'top-2 sm:top-3'}"
-							>Beta</span
+								: 'top-2 sm:top-3'}">Beta</span
 						>
 					{/if}
 					{#if designer.previewImageSrc}
@@ -406,7 +405,7 @@
 									? 'right-9 sm:right-12'
 									: isComingSoonDesigner(designer.id)
 										? 'right-9 sm:right-12'
-									: ''}"
+										: ''}"
 								title="Preview"
 								aria-label="Show preview"
 								onclick={(e) => e.stopPropagation()}

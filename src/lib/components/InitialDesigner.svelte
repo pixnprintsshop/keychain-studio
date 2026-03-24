@@ -91,9 +91,9 @@
             const f = localStorage.getItem(STORAGE_KEY_FONT);
             return f && FONT_OPTIONS.some((o) => o.key === f)
                 ? f
-                : DEFAULT_FONT_KEY_INITIAL;
+                : "Retro Dolly_Book";
         } catch {
-            return DEFAULT_FONT_KEY_INITIAL;
+            return "Retro Dolly_Book";
         }
     })();
 
@@ -889,13 +889,6 @@
     // Text font change (save/load font settings, but NOT keyring -- that's tied to initialFontKey)
     $effect(() => {
         const currentFont = fontKey;
-        if (user) {
-            const firstFontKey = FONT_OPTIONS[0]?.key;
-            if (currentFont !== firstFontKey && firstFontKey) {
-                fontKey = firstFontKey;
-                return;
-            }
-        }
         if (currentFont !== lastFont) {
             if (lastFont) {
                 const wasUpdating = isUpdatingFromStorage;
