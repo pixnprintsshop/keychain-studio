@@ -2,6 +2,7 @@
 	import type { User } from '@supabase/supabase-js';
 	import { Button } from '$lib/components/ui/button';
 	import { submitAppRating } from '$lib/app-rating';
+	import { notifyRatingSubmitted } from '$lib/ratingNotify';
 	import posthog from 'posthog-js';
 
 	interface Props {
@@ -62,6 +63,7 @@
 			return;
 		}
 		posthog.capture('rating_submitted', { stars });
+		notifyRatingSubmitted(user, result.row);
 		phase = 'thanks';
 	}
 
