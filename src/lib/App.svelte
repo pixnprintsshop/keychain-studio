@@ -21,6 +21,7 @@
 	import PencilTopperDesigner from '$lib/components/PencilTopperDesigner.svelte';
 	import StanleyTopperDesigner from '$lib/components/StanleyTopperDesigner.svelte';
 	import StrawTopperDesigner from '$lib/components/StrawTopperDesigner.svelte';
+	import RatingPromptModal from '$lib/components/RatingPromptModal.svelte';
 	import SupportShareDialog from '$lib/components/SupportShareDialog.svelte';
 	import TextOutlineDesigner from '$lib/components/TextOutlineDesigner.svelte';
 	import ThankYouDialog from '$lib/components/ThankYouDialog.svelte';
@@ -50,6 +51,40 @@
 	const STORAGE_KEY_VIEW = 'designer-current-view';
 	const STORAGE_KEY_SHARE_SHOWN = 'designer-share-dialog-shown';
 	const STORAGE_KEY_BAMBU_ANNOUNCEMENT = 'designer-has-seen-bambu-studio-announcement';
+	/** Set when user submits a rating from the prompt — never show again. */
+	const STORAGE_KEY_RATING_SUBMITTED = 'designer-rating-prompt-submitted';
+	/** Local calendar day (YYYY-MM-DD) when user dismissed without submitting — show again next day. */
+	const STORAGE_KEY_RATING_DISMISSED_DAY = 'designer-rating-prompt-dismissed-day';
+	const LEGACY_STORAGE_KEY_RATING_PROMPT = 'designer-has-seen-rating-prompt';
+
+	function getLocalDateString(d = new Date()): string {
+		const y = d.getFullYear();
+		const m = String(d.getMonth() + 1).padStart(2, '0');
+		const day = String(d.getDate()).padStart(2, '0');
+		return `${y}-${m}-${day}`;
+	}
+
+	function migrateRatingPromptStorage() {
+		try {
+			const legacy = localStorage.getItem(LEGACY_STORAGE_KEY_RATING_PROMPT);
+			if (legacy === 'true' && !localStorage.getItem(STORAGE_KEY_RATING_SUBMITTED)) {
+				localStorage.setItem(STORAGE_KEY_RATING_DISMISSED_DAY, getLocalDateString());
+				localStorage.removeItem(LEGACY_STORAGE_KEY_RATING_PROMPT);
+			}
+		} catch (_) {}
+	}
+
+	function isRatingPromptEligible(): boolean {
+		try {
+			migrateRatingPromptStorage();
+			if (localStorage.getItem(STORAGE_KEY_RATING_SUBMITTED) === 'true') return false;
+			const dismissedDay = localStorage.getItem(STORAGE_KEY_RATING_DISMISSED_DAY);
+			if (dismissedDay === getLocalDateString()) return false;
+			return true;
+		} catch {
+			return false;
+		}
+	}
 
 	/** Designers under maintenance; not accessible from home and redirect to home if selected. */
 	const MAINTENANCE_VIEWS = new Set<ViewName>([]);
@@ -196,6 +231,9 @@
 	let showThankYouDialog = $state(false);
 	let showSupportShareDialog = $state(false);
 	let show3MFAnnouncementDialog = $state(false);
+	let showRatingPromptDialog = $state(false);
+	/** Bumped when the local calendar day changes (visibility) so the daily rating prompt can re-evaluate. */
+	let ratingPromptDayKey = $state(0);
 	let menuOpen = $state(false);
 	let userPalette: PaletteColor[] | null = $state(null);
 	let authCleanup: (() => void) | null = null;
@@ -387,6 +425,46 @@
 		localStorage.setItem(STORAGE_KEY_BAMBU_ANNOUNCEMENT, 'true');
 	}
 
+	function closeRatingPrompt() {
+		try {
+			localStorage.setItem(STORAGE_KEY_RATING_DISMISSED_DAY, getLocalDateString());
+		} catch (_) {}
+		showRatingPromptDialog = false;
+		posthog.capture('rating_prompt_dismissed');
+	}
+
+	function handleRatingSubmitted() {
+		try {
+			localStorage.setItem(STORAGE_KEY_RATING_SUBMITTED, 'true');
+			localStorage.removeItem(STORAGE_KEY_RATING_DISMISSED_DAY);
+		} catch (_) {}
+		showRatingPromptDialog = false;
+	}
+
+	// Daily rating prompt until user submits (subscribed / licensed; after welcome & feature announcements)
+	let ratingPromptFired = $state(false);
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+		void ratingPromptDayKey;
+		if (!isRatingPromptEligible()) {
+			ratingPromptFired = false;
+			return;
+		}
+		if (ratingPromptFired) return;
+		if (!user?.id) return;
+		if (!subscriptionStatus?.isActive || subscriptionStatus.licenseExpired) return;
+		if (showWelcomeDialog || show3MFAnnouncementDialog) return;
+		if (showRatingPromptDialog) return;
+
+		const delayMs = 5000;
+		const id = window.setTimeout(() => {
+			ratingPromptFired = true;
+			showRatingPromptDialog = true;
+			posthog.capture('rating_prompt_shown');
+		}, delayMs);
+		return () => window.clearTimeout(id);
+	});
+
 	// ── Lifecycle ───────────────────────────────────────────────────────────
 	onMount(() => {
 		// Mobile detection: show DesktopRequiredView when opening a designer on small screens
@@ -405,11 +483,19 @@
 		hashCleanup = () => window.removeEventListener('hashchange', syncViewFromHash);
 
 		// Refresh license status when tab becomes visible (ensures expired licenses are caught)
+		let lastKnownDayForRatingPrompt = getLocalDateString();
 		const onVisibilityChange = () => {
-			if (document.visibilityState === 'visible' && user?.id) {
-				getSubscriptionStatus(user.id).then((s) => {
-					subscriptionStatus = s;
-				});
+			if (document.visibilityState === 'visible') {
+				const today = getLocalDateString();
+				if (today !== lastKnownDayForRatingPrompt) {
+					lastKnownDayForRatingPrompt = today;
+					ratingPromptDayKey++;
+				}
+				if (user?.id) {
+					getSubscriptionStatus(user.id).then((s) => {
+						subscriptionStatus = s;
+					});
+				}
 			}
 		};
 		document.addEventListener('visibilitychange', onVisibilityChange);
@@ -629,6 +715,13 @@
 			</div>
 		</div>
 	{/if}
+
+	<RatingPromptModal
+		open={showRatingPromptDialog}
+		user={user}
+		onDismiss={closeRatingPrompt}
+		onSubmitted={handleRatingSubmitted}
+	/>
 
 	<!-- Login Modal -->
 	<LoginModal
