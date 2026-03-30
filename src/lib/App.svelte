@@ -19,6 +19,7 @@
 	import LoginModal from '$lib/components/LoginModal.svelte';
 	import MaintenancePage from '$lib/components/MaintenancePage.svelte';
 	import PencilTopperDesigner from '$lib/components/PencilTopperDesigner.svelte';
+	import PromotionDialog from '$lib/components/PromotionDialog.svelte';
 	import StanleyTopperDesigner from '$lib/components/StanleyTopperDesigner.svelte';
 	import StrawTopperDesigner from '$lib/components/StrawTopperDesigner.svelte';
 	import RatingPromptModal from '$lib/components/RatingPromptModal.svelte';
@@ -51,6 +52,10 @@
 	const STORAGE_KEY_VIEW = 'designer-current-view';
 	const STORAGE_KEY_SHARE_SHOWN = 'designer-share-dialog-shown';
 	const STORAGE_KEY_BAMBU_ANNOUNCEMENT = 'designer-has-seen-bambu-studio-announcement';
+	const STORAGE_KEY_PROMOTION_DISMISSED = 'designer-has-seen-promotion-dialog';
+	const PROMOTION_DISCOUNT_CODE = 'IWNZC1MW';
+	const PROMOTION_MONTHLY_CHECKOUT_URL =
+		'https://pixnprints.lemonsqueezy.com/checkout/buy/5c2e3d77-619c-411a-9f8f-377e082cff7d';
 	/** Set when user submits a rating from the prompt — never show again. */
 	const STORAGE_KEY_RATING_SUBMITTED = 'designer-rating-prompt-submitted';
 	/** Local calendar day (YYYY-MM-DD) when user dismissed without submitting — show again next day. */
@@ -231,6 +236,8 @@
 	let showThankYouDialog = $state(false);
 	let showSupportShareDialog = $state(false);
 	let show3MFAnnouncementDialog = $state(false);
+	let showPromotionDialog = $state(false);
+	let canShowPromotionDialog = $state(false);
 	let showRatingPromptDialog = $state(false);
 	/** Bumped when the local calendar day changes (visibility) so the daily rating prompt can re-evaluate. */
 	let ratingPromptDayKey = $state(0);
@@ -425,6 +432,19 @@
 		localStorage.setItem(STORAGE_KEY_BAMBU_ANNOUNCEMENT, 'true');
 	}
 
+	function closePromotionDialog() {
+		showPromotionDialog = false;
+		try {
+			localStorage.setItem(STORAGE_KEY_PROMOTION_DISMISSED, 'true');
+		} catch (_) {}
+	}
+
+	async function handleClaimPromotion() {
+		const checkoutUrl = new URL(PROMOTION_MONTHLY_CHECKOUT_URL);
+		checkoutUrl.searchParams.set('checkout[discount_code]', PROMOTION_DISCOUNT_CODE);
+		window.location.href = checkoutUrl.toString();
+	}
+
 	function closeRatingPrompt() {
 		try {
 			localStorage.setItem(STORAGE_KEY_RATING_DISMISSED_DAY, getLocalDateString());
@@ -443,6 +463,13 @@
 
 	// Daily rating prompt until user submits (subscribed / licensed; after welcome & feature announcements)
 	let ratingPromptFired = $state(false);
+	$effect(() => {
+		if (!canShowPromotionDialog) return;
+		if (showWelcomeDialog || show3MFAnnouncementDialog || showPromotionDialog) return;
+		showPromotionDialog = true;
+		canShowPromotionDialog = false;
+	});
+
 	$effect(() => {
 		if (typeof window === 'undefined') return;
 		void ratingPromptDayKey;
@@ -509,6 +536,9 @@
 		if (hasSeenWelcome && !localStorage.getItem(STORAGE_KEY_BAMBU_ANNOUNCEMENT)) {
 			show3MFAnnouncementDialog = true;
 		}
+
+		// Promotion dialog: show once ever, after welcome and feature announcement dialogs.
+		canShowPromotionDialog = !localStorage.getItem(STORAGE_KEY_PROMOTION_DISMISSED);
 
 		// Open login modal if redirected from pricing with ?login=1
 		if (
@@ -715,6 +745,12 @@
 			</div>
 		</div>
 	{/if}
+
+	<PromotionDialog
+		open={showPromotionDialog}
+		onClose={closePromotionDialog}
+		onClaim={handleClaimPromotion}
+	/>
 
 	<RatingPromptModal
 		open={showRatingPromptDialog}
