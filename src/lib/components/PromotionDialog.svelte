@@ -89,7 +89,7 @@
 					Special subscription offer
 				</h2>
 				<p class="mt-3 text-center text-sm leading-relaxed text-slate-600">
-					Unlock premium access with <span class="font-semibold">20% on subscription forever</span>.
+					Unlock premium access with <span class="font-semibold">20% discount on your subscription forever</span>.
 				</p>
 				<div class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center">
 					<p class="text-xs font-semibold tracking-wide text-emerald-800 uppercase">
@@ -123,7 +123,7 @@
 					{/if}
 				</div>
 				<div class="mt-6 space-y-3">
-					<Button class="w-full" onclick={onClaim}>Grab 20% offer</Button>
+					<Button class="w-full" onclick={onClaim}>Grab 20% discount</Button>
 					<div class="flex justify-center">
 						<Button onclick={onClose} variant="outline">Close</Button>
 					</div>
