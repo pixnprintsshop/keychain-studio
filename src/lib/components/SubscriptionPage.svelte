@@ -167,6 +167,13 @@
 						</span>
 					</div>
 
+					{#if subscriptionStatus?.cancelledPendingEnd && subscriptionDetails.ends_at}
+						<p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+							You cancelled your subscription. Full access continues until
+							{formatDate(subscriptionDetails.ends_at)}.
+						</p>
+					{/if}
+
 					<dl class="grid gap-4 sm:grid-cols-2">
 						<div>
 							<dt class="text-xs font-medium uppercase tracking-wider text-slate-500">Status</dt>

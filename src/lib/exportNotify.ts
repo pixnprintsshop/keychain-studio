@@ -13,7 +13,8 @@ function formatSubscriptionStatus(s: SubscriptionStatus | null): string {
 	if (!s.isActive) return 'inactive';
 	if (s.source === 'subscription') {
 		const trial = s.onTrial ? ' [on trial]' : '';
-		return `subscription (${s.plan ?? '—'})${trial}`;
+		const pending = s.cancelledPendingEnd ? ' [cancelled, access until period end]' : '';
+		return `subscription (${s.plan ?? '—'})${trial}${pending}`;
 	}
 	if (s.source === 'license') return 'license';
 	return 'active';

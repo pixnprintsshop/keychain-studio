@@ -57,9 +57,29 @@ export interface SubscriptionStatus {
 	onTrial?: boolean;
 	/** True when user had a license that has expired */
 	licenseExpired?: boolean;
+	/** True when the subscription is cancelled but paid access continues until `endsAt` */
+	cancelledPendingEnd?: boolean;
 }
 
 const ACTIVE_STATUSES = new Set(['active', 'on_trial']);
+
+/**
+ * Lemon Squeezy: `active` / `on_trial` are entitled until `ends_at` (if set).
+ * `cancelled` / `canceled` still grants access until the end of the current billing period (`ends_at`).
+ */
+function subscriptionRowGrantsAccess(status: string, endsAt: string | null): boolean {
+	const s = status.toLowerCase();
+	const ends = endsAt ? new Date(endsAt) : null;
+	const now = new Date();
+
+	if (ACTIVE_STATUSES.has(s)) {
+		return !ends || ends > now;
+	}
+	if ((s === 'cancelled' || s === 'canceled') && ends && ends > now) {
+		return true;
+	}
+	return false;
+}
 
 export async function getSubscriptionStatus(userId: string | null): Promise<SubscriptionStatus | null> {
 	if (!userId) return null;
@@ -74,15 +94,21 @@ export async function getSubscriptionStatus(userId: string | null): Promise<Subs
 	if (!subError && subData) {
 		const status = subData.status as string;
 		const endsAt = subData.ends_at as string | null;
-		const isActive = ACTIVE_STATUSES.has(status) && (!endsAt || new Date(endsAt) > new Date());
+		const st = status.toLowerCase();
+		const ends = endsAt ? new Date(endsAt) : null;
+		const now = new Date();
+		const isActive = subscriptionRowGrantsAccess(status, endsAt);
 		if (isActive) {
+			const cancelledPendingEnd =
+				(st === 'cancelled' || st === 'canceled') && ends !== null && ends > now;
 			return {
 				isActive: true,
 				source: 'subscription',
 				plan: subData.plan as 'monthly' | 'yearly' | undefined,
 				endsAt: endsAt ?? undefined,
 				renewsAt: (subData.renews_at as string | null) ?? undefined,
-				onTrial: status === 'on_trial'
+				onTrial: st === 'on_trial',
+				cancelledPendingEnd
 			};
 		}
 	}
