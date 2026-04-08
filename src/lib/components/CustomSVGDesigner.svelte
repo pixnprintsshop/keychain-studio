@@ -23,7 +23,7 @@
     import type { PaletteColor } from "$lib/colorPalette";
     import LoadingModal from "./LoadingModal.svelte";
     import SvgInfoModal from "./SvgInfoModal.svelte";
-    import { getExportTitle, type SubscriptionStatus } from "$lib/subscription";
+    import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from "$lib/subscription";
 
 interface Props {
     user: User | null;
@@ -747,10 +747,7 @@ let { user, session, subscriptionStatus, palette, onBack, onRequestLogin, onShow
 
     async function exportStl() {
         if (!group) return;
-        if (!user) {
-            onRequestLogin();
-            return;
-        }
+        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         exportError = null;
         if (group.children.length === 0) {
             exportError = "Nothing to export yet";

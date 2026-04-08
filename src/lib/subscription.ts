@@ -128,3 +128,19 @@ export function getExportTitle(
 	if (!subscriptionStatus?.isActive) return 'Subscribe to export';
 	return activeTitle;
 }
+
+/**
+ * Guards STL/3MF/Bambu export paths: require signed-in user and active subscription or license.
+ * When blocked, calls `onShowPricing` (typically navigate to pricing). Use at the start of export handlers.
+ */
+export function ensureExportAccess(
+	user: { id: string } | null,
+	subscriptionStatus: SubscriptionStatus | null,
+	onShowPricing?: () => void
+): boolean {
+	if (!user || !subscriptionStatus?.isActive) {
+		onShowPricing?.();
+		return false;
+	}
+	return true;
+}

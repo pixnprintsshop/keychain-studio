@@ -32,7 +32,7 @@
     import { Slider } from '$lib/components/ui/slider';
     import ColorPalettePicker from "./ColorPalettePicker.svelte";
     import type { PaletteColor } from "$lib/colorPalette";
-    import { getExportTitle, type SubscriptionStatus } from "$lib/subscription";
+    import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from "$lib/subscription";
 
     // ── Props ───────────────────────────────────────────────────────────────
     interface Props {
@@ -211,10 +211,7 @@
     // ── Export ───────────────────────────────────────────────────────────────
     async function exportSTL() {
         if (!group || !scene) return;
-        if (!user) {
-            onRequestLogin();
-            return;
-        }
+        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         rebuildMeshes();
         group.updateWorldMatrix(true, true);
         const geometries: THREE.BufferGeometry[] = [];
@@ -261,10 +258,7 @@
 
     async function export3MF() {
         if (!group || !scene) return;
-        if (!user) {
-            onRequestLogin();
-            return;
-        }
+        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         rebuildMeshes();
         group.updateWorldMatrix(true, true);
         // Clone and raise text so it sits on top of base (no embed) for cleaner slicing
@@ -296,10 +290,7 @@
 
     async function openWithBambuStudio() {
         if (!group || !scene) return;
-        if (!user) {
-            onRequestLogin();
-            return;
-        }
+        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         openBambuStudioLoading = true;
         try {
             rebuildMeshes();

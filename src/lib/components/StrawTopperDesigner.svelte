@@ -28,7 +28,7 @@
 	import type { PaletteColor } from '$lib/colorPalette';
 	import FontSelect from './FontSelect.svelte';
 	import LoadingModal from './LoadingModal.svelte';
-	import { getExportTitle, type SubscriptionStatus } from '$lib/subscription';
+	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
 
 	interface Props {
 		user: User | null;
@@ -630,10 +630,7 @@ difference() {
 	}
 
 	async function exportStl() {
-		if (!user) {
-			onRequestLogin();
-			return;
-		}
+		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
 		if (!textContent?.trim()) {
 			exportError = 'Nothing to export yet';
 			return;
@@ -687,10 +684,7 @@ difference() {
 	}
 
 	async function export3MF() {
-		if (!user) {
-			onRequestLogin();
-			return;
-		}
+		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
 		if (!textContent?.trim()) {
 			exportError = 'Nothing to export yet';
 			return;
@@ -745,6 +739,7 @@ difference() {
 
 	async function openWithBambuStudio() {
 		if (!textContent?.trim()) return;
+		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
 		openBambuStudioLoading = true;
 		try {
 			const baseGeo = await buildOpenScadBaseGeometry();

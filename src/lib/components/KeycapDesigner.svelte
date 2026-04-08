@@ -30,7 +30,7 @@
     import type { PaletteColor } from "$lib/colorPalette";
     import LoadingModal from "./LoadingModal.svelte";
     import SvgInfoModal from "./SvgInfoModal.svelte";
-    import { getExportTitle, type SubscriptionStatus } from "$lib/subscription";
+    import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from "$lib/subscription";
 
     interface Props {
         user: User | null;
@@ -567,10 +567,7 @@
     }
 
     async function exportStl() {
-        if (!user) {
-            onRequestLogin();
-            return;
-        }
+        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         if (!group || group.children.length === 0) {
             exportError = "Add a keycap and an icon to export";
             return;
@@ -649,10 +646,7 @@
 
     async function export3MF() {
         if (!group || !scene) return;
-        if (!user) {
-            onRequestLogin();
-            return;
-        }
+        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         rebuildMeshes();
         group.updateWorldMatrix(true, true);
         const exportGroup = new THREE.Group();
@@ -696,6 +690,7 @@
 
     async function openWithBambuStudio() {
         if (!group || !scene) return;
+        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         openBambuStudioLoading = true;
         try {
             rebuildMeshes();
@@ -1079,8 +1074,12 @@
                         processing ||
                         exportLoading}
                     exportTitle={getExportTitle(user, subscriptionStatus, "Export STL")}
-                    onExport3MF={() => void export3MF()}
-                    onOpenWithBambuStudio={() => void openWithBambuStudio()}
+                    onExport3MF={() =>
+                        user && subscriptionStatus?.isActive ? void export3MF() : onShowPricing?.()}
+                    onOpenWithBambuStudio={() =>
+                        user && subscriptionStatus?.isActive
+                            ? void openWithBambuStudio()
+                            : onShowPricing?.()}
                     openBambuStudioLoading={openBambuStudioLoading}
                     {exportLoading}
                     showLockIcon={!user || !subscriptionStatus?.isActive} />

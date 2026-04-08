@@ -34,7 +34,7 @@
     import { Slider } from "$lib/components/ui/slider";
     import ColorPalettePicker from "./ColorPalettePicker.svelte";
     import type { PaletteColor } from "$lib/colorPalette";
-    import { getExportTitle, type SubscriptionStatus } from "$lib/subscription";
+    import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from "$lib/subscription";
 
     // ── Props ───────────────────────────────────────────────────────────────
     interface Props {
@@ -248,10 +248,7 @@
     // ── Export ───────────────────────────────────────────────────────────────
     async function exportSTL() {
         if (!group) return;
-        if (!user) {
-            onRequestLogin();
-            return;
-        }
+        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         const exporter = new STLExporter();
         const result = exporter.parse(group, { binary: true } as any);
         const blob =
@@ -277,10 +274,7 @@
 
     /** 3MF: 3 objects. (1) Initial + text outline merged, same color. (2) Text outline only. (3) Text only. */
     async function export3MF() {
-        if (!user) {
-            onRequestLogin();
-            return;
-        }
+        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         if (!group || group.children.length === 0) return;
         try {
             group.updateWorldMatrix(true, true);
@@ -380,6 +374,7 @@
 
     async function openWithBambuStudio() {
         if (!group || group.children.length === 0) return;
+        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         openBambuStudioLoading = true;
         try {
             group.updateWorldMatrix(true, true);

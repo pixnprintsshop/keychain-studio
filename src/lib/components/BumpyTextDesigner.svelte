@@ -23,7 +23,7 @@
     import { Slider } from "$lib/components/ui/slider";
     import ColorPalettePicker from "./ColorPalettePicker.svelte";
     import type { PaletteColor } from "$lib/colorPalette";
-    import { getExportTitle, type SubscriptionStatus } from "$lib/subscription";
+    import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from "$lib/subscription";
 
     export interface Props {
         user: User | null;
@@ -370,10 +370,7 @@
     }
 
     async function exportSTL() {
-        if (!user) {
-            onRequestLogin();
-            return;
-        }
+        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         if (!group || !scene) return;
         exportError = null;
         exportLoading = true;
@@ -436,10 +433,7 @@
     }
 
     async function export3MF() {
-        if (!user) {
-            onRequestLogin();
-            return;
-        }
+        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         if (!group || !scene) return;
         exportError = null;
         exportLoading = true;
@@ -496,6 +490,7 @@
 
     async function openWithBambuStudio() {
         if (!group || !scene) return;
+        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         openBambuStudioLoading = true;
         try {
             rebuildMeshes();

@@ -26,7 +26,7 @@
     import { Slider } from "$lib/components/ui/slider";
     import ColorPalettePicker from "./ColorPalettePicker.svelte";
     import type { PaletteColor } from "$lib/colorPalette";
-    import { getExportTitle, type SubscriptionStatus } from "$lib/subscription";
+    import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from "$lib/subscription";
 
     export interface Props {
         user: User | null;
@@ -203,10 +203,7 @@
     }
 
     async function exportStl() {
-        if (!user) {
-            onRequestLogin();
-            return;
-        }
+        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         if (!group || group.children.length === 0) {
             exportError = "Nothing to export";
             return;
@@ -276,10 +273,7 @@
 
     async function export3MF() {
         if (!group || !scene) return;
-        if (!user) {
-            onRequestLogin();
-            return;
-        }
+        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         rebuildMeshes();
         group.updateWorldMatrix(true, true);
         const exportGroup = new THREE.Group();
@@ -318,6 +312,7 @@
 
     async function openWithBambuStudio() {
         if (!group || !scene) return;
+        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         openBambuStudioLoading = true;
         try {
             rebuildMeshes();

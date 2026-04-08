@@ -26,7 +26,7 @@
 	import { Slider } from '$lib/components/ui/slider';
 	import ColorPalettePicker from './ColorPalettePicker.svelte';
 	import type { PaletteColor } from '$lib/colorPalette';
-	import type { SubscriptionStatus } from '$lib/subscription';
+	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
 
 	interface Props {
 		user: User | null;
@@ -46,7 +46,8 @@
 		palette,
 		onBack,
 		onRequestLogin,
-		onShowThankYou
+		onShowThankYou,
+		onShowPricing
 	}: Props = $props();
 
 	let hostEl: HTMLDivElement | null = null;
@@ -623,10 +624,7 @@ difference() {
 	}
 
 	async function exportSTL() {
-		if (!user) {
-			onRequestLogin();
-			return;
-		}
+		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
 		exportError = null;
 		exportLoading = true;
 		try {
@@ -695,10 +693,7 @@ difference() {
 	}
 
 	async function export3MF() {
-		if (!user) {
-			onRequestLogin();
-			return;
-		}
+		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
 		exportError = null;
 		exportLoading = true;
 		try {
@@ -750,10 +745,7 @@ difference() {
 	}
 
 	async function openWithBambuStudio() {
-		if (!user) {
-			onRequestLogin();
-			return;
-		}
+		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
 		openBambuStudioLoading = true;
 		exportError = null;
 		try {
@@ -1091,17 +1083,23 @@ difference() {
 			<div class="absolute right-4 bottom-4 flex flex-wrap items-center gap-2">
 				<DesignerExportToolbar
 					onSnapshot={doSnapshot}
-					onExport={exportSTL}
-					exportDisabled={!user || !textContent?.trim()}
-					exportTitle={user
-						? previewMode === 'pieces'
-							? 'Export puzzle pieces (STL)'
-							: 'Export base (STL)'
-						: 'Sign in to export'}
+					onExport={() =>
+						user && subscriptionStatus?.isActive ? void exportSTL() : onShowPricing?.()}
+					exportDisabled={!textContent?.trim() || exportLoading}
+					exportTitle={getExportTitle(
+						user,
+						subscriptionStatus,
+						previewMode === 'pieces' ? 'Export puzzle pieces (STL)' : 'Export base (STL)'
+					)}
 					{exportLoading}
-					onExport3MF={export3MF}
-					onOpenWithBambuStudio={openWithBambuStudio}
+					onExport3MF={() =>
+						user && subscriptionStatus?.isActive ? void export3MF() : onShowPricing?.()}
+					onOpenWithBambuStudio={() =>
+						user && subscriptionStatus?.isActive
+							? void openWithBambuStudio()
+							: onShowPricing?.()}
 					{openBambuStudioLoading}
+					showLockIcon={!user || !subscriptionStatus?.isActive}
 				/>
 			</div>
 		</section>

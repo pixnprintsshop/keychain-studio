@@ -3,7 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Slider } from '$lib/components/ui/slider';
 	import { runOpenScad } from '$lib/openscad';
-	import { getExportTitle, type SubscriptionStatus } from '$lib/subscription';
+	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
 	import {
 		centerGeometryXY,
 		disposeObject3D,
@@ -668,10 +668,7 @@ difference() {
 	}
 
 	async function exportStl() {
-		if (!user) {
-			onRequestLogin();
-			return;
-		}
+		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
 		if (!textContent?.trim()) {
 			exportError = 'Nothing to export yet';
 			return;
@@ -725,10 +722,7 @@ difference() {
 	}
 
 	async function export3MF() {
-		if (!user) {
-			onRequestLogin();
-			return;
-		}
+		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
 		if (!textContent?.trim()) {
 			exportError = 'Nothing to export yet';
 			return;
@@ -783,6 +777,7 @@ difference() {
 
 	async function openWithBambuStudio() {
 		if (!textContent?.trim()) return;
+		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
 		openBambuStudioLoading = true;
 		try {
 			const baseGeo = await buildOpenScadBaseGeometry();
