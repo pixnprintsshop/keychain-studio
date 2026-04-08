@@ -133,8 +133,16 @@
 
 	<!-- Footer -->
 	<footer class="border-t border-slate-200 bg-white px-4 py-6">
-		<div class="mx-auto max-w-4xl text-center text-sm text-[#424242]">
+		<div class="mx-auto max-w-4xl space-y-3 text-center text-sm text-[#424242]">
 			<p>Print Studio is provided by <span class="font-medium text-[#E53935]">PixnPrints</span>.</p>
+			<p>
+				<a
+					href="/#contact"
+					class="font-medium text-[#E53935] underline hover:text-[#c62828] focus:ring-2 focus:ring-[#E53935]/30 focus:outline-none"
+				>
+					Contact us
+				</a>
+			</p>
 		</div>
 	</footer>
 </main>

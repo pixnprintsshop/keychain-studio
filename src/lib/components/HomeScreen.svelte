@@ -541,6 +541,12 @@
 				>
 					About
 				</a>
+				<a
+					href="#contact"
+					class="rounded underline hover:text-slate-700 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
+				>
+					Contact
+				</a>
 			</div>
 		</div>
 	</div>

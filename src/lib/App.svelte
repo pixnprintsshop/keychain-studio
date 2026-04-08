@@ -8,6 +8,7 @@
 	import CustomSVGDesigner from '$lib/components/CustomSVGDesigner.svelte';
 	import DesktopRequiredView from '$lib/components/DesktopRequiredView.svelte';
 	import DogTagDesigner from '$lib/components/DogTagDesigner.svelte';
+	import ContactPage from '$lib/components/ContactPage.svelte';
 	import FeedbackPage from '$lib/components/FeedbackPage.svelte';
 	import FlowerDesigner from '$lib/components/FlowerDesigner.svelte';
 	import SettingsPage from '$lib/components/SettingsPage.svelte';
@@ -113,6 +114,7 @@
 		| 'bowKeychain'
 		| 'namePuzzle'
 		| 'feedback'
+		| 'contact'
 		| 'settings';
 
 	const VALID_VIEW_NAMES: ViewName[] = [
@@ -133,6 +135,7 @@
 		'bowKeychain',
 		'namePuzzle',
 		'feedback',
+		'contact',
 		'settings'
 	];
 
@@ -211,6 +214,7 @@
 				stored === 'bowKeychain' ||
 				stored === 'namePuzzle' ||
 				stored === 'feedback' ||
+				stored === 'contact' ||
 				stored === 'settings' ||
 				stored === 'home'
 			) {
@@ -1223,6 +1227,8 @@
 			/>
 		{:else if currentView === 'feedback'}
 			<FeedbackPage {user} onBack={handleBack} onRequestLogin={() => (showLoginModal = true)} />
+		{:else if currentView === 'contact'}
+			<ContactPage {user} onBack={handleBack} />
 		{:else if currentView === 'settings'}
 			<SettingsPage
 				{user}
