@@ -25,7 +25,8 @@
 		| 'dogtag'
 		| 'bumpyText'
 		| 'bowKeychain'
-		| 'namePuzzle';
+		| 'namePuzzle'
+		| 'engraveNamePlate';
 
 	interface DesignerItem {
 		id: StyleName;
@@ -88,6 +89,14 @@
 			description: 'Floating text model for quick name plates or labels.',
 			imageSrc: '/images/text-only.png',
 			imageAlt: 'Text Only preview'
+		},
+		{
+			id: 'engraveNamePlate',
+			title: 'Engrave name plate',
+			description:
+				'Contour plate from your text with an engraved pocket and optional keyring tab.',
+			imageSrc: '/images/engrave-name-plate.png',
+			imageAlt: 'Engrave name plate preview'
 		},
 		{
 			id: 'bumpyText',

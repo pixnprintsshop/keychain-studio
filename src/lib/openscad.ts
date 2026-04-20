@@ -1,72 +1,103 @@
 /**
- * Lazy OpenSCAD WASM loader. Use only in browser (typeof window !== 'undefined').
- * Exposes runOpenScad(source) which returns STL bytes (ASCII STL as ArrayBuffer).
+ * OpenSCAD WASM: prefers a dedicated worker so exports do not freeze the UI; falls back to the main thread.
  */
-import { createOpenSCAD, type OpenSCADInstance } from "openscad-wasm";
+import {
+	clearOpenScadCache,
+	getOpenScadInstance,
+	renderOpenScadToStlBuffer,
+	runOpenScadOnMainThread,
+	type OpenScadRenderOptions
+} from './openscad-runner';
 
-let cachedInstance: OpenSCADInstance | null = null;
+export type { OpenScadRenderOptions };
+export {
+	clearOpenScadCache,
+	getOpenScadInstance,
+	renderOpenScadToStlBuffer,
+	runOpenScadOnMainThread
+};
 
-export async function getOpenScadInstance(forceNew = false): Promise<OpenSCADInstance> {
-	if (typeof window === "undefined") {
-		throw new Error("OpenSCAD WASM is only available in the browser");
+type WorkerResponse =
+	| { id: number; ok: true; buffer: ArrayBuffer }
+	| { id: number; ok: false; error: string };
+
+let openScadWorker: Worker | null = null;
+let nextJobId = 1;
+const pendingJobs = new Map<
+	number,
+	{ resolve: (b: ArrayBuffer) => void; reject: (e: Error) => void }
+>();
+
+/** Serialize OpenSCAD jobs (single WASM instance per realm). */
+let runQueue: Promise<unknown> = Promise.resolve();
+
+function getOpenScadWorker(): Worker {
+	if (!openScadWorker) {
+		openScadWorker = new Worker(new URL('./openscad-worker.ts', import.meta.url), { type: 'module' });
+		openScadWorker.onmessage = (ev: MessageEvent<WorkerResponse>) => {
+			const msg = ev.data;
+			const job = pendingJobs.get(msg.id);
+			pendingJobs.delete(msg.id);
+			if (!job) return;
+			if (msg.ok) job.resolve(msg.buffer);
+			else job.reject(new Error(msg.error));
+		};
+		openScadWorker.onerror = (ev) => {
+			const err = new Error(ev.message || 'OpenSCAD worker error');
+			for (const [, p] of pendingJobs) {
+				p.reject(err);
+			}
+			pendingJobs.clear();
+			openScadWorker?.terminate();
+			openScadWorker = null;
+		};
 	}
-	if (cachedInstance && !forceNew) return cachedInstance;
-	cachedInstance = await createOpenSCAD({ noInitialRun: true });
-	return cachedInstance;
+	return openScadWorker;
 }
 
-export function clearOpenScadCache(): void {
-	cachedInstance = null;
+async function runOpenScadViaWorker(source: string, options?: OpenScadRenderOptions): Promise<ArrayBuffer> {
+	const w = getOpenScadWorker();
+	const id = nextJobId++;
+	return await new Promise<ArrayBuffer>((resolve, reject) => {
+		pendingJobs.set(id, { resolve, reject });
+		try {
+			w.postMessage({ id, source, options });
+		} catch (e) {
+			pendingJobs.delete(id);
+			reject(e instanceof Error ? e : new Error(String(e)));
+		}
+	});
 }
-
-const DEFAULT_SVG_PATH = "/input.svg";
-const DEFAULT_STL_PATH = "/base.stl";
 
 /**
- * Run OpenSCAD source and return STL file contents as bytes.
- * - options.svgContent: write to FS at options.svgPath (default /input.svg) so the script can import() it.
- * - options.stlContent: write binary STL to options.stlPath (default /base.stl) so the script can import() it (e.g. base mesh for difference with hole).
+ * Run OpenSCAD and return STL bytes. Uses a Web Worker when available so the page stays responsive.
  */
 export async function runOpenScad(
 	source: string,
-	options?: {
-		svgPath?: string;
-		svgContent?: string;
-		stlPath?: string;
-		stlContent?: ArrayBuffer;
-	},
+	options?: OpenScadRenderOptions
 ): Promise<ArrayBuffer> {
-	async function run(instance: OpenSCADInstance): Promise<ArrayBuffer> {
-		const fs = instance.getInstance().FS;
-		if (options?.svgContent != null) {
-			const path = options.svgPath ?? DEFAULT_SVG_PATH;
+	const job = runQueue.then(async () => {
+		if (typeof Worker !== 'undefined') {
 			try {
-				fs.unlink(path);
-			} catch {
-				// File may not exist on first run
+				return await runOpenScadViaWorker(source, options);
+			} catch (e) {
+				console.warn('[OpenSCAD] worker run failed, using main thread', e);
 			}
-			fs.writeFile(path, options.svgContent);
 		}
-		if (options?.stlContent != null) {
-			const path = options.stlPath ?? DEFAULT_STL_PATH;
-			try {
-				fs.unlink(path);
-			} catch {
-				// File may not exist on first run
-			}
-			fs.writeFile(path, new Uint8Array(options.stlContent));
-		}
-		const stlString = await instance.renderToStl(source);
-		return new TextEncoder().encode(stlString).buffer;
-	}
+		return runOpenScadOnMainThread(source, options);
+	});
+	runQueue = job.then(
+		() => {},
+		() => {}
+	);
+	return job as Promise<ArrayBuffer>;
+}
 
+/** Prime the OpenSCAD worker (or main path) during idle time so the first real export feels faster. */
+export async function warmupOpenScadWorker(): Promise<void> {
 	try {
-		const instance = await getOpenScadInstance();
-		return await run(instance);
-	} catch (firstErr) {
-		// Second and later runs can fail with a stale WASM instance; retry with a fresh one
-		clearOpenScadCache();
-		const instance = await getOpenScadInstance(true);
-		return await run(instance);
+		await runOpenScad('cube([1, 1, 1], center = true);', {});
+	} catch {
+		// Warmup is best-effort only.
 	}
 }

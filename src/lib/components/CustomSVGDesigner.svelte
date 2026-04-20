@@ -14,9 +14,11 @@
         downloadBlob,
         downloadSnapshot,
         frameCameraToObject,
+        measureWorldAabbSizeMm,
     } from "$lib/utils-3d";
     import { notifyExportEvent } from "$lib/exportNotify";
     import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
+    import DesignerModelDimensionsHud from "./DesignerModelDimensionsHud.svelte";
     import { Button } from "$lib/components/ui/button";
     import { Slider } from "$lib/components/ui/slider";
     import ColorPalettePicker from "./ColorPalettePicker.svelte";
@@ -132,6 +134,7 @@ let { user, session, subscriptionStatus, palette, onBack, onRequestLogin, onShow
     let rafId = 0;
     let ro: ResizeObserver | null = null;
     let didInitFrame = false;
+    let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
 
     let uploadName = $state("");
     let svgUrl = $state("");
@@ -292,6 +295,7 @@ let { user, session, subscriptionStatus, palette, onBack, onRequestLogin, onShow
         if (!group) return;
         disposeObject3D(group);
         group.clear();
+        modelAabbMm = null;
         if (!optimizedSvg.trim()) return;
 
         const loader = new SVGLoader();
@@ -742,6 +746,10 @@ let { user, session, subscriptionStatus, palette, onBack, onRequestLogin, onShow
         if (!didInitFrame && camera && controls) {
             frameCameraToObject(box, camera, controls);
             didInitFrame = true;
+        }
+        {
+            const s = measureWorldAabbSizeMm(group);
+            modelAabbMm = s ? { x: s.x, y: s.y, z: s.z } : null;
         }
     }
 
@@ -1233,6 +1241,7 @@ let { user, session, subscriptionStatus, palette, onBack, onRequestLogin, onShow
 
         <section
             class="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_12px_30px_rgba(15,23,42,0.07)]">
+            <DesignerModelDimensionsHud sizes={modelAabbMm} />
             <div bind:this={hostEl} class="absolute inset-0"></div>
             <div class="absolute bottom-4 right-4">
                 <DesignerExportToolbar

@@ -4,7 +4,7 @@
     import * as THREE from "three";
     import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
     import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
-    import { exportTo3MF } from "three-3mf-exporter";
+    import { exportTo3MF } from "$lib/export-to-3mf";
     import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
     import ClipperLib from "clipper-lib";
     import FontSelect from "$lib/components/FontSelect.svelte";
@@ -18,15 +18,18 @@
         getFont,
         FONT_OPTIONS,
         DEFAULT_TEXT,
+        measureWorldAabbSizeMm,
     } from "$lib/utils-3d";
     import { notifyExportEvent } from "$lib/exportNotify";
     import { upload3mfToSupabase } from "$lib/upload3mf";
     import DesignerExportToolbar from "./DesignerExportToolbar.svelte";
+    import DesignerModelDimensionsHud from "./DesignerModelDimensionsHud.svelte";
     import { Button } from "$lib/components/ui/button";
     import { Slider } from "$lib/components/ui/slider";
     import ColorPalettePicker from "./ColorPalettePicker.svelte";
     import type { PaletteColor } from "$lib/colorPalette";
     import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from "$lib/subscription";
+    import { tickThenYieldToPaint } from "$lib/yield-to-paint";
 
     // ── Props ───────────────────────────────────────────────────────────────
     interface Props {
@@ -144,6 +147,7 @@
     let exportLoading = $state(false);
     let exportError = $state<string | null>(null);
     let openBambuStudioLoading = $state(false);
+    let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
 
     function resize() {
         if (!renderer || !camera || !hostEl) return;
@@ -182,6 +186,7 @@
         disposeObject3D(group);
         group.clear();
         group.position.set(0, 0, 0);
+        modelAabbMm = null;
 
         const halfW = Math.max(1, baseWidth / 2);
         const halfH = Math.max(1, baseHeight / 2);
@@ -612,12 +617,17 @@
             frameCameraToObject(box, camera, controls);
             didInitFrame = true;
         }
+        {
+            const s = measureWorldAabbSizeMm(group);
+            modelAabbMm = s ? { x: s.x, y: s.y, z: s.z } : null;
+        }
     }
 
     async function exportSTL() {
         if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         exportError = null;
         exportLoading = true;
+        await tickThenYieldToPaint();
         try {
             if (!group || !scene) throw new Error("Scene not ready");
             rebuildMeshes();
@@ -667,6 +677,7 @@
         if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         exportError = null;
         exportLoading = true;
+        await tickThenYieldToPaint();
         try {
             if (!group || !scene) throw new Error("Scene not ready");
             rebuildMeshes();
@@ -703,6 +714,7 @@
         if (!group || !scene) return;
         if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
         openBambuStudioLoading = true;
+        await tickThenYieldToPaint();
         try {
             rebuildMeshes();
             group.updateWorldMatrix(true, true);
@@ -1095,6 +1107,7 @@
 
         <section
             class="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_12px_30px_rgba(15,23,42,0.07)]">
+            <DesignerModelDimensionsHud sizes={modelAabbMm} />
             <div bind:this={hostEl} class="absolute inset-0"></div>
             <div class="absolute bottom-4 right-4">
                 <DesignerExportToolbar

@@ -76,7 +76,7 @@
 		class="rounded-full bg-white/90 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
 		onclick={handleExportSTL}
 		aria-label="Download STL"
-		disabled={exportDisabled}
+		disabled={exportDisabled || exportLoading || openBambuStudioLoading}
 		title={exportTitle}
 	>
 		{#if showLockIcon}
@@ -103,7 +103,7 @@
 			class="rounded-full bg-white/90 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
 			onclick={handleExport3MF}
 			aria-label="Download 3MF (multipart)"
-			disabled={exportDisabled}
+			disabled={exportDisabled || exportLoading || openBambuStudioLoading}
 			title="Export 3MF with separate parts (base, border, text) for multi-material printing"
 		>
 			{#if exportLoading}

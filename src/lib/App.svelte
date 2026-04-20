@@ -16,6 +16,7 @@
 	import InitialDesigner from '$lib/components/InitialDesigner.svelte';
 	import KeycapDesigner from '$lib/components/KeycapDesigner.svelte';
 	import NamePuzzleDesigner from '$lib/components/NamePuzzleDesigner.svelte';
+	import EngraveNamePlateDesigner from '$lib/components/EngraveNamePlateDesigner.svelte';
 	import LicenseActivationModal from '$lib/components/LicenseActivationModal.svelte';
 	import LoginModal from '$lib/components/LoginModal.svelte';
 	import MaintenancePage from '$lib/components/MaintenancePage.svelte';
@@ -113,6 +114,7 @@
 		| 'bumpyText'
 		| 'bowKeychain'
 		| 'namePuzzle'
+		| 'engraveNamePlate'
 		| 'feedback'
 		| 'contact'
 		| 'settings';
@@ -134,6 +136,7 @@
 		'bumpyText',
 		'bowKeychain',
 		'namePuzzle',
+		'engraveNamePlate',
 		'feedback',
 		'contact',
 		'settings'
@@ -155,7 +158,8 @@
 		'dogtag',
 		'bumpyText',
 		'bowKeychain',
-		'namePuzzle'
+		'namePuzzle',
+		'engraveNamePlate'
 	]);
 
 	/** True when the URL hash contains Supabase OAuth callback params (tokens or error). Do not overwrite hash until Supabase has processed it. */
@@ -213,6 +217,7 @@
 				stored === 'bumpyText' ||
 				stored === 'bowKeychain' ||
 				stored === 'namePuzzle' ||
+				stored === 'engraveNamePlate' ||
 				stored === 'feedback' ||
 				stored === 'contact' ||
 				stored === 'settings' ||
@@ -381,6 +386,7 @@
 			| 'bumpyText'
 			| 'bowKeychain'
 			| 'namePuzzle'
+			| 'engraveNamePlate'
 	) {
 		if (MAINTENANCE_VIEWS.has(style)) return;
 		posthog.capture('designer_selected', { designer: style });
@@ -740,7 +746,8 @@
 						Open with Bambu Studio
 					</h2>
 					<p class="mt-3 text-center text-sm text-slate-600">
-						One-click to open it in Bambu Studio. Look for the green "Open with Bambu Studio" button in any designer.
+						One-click to open it in Bambu Studio. Look for the green "Open with Bambu Studio" button
+						in any designer.
 					</p>
 					<div class="mt-6 flex justify-center">
 						<Button onclick={close3MFAnnouncementDialog}>Got it</Button>
@@ -758,7 +765,7 @@
 
 	<RatingPromptModal
 		open={showRatingPromptDialog}
-		user={user}
+		{user}
 		onDismiss={closeRatingPrompt}
 		onSubmitted={handleRatingSubmitted}
 	/>
@@ -1216,6 +1223,17 @@
 			/>
 		{:else if currentView === 'namePuzzle'}
 			<NamePuzzleDesigner
+				{user}
+				{session}
+				{subscriptionStatus}
+				palette={effectivePalette}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
+			/>
+		{:else if currentView === 'engraveNamePlate'}
+			<EngraveNamePlateDesigner
 				{user}
 				{session}
 				{subscriptionStatus}

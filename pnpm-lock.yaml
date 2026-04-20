@@ -17,6 +17,9 @@ importers:
       clipper-lib:
         specifier: ^6.4.2
         version: 6.4.2
+      jszip:
+        specifier: ^3.10.1
+        version: 3.10.1
       opencascade.js:
         specifier: 2.0.0-beta.b5ff984
         version: 2.0.0-beta.b5ff984(ws@8.19.0)

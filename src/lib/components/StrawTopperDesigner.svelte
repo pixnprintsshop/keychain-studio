@@ -7,7 +7,7 @@
 	import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 	import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 	import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-	import { exportTo3MF } from 'three-3mf-exporter';
+	import { exportTo3MF } from '$lib/export-to-3mf';
 	import { runOpenScad } from '$lib/openscad';
 	import {
 		centerGeometryXY,
@@ -17,11 +17,13 @@
 		FONT_OPTIONS,
 		frameCameraToObject,
 		getFont,
+		measureWorldAabbSizeMm,
 		stlToBufferGeometry
 	} from '$lib/utils-3d';
 	import { notifyExportEvent } from '$lib/exportNotify';
 	import { upload3mfToSupabase } from '$lib/upload3mf';
 	import DesignerExportToolbar from './DesignerExportToolbar.svelte';
+	import DesignerModelDimensionsHud from './DesignerModelDimensionsHud.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Slider } from '$lib/components/ui/slider';
 	import ColorPalettePicker from './ColorPalettePicker.svelte';
@@ -29,6 +31,7 @@
 	import FontSelect from './FontSelect.svelte';
 	import LoadingModal from './LoadingModal.svelte';
 	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
+	import { tickThenYieldToPaint } from '$lib/yield-to-paint';
 
 	interface Props {
 		user: User | null;
@@ -54,6 +57,7 @@
 	let rafId = 0;
 	let ro: ResizeObserver | null = null;
 	let didInitFrame = false;
+	let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
 
 	let textContent = $state('Name');
 	let fontKey = $state(
@@ -101,6 +105,7 @@
 		if (!group) return;
 		disposeObject3D(group);
 		group.clear();
+		modelAabbMm = null;
 		const content = (textContent ?? '').trim();
 		if (!content) return;
 		const font = getFont(fontKey);
@@ -372,6 +377,7 @@
 			holeBrush.geometry.dispose();
 			flatTopHoleGeo.dispose();
 			holeDummyMat.dispose();
+			modelAabbMm = null;
 			return;
 		}
 
@@ -423,6 +429,10 @@
 		if (!didInitFrame && camera && controls) {
 			frameCameraToObject(box, camera, controls);
 			didInitFrame = true;
+		}
+		{
+			const s = measureWorldAabbSizeMm(group);
+			modelAabbMm = s ? { x: s.x, y: s.y, z: s.z } : null;
 		}
 	}
 
@@ -637,6 +647,7 @@ difference() {
 		}
 		exportError = null;
 		exportLoading = true;
+		await tickThenYieldToPaint();
 		try {
 			const baseGeo = await buildOpenScadBaseGeometry();
 			const exportGroup = new THREE.Group();
@@ -691,6 +702,7 @@ difference() {
 		}
 		exportError = null;
 		exportLoading = true;
+		await tickThenYieldToPaint();
 		try {
 			const baseGeo = await buildOpenScadBaseGeometry();
 			const baseMatExport = new THREE.MeshBasicMaterial({
@@ -741,6 +753,7 @@ difference() {
 		if (!textContent?.trim()) return;
 		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
 		openBambuStudioLoading = true;
+		await tickThenYieldToPaint();
 		try {
 			const baseGeo = await buildOpenScadBaseGeometry();
 			const baseMatExport = new THREE.MeshBasicMaterial({
@@ -1106,6 +1119,7 @@ difference() {
 		<section
 			class="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_12px_30px_rgba(15,23,42,0.07)]"
 		>
+			<DesignerModelDimensionsHud sizes={modelAabbMm} />
 			<div bind:this={hostEl} class="absolute inset-0"></div>
 			<div class="absolute right-4 bottom-4">
 				<DesignerExportToolbar

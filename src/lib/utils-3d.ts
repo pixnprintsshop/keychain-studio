@@ -312,6 +312,16 @@ export function downloadSnapshot(renderer: any, scene: any, camera: any, filenam
 	}, 'image/png');
 }
 
+/** World-space AABB size in scene units (mm for keychain designers). Null if empty or invalid. */
+export function measureWorldAabbSizeMm(root: THREE.Object3D): THREE.Vector3 | null {
+	root.updateWorldMatrix(true, true);
+	const box = new THREE.Box3().setFromObject(root);
+	if (box.isEmpty()) return null;
+	const size = new THREE.Vector3();
+	box.getSize(size);
+	return size;
+}
+
 export function frameCameraToObject(box: any, camera: any, controls: any) {
 	if (!camera || !controls) return;
 	const center = new THREE.Vector3();
