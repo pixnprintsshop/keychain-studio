@@ -65,6 +65,8 @@
 		keycapColor?: string;
 		logoColor?: string;
 		showBorder?: boolean;
+		/** When true, 3MF/Bambu export uses two merged meshes: all keycaps, all legends+borders. */
+		merge3mfTwoBodies?: boolean;
 	};
 
 	function loadKeycapSetMakerOptions(): KeycapSetMakerPersisted {
@@ -108,6 +110,7 @@
 			? persisted.logoColor
 			: '#3898ff';
 	const initialShowBorder = persisted.showBorder === true;
+	const initialMerge3mfTwoBodies = persisted.merge3mfTwoBodies === true;
 
 	/** One keycap per grapheme / character; newlines are ignored for layout. */
 	function parseLegendsInput(raw: string): string[] {
@@ -180,6 +183,7 @@
 	let logoColor = $state(initialLogoColor);
 	let logoFontKey = $state(initialFontKey);
 	let showBorder = $state(initialShowBorder);
+	let merge3mfTwoBodies = $state(initialMerge3mfTwoBodies);
 
 	function centerAndNormalizeKeycap(geo: THREE.BufferGeometry) {
 		geo.computeBoundingBox();
@@ -403,6 +407,86 @@
 		}
 	}
 
+	function bakeMeshWorldGeometryForMerge(mesh: THREE.Mesh): THREE.BufferGeometry {
+		let g = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+		if (g.attributes.uv) g.deleteAttribute('uv');
+		if (!g.attributes.normal) g.computeVertexNormals();
+		if (g.index) {
+			const nonIndexed = g.toNonIndexed();
+			g.dispose();
+			g = nonIndexed;
+		}
+		return g;
+	}
+
+	/**
+	 * One root Group → one 3MF assembly: merged keycaps (keycap color) + merged legends/borders
+	 * (legend color). World-baked meshes stay siblings under the group so bed shift / Bambu
+	 * treat the set as a single rigid object (avoids legends drifting from keycaps).
+	 */
+	function buildKeycapSet3mfExportSceneMerged(
+		source: THREE.Group,
+		keycapHex: string,
+		legendHex: string
+	): THREE.Scene {
+		source.updateWorldMatrix(true, true);
+		const keyGeos: THREE.BufferGeometry[] = [];
+		const decorGeos: THREE.BufferGeometry[] = [];
+		source.traverse((child) => {
+			if (!(child as THREE.Mesh).isMesh) return;
+			const mesh = child as THREE.Mesh;
+			const g = bakeMeshWorldGeometryForMerge(mesh);
+			if (mesh.name === 'keycap') keyGeos.push(g);
+			else if (mesh.name === 'legend' || mesh.name === 'border') decorGeos.push(g);
+		});
+		const exportRoot = new THREE.Scene();
+		exportRoot.name = 'keycap-set-3mf';
+		if (keyGeos.length === 0) {
+			decorGeos.forEach((x) => x.dispose());
+			return exportRoot;
+		}
+		const mergedKey =
+			keyGeos.length === 1 ? keyGeos[0] : BufferGeometryUtils.mergeGeometries(keyGeos);
+		if (!mergedKey) {
+			keyGeos.forEach((x) => x.dispose());
+			decorGeos.forEach((x) => x.dispose());
+			return exportRoot;
+		}
+		if (keyGeos.length > 1) keyGeos.forEach((x) => x.dispose());
+
+		const keyMesh = new THREE.Mesh(
+			mergedKey,
+			new THREE.MeshBasicMaterial({ color: new THREE.Color(keycapHex) })
+		);
+		keyMesh.name = 'all-keycaps';
+
+		const bundle = new THREE.Group();
+		bundle.name = 'keycap-set-merged';
+		bundle.add(keyMesh);
+
+		if (decorGeos.length > 0) {
+			const mergedDecor =
+				decorGeos.length === 1 ? decorGeos[0] : BufferGeometryUtils.mergeGeometries(decorGeos);
+			if (mergedDecor) {
+				if (decorGeos.length > 1) decorGeos.forEach((x) => x.dispose());
+				const decorMesh = new THREE.Mesh(
+					mergedDecor,
+					new THREE.MeshBasicMaterial({ color: new THREE.Color(legendHex) })
+				);
+				decorMesh.name = 'all-legends-and-borders';
+				bundle.add(decorMesh);
+			} else {
+				decorGeos.forEach((x) => x.dispose());
+			}
+		} else {
+			decorGeos.forEach((x) => x.dispose());
+		}
+
+		exportRoot.add(bundle);
+		exportRoot.updateMatrixWorld(true);
+		return exportRoot;
+	}
+
 	/**
 	 * 3MF exporter reads mesh vertices in local space and applies Group/Mesh transforms
 	 * via assemblies. Flattening with applyMatrix4(world) breaks that — clone each cell
@@ -535,7 +619,9 @@
 		try {
 			rebuildMeshes();
 			group.updateWorldMatrix(true, true);
-			const exportRoot = buildKeycapSet3mfExportScene(group);
+			const exportRoot = merge3mfTwoBodies
+				? buildKeycapSet3mfExportSceneMerged(group, keycapColor, logoColor)
+				: buildKeycapSet3mfExportScene(group);
 			if (exportRoot.children.length === 0) return;
 			const blob = await exportTo3MF(exportRoot);
 			disposeObject3D(exportRoot);
@@ -573,7 +659,9 @@
 		try {
 			rebuildMeshes();
 			group.updateWorldMatrix(true, true);
-			const exportRoot = buildKeycapSet3mfExportScene(group);
+			const exportRoot = merge3mfTwoBodies
+				? buildKeycapSet3mfExportSceneMerged(group, keycapColor, logoColor)
+				: buildKeycapSet3mfExportScene(group);
 			if (exportRoot.children.length === 0) return;
 			const blob = await exportTo3MF(exportRoot);
 			disposeObject3D(exportRoot);
@@ -607,6 +695,7 @@
 		void legendsText;
 		void showBorder;
 		void borderGeometry;
+		void merge3mfTwoBodies;
 		try {
 			const payload: KeycapSetMakerPersisted = {
 				legendsText,
@@ -615,7 +704,8 @@
 				logoScale,
 				keycapColor,
 				logoColor,
-				showBorder
+				showBorder,
+				merge3mfTwoBodies
 			};
 			localStorage.setItem(STORAGE_KEY_OPTIONS, JSON.stringify(payload));
 		} catch (e) {
@@ -844,6 +934,22 @@
 							{/if}
 							<span class="block text-[11px] font-normal text-slate-500"
 								>Uses legend color; border and legend share the keycap top (z).</span
+							>
+						</label>
+					</div>
+
+					<div class="flex items-center gap-2 pt-1">
+						<input
+							id="keycap-set-merge-3mf-toggle"
+							type="checkbox"
+							bind:checked={merge3mfTwoBodies}
+							class="size-4 shrink-0 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+						/>
+						<label for="keycap-set-merge-3mf-toggle" class="text-xs leading-snug text-slate-700">
+							Merge for 3MF / Bambu
+							<span class="block text-[11px] font-normal text-slate-500"
+								>Export one grouped assembly: merged keycaps + merged legends/borders (two solids,
+								one rigid group).</span
 							>
 						</label>
 					</div>
