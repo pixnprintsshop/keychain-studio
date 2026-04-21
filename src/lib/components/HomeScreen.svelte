@@ -18,6 +18,7 @@
 		| 'customSvg'
 		| 'charm'
 		| 'keycap'
+		| 'keycapSet'
 		| 'whistle'
 		| 'stanleyTopper'
 		| 'strawTopper'
@@ -84,11 +85,12 @@
 
 	const DESIGNERS: DesignerItem[] = [
 		{
-			id: 'textOutline',
-			title: 'Text Only',
-			description: 'Floating text model for quick name plates or labels.',
-			imageSrc: '/images/text-only.png',
-			imageAlt: 'Text Only preview'
+			id: 'keycapSet',
+			title: 'Keycap Set Maker',
+			description:
+				'Type your own legends (default A–Z and 0–9)',
+			imageSrc: '/images/keycap-set-maker.png',
+			imageAlt: 'Keycap Set Maker preview'
 		},
 		{
 			id: 'engraveNamePlate',
@@ -97,6 +99,13 @@
 				'Contour plate from your text with an engraved pocket and optional keyring tab.',
 			imageSrc: '/images/engrave-name-plate.png',
 			imageAlt: 'Engrave name plate preview'
+		},
+		{
+			id: 'textOutline',
+			title: 'Text Only',
+			description: 'Floating text model for quick name plates or labels.',
+			imageSrc: '/images/text-only.png',
+			imageAlt: 'Text Only preview'
 		},
 		{
 			id: 'bumpyText',

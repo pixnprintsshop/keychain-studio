@@ -28,8 +28,8 @@
 
 				<h2 class="mt-6 text-lg font-semibold text-slate-900">How it works</h2>
 				<p class="mt-2">
-					Choose from styles like text-only, flower + initial, custom SVG, keycap maker, whistle,
-					dog tag, and others. Customize with your name, message, or artwork. The app runs in your
+					Choose from styles like text-only, flower + initial, custom SVG, keycap maker, keycap set
+					maker, whistle, dog tag, and others. Customize with your name, message, or artwork. The app runs in your
 					browser and shows a 3D preview. When you’re happy, export an STL (or other format) to
 					print yourself or send to a maker or print shop.
 				</p>

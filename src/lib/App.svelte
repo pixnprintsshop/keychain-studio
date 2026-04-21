@@ -15,6 +15,7 @@
 	import HomeScreen from '$lib/components/HomeScreen.svelte';
 	import InitialDesigner from '$lib/components/InitialDesigner.svelte';
 	import KeycapDesigner from '$lib/components/KeycapDesigner.svelte';
+	import KeycapSetMakerDesigner from '$lib/components/KeycapSetMakerDesigner.svelte';
 	import NamePuzzleDesigner from '$lib/components/NamePuzzleDesigner.svelte';
 	import EngraveNamePlateDesigner from '$lib/components/EngraveNamePlateDesigner.svelte';
 	import LicenseActivationModal from '$lib/components/LicenseActivationModal.svelte';
@@ -106,6 +107,7 @@
 		| 'customSvg'
 		| 'charm'
 		| 'keycap'
+		| 'keycapSet'
 		| 'whistle'
 		| 'stanleyTopper'
 		| 'strawTopper'
@@ -128,6 +130,7 @@
 		'customSvg',
 		'charm',
 		'keycap',
+		'keycapSet',
 		'whistle',
 		'stanleyTopper',
 		'strawTopper',
@@ -151,6 +154,7 @@
 		'customSvg',
 		'charm',
 		'keycap',
+		'keycapSet',
 		'whistle',
 		'stanleyTopper',
 		'strawTopper',
@@ -209,6 +213,7 @@
 				stored === 'customSvg' ||
 				stored === 'charm' ||
 				stored === 'keycap' ||
+				stored === 'keycapSet' ||
 				stored === 'whistle' ||
 				stored === 'stanleyTopper' ||
 				stored === 'strawTopper' ||
@@ -378,6 +383,7 @@
 			| 'customSvg'
 			| 'charm'
 			| 'keycap'
+			| 'keycapSet'
 			| 'whistle'
 			| 'stanleyTopper'
 			| 'strawTopper'
@@ -1135,6 +1141,17 @@
 			/>
 		{:else if currentView === 'keycap'}
 			<KeycapDesigner
+				{user}
+				{session}
+				{subscriptionStatus}
+				palette={effectivePalette}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
+			/>
+		{:else if currentView === 'keycapSet'}
+			<KeycapSetMakerDesigner
 				{user}
 				{session}
 				{subscriptionStatus}
