@@ -55,6 +55,59 @@
 
 	const DEFAULT_LEGENDS_TEXT = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 	const LOGO_TEXT_FONT_SIZE = 24;
+	/**
+	 * When the requested legend is missing from the font, try these in order (still font-bound).
+	 * Prefer punctuation / neutral marks over letters so we do not substitute a wrong letter.
+	 */
+	const FALLBACK_GLYPH_PRIORITY = ['?', '.', '-', ':', '\u00B7', '|', '+', '=', 'x'] as const;
+	/** Reference bbox for legend scaling: letters first, then same fallbacks for sparse demo fonts. */
+	const REFERENCE_LEGEND_REFS = [
+		'M',
+		'W',
+		'H',
+		'0',
+		'O',
+		'A',
+		...FALLBACK_GLYPH_PRIORITY
+	] as const;
+
+	/**
+	 * Per-grapheme legend scale multiplier applied **after** height fit (1 = default).
+	 * Keys must match parsed legend strings **exactly** (same as one character in the textarea).
+	 * Use values > 1 when the font bbox includes tail or descender space so the glyph looks
+	 * smaller than neighbors (e.g. Q, j). Use values < 1 to shrink a glyph.
+	 */
+	const LEGEND_SCALE_OVERRIDES: Record<string, number> = {
+		Q: 1.12
+	};
+
+	function legendScaleMultiplier(char: string): number {
+		const m = LEGEND_SCALE_OVERRIDES[char];
+		if (typeof m === 'number' && Number.isFinite(m) && m > 0) return m;
+		return 1;
+	}
+
+	/** Optional per-axis deltas; omitted axes default to 0. Same units as the keycap STL (often mm). */
+	type LegendPositionOffset = { x?: number; y?: number; z?: number };
+
+	/**
+	 * Per-grapheme legend position delta in **cell space** (applied after scale).
+	 * Keys must match parsed legend strings exactly. Added to default (0, 0, keycapMaxZ).
+	 * Use small x/y nudges to optically center glyphs; z lifts (+) or sinks (-) relative to keycap top.
+	 */
+	const LEGEND_POSITION_OVERRIDES: Record<string, LegendPositionOffset> = {
+		Q: { y: -0.5 },
+	};
+
+	function legendPositionOffset(char: string): { x: number; y: number; z: number } {
+		const o = LEGEND_POSITION_OVERRIDES[char];
+		if (!o) return { x: 0, y: 0, z: 0 };
+		const x = typeof o.x === 'number' && Number.isFinite(o.x) ? o.x : 0;
+		const y = typeof o.y === 'number' && Number.isFinite(o.y) ? o.y : 0;
+		const z = typeof o.z === 'number' && Number.isFinite(o.z) ? o.z : 0;
+		return { x, y, z };
+	}
+
 	const STORAGE_KEY_OPTIONS = 'keycap-set-maker-options';
 
 	type KeycapSetMakerPersisted = {
@@ -231,13 +284,59 @@
 		}
 	}
 
+	type LoadedFont = NonNullable<ReturnType<typeof getFont>>;
+
+	/** True if this typeface JSON defines an outline for `char` (avoids THREE.Font generateShapes throw). */
+	function fontHasGlyph(font: LoadedFont, char: string): boolean {
+		if (!char) return false;
+		const glyphs = (font as unknown as { data?: { glyphs?: Record<string, unknown> } }).data
+			?.glyphs;
+		if (!glyphs) return false;
+		return Object.prototype.hasOwnProperty.call(glyphs, char);
+	}
+
+	/** First font character to extrude for this legend cell, or null if none of the fallbacks exist. */
+	function pickLegendRenderChar(font: LoadedFont, char: string): string | null {
+		if (!char) return null;
+		if (fontHasGlyph(font, char)) return char;
+		for (const g of FALLBACK_GLYPH_PRIORITY) {
+			if (fontHasGlyph(font, g)) return g;
+		}
+		return null;
+	}
+
+	/** Neutral embossed dot when the typeface has none of the fallback glyphs (no font lookup). */
+	function buildMissingLegendPlaceholderGeometry(): THREE.BufferGeometry {
+		const depth = Math.max(0.05, logoDepth);
+		const r = LOGO_TEXT_FONT_SIZE * 0.38;
+		const shape = new THREE.Shape();
+		shape.absarc(0, 0, r, 0, Math.PI * 2, false);
+		const geo = new THREE.ExtrudeGeometry(shape, {
+			depth,
+			bevelEnabled: false,
+			curveSegments: 24,
+			steps: 1
+		});
+		geo.computeVertexNormals();
+		centerGeometryXY(geo);
+		geo.computeBoundingBox();
+		return geo;
+	}
+
 	function buildLogoGeometryFromText(char: string): THREE.BufferGeometry | null {
 		const ch = char ?? '';
 		if (!ch) return null;
 		const font = getFont(logoFontKey);
 		if (!font) return null;
-		const shapes = font.generateShapes(ch, LOGO_TEXT_FONT_SIZE);
-		if (shapes.length === 0) return null;
+		const renderChar = pickLegendRenderChar(font, ch);
+		if (renderChar === null) return buildMissingLegendPlaceholderGeometry();
+		let shapes: THREE.Shape[];
+		try {
+			shapes = font.generateShapes(renderChar, LOGO_TEXT_FONT_SIZE);
+		} catch {
+			return buildMissingLegendPlaceholderGeometry();
+		}
+		if (!shapes || shapes.length === 0) return buildMissingLegendPlaceholderGeometry();
 		const depth = Math.max(0.05, logoDepth);
 		const geo = new THREE.ExtrudeGeometry(shapes, {
 			depth,
@@ -256,14 +355,17 @@
 	 * Used to cap scale so punctuation with a tiny tight bbox (., ') does not
 	 * blow up to fill the whole keycap like a full letter.
 	 */
-	function referenceLegendFitBox(
-		font: NonNullable<ReturnType<typeof getFont>>,
-		depth: number
-	): { w: number; h: number } | null {
+	function referenceLegendFitBox(font: LoadedFont, depth: number): { w: number; h: number } | null {
 		const d = Math.max(0.05, depth);
-		for (const ref of ['M', 'W', 'H', '0', 'O', 'A'] as const) {
-			const shapes = font.generateShapes(ref, LOGO_TEXT_FONT_SIZE);
-			if (shapes.length === 0) continue;
+		for (const ref of REFERENCE_LEGEND_REFS) {
+			if (!fontHasGlyph(font, ref)) continue;
+			let shapes: THREE.Shape[];
+			try {
+				shapes = font.generateShapes(ref, LOGO_TEXT_FONT_SIZE);
+			} catch {
+				continue;
+			}
+			if (!shapes || shapes.length === 0) continue;
 			const geo = new THREE.ExtrudeGeometry(shapes, {
 				depth: d,
 				bevelEnabled: false,
@@ -309,9 +411,8 @@
 
 		const fitK = logoScale * 0.8;
 		const refBox = referenceLegendFitBox(font, logoDepth);
-		const refCapScale = refBox
-			? Math.min((keycapW * fitK) / refBox.w, (keycapH * fitK) / refBox.h)
-			: Number.POSITIVE_INFINITY;
+		/** Uniform scale from keycap Y span only (preserves glyph aspect ratio; may exceed keycap X). */
+		const refCapScale = refBox ? (keycapH * fitK) / refBox.h : Number.POSITIVE_INFINITY;
 
 		const keycapMatProto = new THREE.MeshStandardMaterial({
 			color: keycapColor,
@@ -354,10 +455,9 @@
 			const logoGeo = buildLogoGeometryFromText(char);
 			if (logoGeo) {
 				const logoBb = logoGeo.boundingBox!;
-				const logoW = Math.max(0.01, logoBb.max.x - logoBb.min.x);
 				const logoH = Math.max(0.01, logoBb.max.y - logoBb.min.y);
-				const glyphFit = Math.min((keycapW * fitK) / logoW, (keycapH * fitK) / logoH);
-				const scale = Math.min(refCapScale, glyphFit);
+				const glyphFit = (keycapH * fitK) / logoH;
+				const scale = Math.min(refCapScale, glyphFit) * legendScaleMultiplier(char);
 				logoGeo.scale(scale, scale, 1);
 				logoGeo.computeBoundingBox();
 
@@ -365,7 +465,8 @@
 				logoMesh.name = 'legend';
 				logoMesh.castShadow = true;
 				logoMesh.receiveShadow = true;
-				logoMesh.position.set(0, 0, keycapMaxZ);
+				const pos = legendPositionOffset(char);
+				logoMesh.position.set(pos.x, pos.y, keycapMaxZ + pos.z);
 				cell.add(logoMesh);
 			}
 
