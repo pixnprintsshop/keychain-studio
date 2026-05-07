@@ -10,7 +10,6 @@
 	import { upload3mfToSupabase } from '$lib/upload3mf';
 	import {
 		centerGeometryXY,
-		createRoundedRectShape,
 		disposeObject3D,
 		downloadBlob,
 		downloadSnapshot,
@@ -73,6 +72,18 @@
 	/** Hard cap on text width as a fraction of the tag's base width. Lines that
 	 * exceed this are uniformly scaled down (preserving aspect) to fit. */
 	const TEXT_MAX_WIDTH_RATIO = 0.93;
+	/** Extra horizontal padding (mm) added to each side of the lace-hole's
+	 * x-range when computing the flat band on the top wavy edge — keeps a clean
+	 * strip of straight border directly above the lace hole. */
+	const LACE_TOP_FLAT_PAD = 2;
+
+	/** Sliders' allowed range for the wavy outline. Amplitude is the bump height
+	 * (mm) and wavelength is the period (mm/wave); the wave count per edge is
+	 * derived from the tag dimensions so the look stays consistent across sizes. */
+	const WAVE_AMP_MIN = 0;
+	const WAVE_AMP_MAX = 5;
+	const WAVELENGTH_MIN = 6;
+	const WAVELENGTH_MAX = 30;
 
 	type IdTagLine = {
 		content: string;
@@ -98,6 +109,10 @@
 		laceHoleHeight: number;
 		/** Distance (mm) from the top edge of the tag to the top of the slot. */
 		laceHoleMargin: number;
+		/** Wavy outline amplitude (mm) — peak deviation from the rect edge. */
+		waveAmplitude: number;
+		/** Wavy outline wavelength (mm) — period along each edge. */
+		waveLength: number;
 	}
 
 	const DEFAULT_FONT_KEY = FONT_OPTIONS[0]?.key ?? 'Titan One_Regular';
@@ -118,8 +133,14 @@
 		laceHole: true,
 		laceHoleWidth: 25,
 		laceHoleHeight: 4,
-		laceHoleMargin: 5
+		laceHoleMargin: 2,
+		waveAmplitude: 0,
+		waveLength: 12
 	};
+
+	function clamp(v: number, lo: number, hi: number): number {
+		return Math.min(hi, Math.max(lo, v));
+	}
 
 	function isFiniteNumber(v: unknown): v is number {
 		return typeof v === 'number' && Number.isFinite(v);
@@ -169,6 +190,12 @@
 			merged.laceHoleMargin = isFiniteNumber(parsed.laceHoleMargin)
 				? parsed.laceHoleMargin
 				: defaults.laceHoleMargin;
+			merged.waveAmplitude = isFiniteNumber(parsed.waveAmplitude)
+				? clamp(parsed.waveAmplitude, WAVE_AMP_MIN, WAVE_AMP_MAX)
+				: defaults.waveAmplitude;
+			merged.waveLength = isFiniteNumber(parsed.waveLength)
+				? clamp(parsed.waveLength, WAVELENGTH_MIN, WAVELENGTH_MAX)
+				: defaults.waveLength;
 			return merged;
 		} catch {
 			return { ...defaults, lines: defaults.lines.map((l) => ({ ...l })) };
@@ -190,6 +217,8 @@
 	let laceHoleWidth = $state(initial.laceHoleWidth);
 	let laceHoleHeight = $state(initial.laceHoleHeight);
 	let laceHoleMargin = $state(initial.laceHoleMargin);
+	let waveAmplitude = $state(initial.waveAmplitude);
+	let waveLength = $state(initial.waveLength);
 
 	let hostEl: HTMLDivElement | null = null;
 	let renderer: THREE.WebGLRenderer | null = null;
@@ -231,7 +260,9 @@
 				laceHole,
 				laceHoleWidth,
 				laceHoleHeight,
-				laceHoleMargin
+				laceHoleMargin,
+				waveAmplitude,
+				waveLength
 			};
 			localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 		} catch {
@@ -315,6 +346,145 @@
 		return new THREE.Path(pts);
 	}
 
+	// ── Wavy outline generator ──────────────────────────────────────────────────
+	// Returns a CCW point list walking the outer perimeter of the tag, centered
+	// on the origin. The runtime preview wraps the result in a THREE.Shape; the
+	// SCAD export emits it as a polygon literal.
+
+	/** Wavy rounded-rectangle outline (CCW). Corner arcs stay clean (no waves —
+	 * `sin` is forced to 0 at edge endpoints by walking the straight portions
+	 * with `t ∈ [0, 1]` and integer wave counts). When `cornerR == 0` the corners
+	 * are sharp; the wave count is derived from the straight-edge length so the
+	 * inner / outer outlines line up perfectly when the inset is uniform on both
+	 * `halfW` and `cornerR` (which it is by construction in `rebuildMeshes`).
+	 *
+	 * `flatTopHalfW` (mm) — when > 0, suppresses the wave on the top edge inside
+	 * `|x| ≤ flatTopHalfW` (snapped OUTWARD to the nearest sin zero-crossing so
+	 * the wave naturally tapers to 0 at the boundary). Used to keep the area
+	 * directly above the lace hole flat: ^^^^---^^^^. */
+	function wavyOutline(
+		halfW: number,
+		halfH: number,
+		cornerR: number,
+		amp: number,
+		wavelength: number,
+		patternStraightTop = 2 * Math.max(0, halfW - cornerR),
+		patternStraightSide = 2 * Math.max(0, halfH - cornerR),
+		flatTopHalfW = 0
+	): THREE.Vector2[] {
+		const r = Math.max(0, Math.min(cornerR, Math.min(halfW, halfH)));
+		const straightTop = Math.max(0, 2 * (halfW - r));
+		const straightSide = Math.max(0, 2 * (halfH - r));
+		const wl = Math.max(1, wavelength);
+		const wavesTop = Math.max(2, Math.round(patternStraightTop / wl));
+		const wavesSide = Math.max(2, Math.round(patternStraightSide / wl));
+		const samplesPerWave = 12;
+		const arcSamples = 18;
+		const out: THREE.Vector2[] = [];
+		const hasArcs = r > 1e-3;
+
+		// Top-edge flat region (in `t`-space, where `t ∈ [0, 1]` walks the top
+		// straight edge right→left). Snap OUTWARD to the nearest zero-crossings
+		// of `sin(2π·wavesTop·t)` (which sit at `t = k / (2·wavesTop)`) so the
+		// wave is exactly 0 at the flat boundary — no kinks.
+		let flatTop_min = -1;
+		let flatTop_max = -1;
+		if (flatTopHalfW > 0 && flatTopHalfW < halfW - r && straightTop > 0) {
+			const tR = (halfW - r - flatTopHalfW) / straightTop;
+			const tL = (halfW - r + flatTopHalfW) / straightTop;
+			const denom = 2 * wavesTop;
+			flatTop_min = Math.max(0, Math.floor(tR * denom) / denom);
+			flatTop_max = Math.min(1, Math.ceil(tL * denom) / denom);
+			if (flatTop_max - flatTop_min < 1 / denom + 1e-9) {
+				flatTop_min = -1;
+				flatTop_max = -1;
+			}
+		}
+
+		// Walking CCW starting at the top-right end of the top edge:
+		//   top straight (right→left) → top-left arc → left straight (top→bottom)
+		//   → bottom-left arc → bottom straight (left→right) → bottom-right arc
+		//   → right straight (bottom→top) → top-right arc → close.
+
+		// Top straight: y bumps outward (+y), with optional flat band over the lace hole.
+		const Nt = wavesTop * samplesPerWave;
+		for (let i = 0; i < Nt; i++) {
+			const t = i / Nt;
+			const x = halfW - r - straightTop * t;
+			const inFlat = flatTop_min >= 0 && t >= flatTop_min && t <= flatTop_max;
+			const y = inFlat ? halfH : halfH + amp * Math.sin(2 * Math.PI * wavesTop * t);
+			out.push(new THREE.Vector2(x, y));
+		}
+		// Top-left corner arc.
+		if (hasArcs) {
+			const cx = -halfW + r;
+			const cy = halfH - r;
+			for (let i = 0; i <= arcSamples; i++) {
+				const a = Math.PI / 2 + (i / arcSamples) * (Math.PI / 2);
+				out.push(new THREE.Vector2(cx + r * Math.cos(a), cy + r * Math.sin(a)));
+			}
+		}
+		// Left straight: x bumps outward (-x).
+		const Ns = wavesSide * samplesPerWave;
+		for (let i = 0; i < Ns; i++) {
+			const t = i / Ns;
+			const y = halfH - r - straightSide * t;
+			const x = -halfW - amp * Math.sin(2 * Math.PI * wavesSide * t);
+			out.push(new THREE.Vector2(x, y));
+		}
+		// Bottom-left corner arc.
+		if (hasArcs) {
+			const cx = -halfW + r;
+			const cy = -halfH + r;
+			for (let i = 0; i <= arcSamples; i++) {
+				const a = Math.PI + (i / arcSamples) * (Math.PI / 2);
+				out.push(new THREE.Vector2(cx + r * Math.cos(a), cy + r * Math.sin(a)));
+			}
+		}
+		// Bottom straight: y bumps outward (-y).
+		for (let i = 0; i < Nt; i++) {
+			const t = i / Nt;
+			const x = -halfW + r + straightTop * t;
+			const y = -halfH - amp * Math.sin(2 * Math.PI * wavesTop * t);
+			out.push(new THREE.Vector2(x, y));
+		}
+		// Bottom-right corner arc.
+		if (hasArcs) {
+			const cx = halfW - r;
+			const cy = -halfH + r;
+			for (let i = 0; i <= arcSamples; i++) {
+				const a = -Math.PI / 2 + (i / arcSamples) * (Math.PI / 2);
+				out.push(new THREE.Vector2(cx + r * Math.cos(a), cy + r * Math.sin(a)));
+			}
+		}
+		// Right straight: x bumps outward (+x).
+		for (let i = 0; i < Ns; i++) {
+			const t = i / Ns;
+			const y = -halfH + r + straightSide * t;
+			const x = halfW + amp * Math.sin(2 * Math.PI * wavesSide * t);
+			out.push(new THREE.Vector2(x, y));
+		}
+		// Top-right corner arc.
+		if (hasArcs) {
+			const cx = halfW - r;
+			const cy = halfH - r;
+			for (let i = 0; i <= arcSamples; i++) {
+				const a = (i / arcSamples) * (Math.PI / 2);
+				out.push(new THREE.Vector2(cx + r * Math.cos(a), cy + r * Math.sin(a)));
+			}
+		}
+		return out;
+	}
+
+	/** Stringify a CCW point list as a SCAD `polygon(points = [...])` argument. */
+	function pointsToScadList(pts: THREE.Vector2[]): string {
+		return (
+			'[' +
+			pts.map((p) => `[${p.x.toFixed(4)}, ${p.y.toFixed(4)}]`).join(', ') +
+			']'
+		);
+	}
+
 	function rebuildMeshes() {
 		if (!scene || !group) return;
 		disposeObject3D(group);
@@ -330,8 +500,23 @@
 		const borderDepthSafe = Math.max(0.1, topBorderDepth);
 		const borderZ = baseDepthSafe - BORDER_BASE_EMBED;
 
-		// ── Base: full rounded-rect extrusion (no 2D hole; lace slot is cut via CSG below)
-		const baseShape = createRoundedRectShape(halfW, halfH, cornerRadius);
+		// ── Base: wavy rounded-rect outline (no 2D hole; lace slot is cut via CSG below)
+		// Top edge: flatten the wave directly above the lace hole so the lanyard
+		// slot sits under a clean straight band (^^^^---^^^^).
+		const laceFlatHalfW = lace ? lace.halfW + LACE_TOP_FLAT_PAD : 0;
+		const outerPts = wavyOutline(
+			halfW,
+			halfH,
+			cornerRadius,
+			waveAmplitude,
+			waveLength,
+			undefined,
+			undefined,
+			laceFlatHalfW
+		);
+		const outerCcw = outerPts.slice();
+		if (THREE.ShapeUtils.isClockWise(outerCcw)) outerCcw.reverse();
+		const baseShape = new THREE.Shape(outerCcw.slice());
 		let baseGeo: THREE.BufferGeometry = new THREE.ExtrudeGeometry([baseShape], {
 			depth: baseDepthSafe,
 			bevelEnabled: false,
@@ -342,17 +527,35 @@
 		const baseBb0 = baseGeo.boundingBox!;
 		baseGeo.translate(0, 0, -baseBb0.min.z);
 
-		// ── Top border: outer rounded rect with the inner panel as the only 2D hole.
+		// ── Top border: wavy outer outline with a wavy inner panel hole.
 		// Lace slot is subtracted via CSG so the slot's straight edges never become
 		// Earcut bridge candidates (which produced the "black point" sliver artifact).
 		const innerHalfW = Math.max(0.5, halfW - BORDER_WIDTH_MM);
 		const innerHalfH = Math.max(0.5, halfH - BORDER_WIDTH_MM);
 		const innerCornerR = Math.max(0, cornerRadius - BORDER_WIDTH_MM);
 
-		const borderOuterPts = roundedRectPoints(halfW, halfH, cornerRadius);
-		if (THREE.ShapeUtils.isClockWise(borderOuterPts)) borderOuterPts.reverse();
-		const borderShape = new THREE.Shape(borderOuterPts);
-		borderShape.holes.push(roundedRectHolePath(innerHalfW, innerHalfH, innerCornerR, false));
+		// Border inner outline reuses the OUTER straight-edge length as the wave
+		// pattern source. With BORDER_WIDTH_MM uniformly subtracted from both
+		// halfW/halfH and cornerR, the inner straight-edge length equals the outer
+		// straight-edge length → outer & inner share the same integer wave count
+		// and the waves run in parallel for a constant-width wavy frame.
+		const outerStraightTop = 2 * Math.max(0, halfW - cornerRadius);
+		const outerStraightSide = 2 * Math.max(0, halfH - cornerRadius);
+		const borderShape = new THREE.Shape(outerCcw.slice());
+		const innerOutlinePts = wavyOutline(
+			innerHalfW,
+			innerHalfH,
+			innerCornerR,
+			waveAmplitude,
+			waveLength,
+			outerStraightTop,
+			outerStraightSide,
+			laceFlatHalfW
+		);
+		// Three.Shape holes must wind opposite to the outer (CCW outer → CW hole).
+		const innerHolePts = innerOutlinePts.slice();
+		if (!THREE.ShapeUtils.isClockWise(innerHolePts)) innerHolePts.reverse();
+		borderShape.holes.push(new THREE.Path(innerHolePts));
 
 		let borderGeo: THREE.BufferGeometry = new THREE.ExtrudeGeometry([borderShape], {
 			depth: borderDepthSafe,
@@ -580,16 +783,14 @@
 	 * Returns a single solid (the base only).
 	 */
 	function getIdNameTagBaseOpenScadScript(params: {
-		baseW: number;
-		baseH: number;
 		baseT: number;
-		cornerR: number;
+		outlineScad: string;
 		laceW: number | null;
 		laceH: number | null;
 		laceCy: number | null;
 		laceR: number | null;
 	}): string {
-		const { baseW, baseH, baseT, cornerR, laceW, laceH, laceCy, laceR } = params;
+		const { baseT, outlineScad, laceW, laceH, laceCy, laceR } = params;
 		const slotBlock =
 			laceW != null && laceH != null && laceCy != null && laceR != null
 				? `
@@ -601,10 +802,8 @@
 				: '';
 		return `
 $fn = 96;
-base_w = ${baseW.toFixed(4)};
-base_h = ${baseH.toFixed(4)};
 base_t = ${baseT.toFixed(4)};
-corner_r = ${cornerR.toFixed(4)};
+base_outline = ${outlineScad};
 
 // Robust rounded rectangle via hull of four corner circles. Handles every
 // radius from 0 up to min(w,h)/2 (stadium) without producing degenerate
@@ -627,28 +826,27 @@ module rounded_rect_2d(w, h, r) {
 
 difference() {
   linear_extrude(height = base_t) {
-    rounded_rect_2d(base_w, base_h, corner_r);
+    polygon(points = base_outline);
   }
 ${slotBlock}
 }
 `;
 	}
 
-	/** OpenSCAD script for the border (frame) — outer rounded-rect minus inner
-	 * rounded-rect, with the lace slot subtracted only when it actually overlaps
-	 * the frame strip (matches the runtime preview's `slotTouchesBorderFrame`). */
+	/** OpenSCAD script for the border (frame) — styled outer outline minus the
+	 * styled inner outline (so the inner edge mirrors the outer style for a
+	 * "wavy frame" look). Lace slot is subtracted only when it overlaps the
+	 * frame strip (matches the runtime `slotTouchesBorderFrame` guard). */
 	function getIdNameTagBorderOpenScadScript(params: {
-		baseW: number;
-		baseH: number;
-		cornerR: number;
-		borderW: number;
 		borderT: number;
+		outerOutlineScad: string;
+		innerOutlineScad: string;
 		laceW: number | null;
 		laceH: number | null;
 		laceCy: number | null;
 		laceR: number | null;
 	}): string {
-		const { baseW, baseH, cornerR, borderW, borderT, laceW, laceH, laceCy, laceR } = params;
+		const { borderT, outerOutlineScad, innerOutlineScad, laceW, laceH, laceCy, laceR } = params;
 		const slotBlock =
 			laceW != null && laceH != null && laceCy != null && laceR != null
 				? `
@@ -660,13 +858,11 @@ ${slotBlock}
 				: '';
 		return `
 $fn = 96;
-base_w = ${baseW.toFixed(4)};
-base_h = ${baseH.toFixed(4)};
-corner_r = ${cornerR.toFixed(4)};
-border_w = ${borderW.toFixed(4)};
 border_t = ${borderT.toFixed(4)};
+outer_outline = ${outerOutlineScad};
+inner_outline = ${innerOutlineScad};
 
-// Robust rounded rectangle via hull of four corner circles (see base script).
+// Robust rounded rectangle via hull of four corner circles (used by lace slot).
 module rounded_rect_2d(w, h, r) {
   rr = min(max(0, r), min(w, h) / 2);
   if (rr <= 0.001) {
@@ -683,15 +879,11 @@ module rounded_rect_2d(w, h, r) {
   }
 }
 
-inner_w = max(1, base_w - 2 * border_w);
-inner_h = max(1, base_h - 2 * border_w);
-inner_r = max(0, corner_r - border_w);
-
 difference() {
   linear_extrude(height = border_t) {
     difference() {
-      rounded_rect_2d(base_w, base_h, corner_r);
-      rounded_rect_2d(inner_w, inner_h, inner_r);
+      polygon(points = outer_outline);
+      polygon(points = inner_outline);
     }
   }
 ${slotBlock}
@@ -721,11 +913,23 @@ ${slotBlock}
 	async function buildOpenScadBaseGeometry(): Promise<THREE.BufferGeometry> {
 		const baseDepthSafe = Math.max(0.1, baseDepth);
 		const slot = laceSlotForScad();
+		const halfW = Math.max(1, baseWidth / 2);
+		const halfH = Math.max(1, baseHeight / 2);
+		const laceFlatHalfW = slot ? slot.laceW / 2 + LACE_TOP_FLAT_PAD : 0;
+		const outline = wavyOutline(
+			halfW,
+			halfH,
+			Math.max(0, cornerRadius),
+			waveAmplitude,
+			waveLength,
+			undefined,
+			undefined,
+			laceFlatHalfW
+		);
+		if (THREE.ShapeUtils.isClockWise(outline)) outline.reverse();
 		const source = getIdNameTagBaseOpenScadScript({
-			baseW: Math.max(2, baseWidth),
-			baseH: Math.max(2, baseHeight),
 			baseT: baseDepthSafe,
-			cornerR: Math.max(0, cornerRadius),
+			outlineScad: pointsToScadList(outline),
 			laceW: slot?.laceW ?? null,
 			laceH: slot?.laceH ?? null,
 			laceCy: slot?.laceCy ?? null,
@@ -748,14 +952,44 @@ ${slotBlock}
 		const borderDepthSafe = Math.max(0.1, topBorderDepth);
 		const borderZ = baseDepthSafe - BORDER_BASE_EMBED;
 		const slot = laceSlotForScad();
-		const innerHalfH = Math.max(0.5, baseHeight / 2 - BORDER_WIDTH_MM);
+		const halfW = Math.max(1, baseWidth / 2);
+		const halfH = Math.max(1, baseHeight / 2);
+		const innerHalfW = Math.max(0.5, halfW - BORDER_WIDTH_MM);
+		const innerHalfH = Math.max(0.5, halfH - BORDER_WIDTH_MM);
+		const innerCornerR = Math.max(0, cornerRadius - BORDER_WIDTH_MM);
 		const slotTouchesFrame = slot ? slot.laceCy + slot.laceH / 2 > innerHalfH : false;
+		const laceFlatHalfW = slot ? slot.laceW / 2 + LACE_TOP_FLAT_PAD : 0;
+		// Outer outline (CCW) — drives the integer wave count.
+		const outerOutline = wavyOutline(
+			halfW,
+			halfH,
+			Math.max(0, cornerRadius),
+			waveAmplitude,
+			waveLength,
+			undefined,
+			undefined,
+			laceFlatHalfW
+		);
+		if (THREE.ShapeUtils.isClockWise(outerOutline)) outerOutline.reverse();
+		// Inner outline shares the OUTER straight-edge length as the wave pattern
+		// source → identical wave counts → parallel inner/outer waves.
+		const outerStraightTop = 2 * Math.max(0, halfW - cornerRadius);
+		const outerStraightSide = 2 * Math.max(0, halfH - cornerRadius);
+		const innerOutline = wavyOutline(
+			innerHalfW,
+			innerHalfH,
+			innerCornerR,
+			waveAmplitude,
+			waveLength,
+			outerStraightTop,
+			outerStraightSide,
+			laceFlatHalfW
+		);
+		if (THREE.ShapeUtils.isClockWise(innerOutline)) innerOutline.reverse();
 		const source = getIdNameTagBorderOpenScadScript({
-			baseW: Math.max(2, baseWidth),
-			baseH: Math.max(2, baseHeight),
-			cornerR: Math.max(0, cornerRadius),
-			borderW: BORDER_WIDTH_MM,
 			borderT: borderDepthSafe,
+			outerOutlineScad: pointsToScadList(outerOutline),
+			innerOutlineScad: pointsToScadList(innerOutline),
 			laceW: slotTouchesFrame ? (slot?.laceW ?? null) : null,
 			laceH: slotTouchesFrame ? (slot?.laceH ?? null) : null,
 			laceCy: slotTouchesFrame ? (slot?.laceCy ?? null) : null,
@@ -1009,6 +1243,8 @@ ${slotBlock}
 		void laceHoleWidth;
 		void laceHoleHeight;
 		void laceHoleMargin;
+		void waveAmplitude;
+		void waveLength;
 		saveSettings();
 	});
 
@@ -1026,6 +1262,8 @@ ${slotBlock}
 		void laceHoleWidth;
 		void laceHoleHeight;
 		void laceHoleMargin;
+		void waveAmplitude;
+		void waveLength;
 		if (!scene || !group) return;
 		rebuildMeshes();
 	});
@@ -1252,56 +1490,133 @@ ${slotBlock}
 				<!-- Shape -->
 				<div class="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
 					<div class="text-xs font-semibold tracking-tight text-slate-700">Shape</div>
+
 					<ColorPalettePicker bind:value={baseColor} {palette} label="Color" />
-					<label class="grid gap-1.5">
-						<div class="flex items-center justify-between gap-2">
-							<span class="text-xs font-medium text-slate-700">Width</span>
-							<span class="text-xs tabular-nums text-slate-600">{baseWidth} mm</span>
+
+					<!-- Size subgroup -->
+					<div class="grid gap-3 border-t border-slate-200/70 pt-3">
+						<div
+							class="text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+						>
+							Size
 						</div>
-						<Slider type="single" bind:value={baseWidth} min={60} max={220} step={1} class="w-full" />
-					</label>
-					<label class="grid gap-1.5">
-						<div class="flex items-center justify-between gap-2">
-							<span class="text-xs font-medium text-slate-700">Height</span>
-							<span class="text-xs tabular-nums text-slate-600">{baseHeight} mm</span>
+						<label class="grid gap-1.5">
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-xs font-medium text-slate-700">Width</span>
+								<span class="text-xs tabular-nums text-slate-600">{baseWidth} mm</span>
+							</div>
+							<Slider
+								type="single"
+								bind:value={baseWidth}
+								min={60}
+								max={220}
+								step={1}
+								class="w-full"
+							/>
+						</label>
+						<label class="grid gap-1.5">
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-xs font-medium text-slate-700">Height</span>
+								<span class="text-xs tabular-nums text-slate-600">{baseHeight} mm</span>
+							</div>
+							<Slider
+								type="single"
+								bind:value={baseHeight}
+								min={30}
+								max={140}
+								step={1}
+								class="w-full"
+							/>
+						</label>
+						<label class="grid gap-1.5">
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-xs font-medium text-slate-700">Corner radius</span>
+								<span class="text-xs tabular-nums text-slate-600">{cornerRadius} mm</span>
+							</div>
+							<Slider
+								type="single"
+								bind:value={cornerRadius}
+								min={0}
+								max={Math.min(baseWidth, baseHeight) / 2}
+								step={0.2}
+								class="w-full"
+							/>
+						</label>
+					</div>
+
+					<!-- Waves subgroup -->
+					<div class="grid gap-3 border-t border-slate-200/70 pt-3">
+						<div
+							class="text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+						>
+							Waves
 						</div>
-						<Slider type="single" bind:value={baseHeight} min={30} max={140} step={1} class="w-full" />
-					</label>
-					<label class="grid gap-1.5">
-						<div class="flex items-center justify-between gap-2">
-							<span class="text-xs font-medium text-slate-700">Corner radius</span>
-							<span class="text-xs tabular-nums text-slate-600">{cornerRadius}</span>
+						<label class="grid gap-1.5">
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-xs font-medium text-slate-700">Amplitude</span>
+								<span class="text-xs tabular-nums text-slate-600">{waveAmplitude} mm</span>
+							</div>
+							<Slider
+								type="single"
+								bind:value={waveAmplitude}
+								min={WAVE_AMP_MIN}
+								max={WAVE_AMP_MAX}
+								step={0.1}
+								class="w-full"
+							/>
+						</label>
+						<label class="grid gap-1.5">
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-xs font-medium text-slate-700">Wavelength</span>
+								<span class="text-xs tabular-nums text-slate-600">{waveLength} mm</span>
+							</div>
+							<Slider
+								type="single"
+								bind:value={waveLength}
+								min={WAVELENGTH_MIN}
+								max={WAVELENGTH_MAX}
+								step={1}
+								class="w-full"
+							/>
+						</label>
+					</div>
+
+					<!-- Depth subgroup -->
+					<div class="grid gap-3 border-t border-slate-200/70 pt-3">
+						<div
+							class="text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+						>
+							Depth
 						</div>
-						<Slider
-							type="single"
-							bind:value={cornerRadius}
-							min={0}
-							max={Math.min(baseWidth, baseHeight) / 2}
-							step={0.2}
-							class="w-full"
-						/>
-					</label>
-					<label class="grid gap-1.5">
-						<div class="flex items-center justify-between gap-2">
-							<span class="text-xs font-medium text-slate-700">Depth</span>
-							<span class="text-xs tabular-nums text-slate-600">{baseDepth}</span>
-						</div>
-						<Slider type="single" bind:value={baseDepth} min={0.4} max={10} step={0.1} class="w-full" />
-					</label>
-					<label class="grid gap-1.5">
-						<div class="flex items-center justify-between gap-2">
-							<span class="text-xs font-medium text-slate-700">Top border depth</span>
-							<span class="text-xs tabular-nums text-slate-600">{topBorderDepth}</span>
-						</div>
-						<Slider
-							type="single"
-							bind:value={topBorderDepth}
-							min={0.2}
-							max={3}
-							step={0.1}
-							class="w-full"
-						/>
-					</label>
+						<label class="grid gap-1.5">
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-xs font-medium text-slate-700">Base</span>
+								<span class="text-xs tabular-nums text-slate-600">{baseDepth} mm</span>
+							</div>
+							<Slider
+								type="single"
+								bind:value={baseDepth}
+								min={0.4}
+								max={10}
+								step={0.1}
+								class="w-full"
+							/>
+						</label>
+						<label class="grid gap-1.5">
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-xs font-medium text-slate-700">Top border</span>
+								<span class="text-xs tabular-nums text-slate-600">{topBorderDepth} mm</span>
+							</div>
+							<Slider
+								type="single"
+								bind:value={topBorderDepth}
+								min={0.2}
+								max={3}
+								step={0.1}
+								class="w-full"
+							/>
+						</label>
+					</div>
 				</div>
 			</div>
 		</aside>
