@@ -13,6 +13,7 @@
 	import FlowerDesigner from '$lib/components/FlowerDesigner.svelte';
 	import SettingsPage from '$lib/components/SettingsPage.svelte';
 	import HomeScreen from '$lib/components/HomeScreen.svelte';
+	import IdNameTagDesigner from '$lib/components/IdNameTagDesigner.svelte';
 	import InitialDesigner from '$lib/components/InitialDesigner.svelte';
 	import KeycapDesigner from '$lib/components/KeycapDesigner.svelte';
 	import KeycapSetMakerDesigner from '$lib/components/KeycapSetMakerDesigner.svelte';
@@ -104,6 +105,7 @@
 		| 'initial'
 		| 'flower'
 		| 'basicName'
+		| 'idNameTag'
 		| 'customSvg'
 		| 'charm'
 		| 'keycap'
@@ -127,6 +129,7 @@
 		'initial',
 		'flower',
 		'basicName',
+		'idNameTag',
 		'customSvg',
 		'charm',
 		'keycap',
@@ -151,6 +154,7 @@
 		'initial',
 		'flower',
 		'basicName',
+		'idNameTag',
 		'customSvg',
 		'charm',
 		'keycap',
@@ -210,6 +214,7 @@
 				stored === 'initial' ||
 				stored === 'flower' ||
 				stored === 'basicName' ||
+				stored === 'idNameTag' ||
 				stored === 'customSvg' ||
 				stored === 'charm' ||
 				stored === 'keycap' ||
@@ -380,6 +385,7 @@
 			| 'initial'
 			| 'flower'
 			| 'basicName'
+			| 'idNameTag'
 			| 'customSvg'
 			| 'charm'
 			| 'keycap'
@@ -1108,6 +1114,17 @@
 			/>
 		{:else if currentView === 'basicName'}
 			<BasicNameDesigner
+				{user}
+				{session}
+				{subscriptionStatus}
+				palette={effectivePalette}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
+			/>
+		{:else if currentView === 'idNameTag'}
+			<IdNameTagDesigner
 				{user}
 				{session}
 				{subscriptionStatus}

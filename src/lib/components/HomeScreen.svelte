@@ -15,6 +15,7 @@
 		| 'initial'
 		| 'flower'
 		| 'basicName'
+		| 'idNameTag'
 		| 'customSvg'
 		| 'charm'
 		| 'keycap'
@@ -84,6 +85,14 @@
 	let pendingBetaDesigner: StyleName | null = $state(null);
 
 	const DESIGNERS: DesignerItem[] = [
+		{
+			id: 'idNameTag',
+			title: 'ID Name Tag',
+			description:
+				'Large ID badge with multi-line text — each line configurable.',
+			imageSrc: '/images/id-name-tag.png',
+			imageAlt: 'ID Name Tag preview'
+		},
 		{
 			id: 'keycapSet',
 			title: 'Keycap Set Maker',
