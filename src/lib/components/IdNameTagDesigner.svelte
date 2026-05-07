@@ -126,8 +126,8 @@
 		baseColor: '#ffffff',
 		accentColor: '#1f2937',
 		lines: [
-			{ content: 'YOUR NAME', fontKey: DEFAULT_FONT_KEY, size: 18, depth: 1 },
-			{ content: 'Title / Role', fontKey: DEFAULT_FONT_KEY, size: 9, depth: 1 }
+			{ content: 'Nickname', fontKey: DEFAULT_FONT_KEY, size: 18, depth: 1 },
+			{ content: 'Full name', fontKey: DEFAULT_FONT_KEY, size: 9, depth: 1 }
 		],
 		lineSpacing: 5,
 		laceHole: true,
