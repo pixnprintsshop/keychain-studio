@@ -4,6 +4,7 @@
 	import BasicNameDesigner from '$lib/components/BasicNameDesigner.svelte';
 	import BowKeychainDesigner from '$lib/components/BowKeychainDesigner.svelte';
 	import BumpyTextDesigner from '$lib/components/BumpyTextDesigner.svelte';
+	import CakeTopperDesigner from '$lib/components/CakeTopperDesigner.svelte';
 	import CharmDesigner from '$lib/components/CharmDesigner.svelte';
 	import CustomSVGDesigner from '$lib/components/CustomSVGDesigner.svelte';
 	import DesktopRequiredView from '$lib/components/DesktopRequiredView.svelte';
@@ -119,6 +120,7 @@
 		| 'bowKeychain'
 		| 'namePuzzle'
 		| 'engraveNamePlate'
+		| 'cakeTopper'
 		| 'feedback'
 		| 'contact'
 		| 'settings';
@@ -143,6 +145,7 @@
 		'bowKeychain',
 		'namePuzzle',
 		'engraveNamePlate',
+		'cakeTopper',
 		'feedback',
 		'contact',
 		'settings'
@@ -167,7 +170,8 @@
 		'bumpyText',
 		'bowKeychain',
 		'namePuzzle',
-		'engraveNamePlate'
+		'engraveNamePlate',
+		'cakeTopper'
 	]);
 
 	/** True when the URL hash contains Supabase OAuth callback params (tokens or error). Do not overwrite hash until Supabase has processed it. */
@@ -228,6 +232,7 @@
 				stored === 'bowKeychain' ||
 				stored === 'namePuzzle' ||
 				stored === 'engraveNamePlate' ||
+				stored === 'cakeTopper' ||
 				stored === 'feedback' ||
 				stored === 'contact' ||
 				stored === 'settings' ||
@@ -399,6 +404,7 @@
 			| 'bowKeychain'
 			| 'namePuzzle'
 			| 'engraveNamePlate'
+			| 'cakeTopper'
 	) {
 		if (MAINTENANCE_VIEWS.has(style)) return;
 		posthog.capture('designer_selected', { designer: style });
@@ -1268,6 +1274,17 @@
 			/>
 		{:else if currentView === 'engraveNamePlate'}
 			<EngraveNamePlateDesigner
+				{user}
+				{session}
+				{subscriptionStatus}
+				palette={effectivePalette}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
+			/>
+		{:else if currentView === 'cakeTopper'}
+			<CakeTopperDesigner
 				{user}
 				{session}
 				{subscriptionStatus}

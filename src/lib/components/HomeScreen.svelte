@@ -28,7 +28,8 @@
 		| 'bumpyText'
 		| 'bowKeychain'
 		| 'namePuzzle'
-		| 'engraveNamePlate';
+		| 'engraveNamePlate'
+		| 'cakeTopper';
 
 	interface DesignerItem {
 		id: StyleName;
@@ -85,6 +86,14 @@
 	let pendingBetaDesigner: StyleName | null = $state(null);
 
 	const DESIGNERS: DesignerItem[] = [
+		{
+			id: 'cakeTopper',
+			title: 'Cake Topper',
+			description:
+				'Multi-line cake topper with adjustable spacing and 1 or 2 long sticks.',
+			imageSrc: '/images/cake-topper.png',
+			imageAlt: 'Cake Topper preview'
+		},
 		{
 			id: 'idNameTag',
 			title: 'ID Name Tag',
