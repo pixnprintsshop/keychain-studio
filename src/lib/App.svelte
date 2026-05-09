@@ -295,20 +295,6 @@
 		}
 	});
 
-	// Tawk chat: show only on home screen, hide on designers
-	$effect(() => {
-		if (typeof window === 'undefined') return;
-		const onHome = currentView === 'home';
-		(window as unknown as { __tawkViewIsHome?: boolean }).__tawkViewIsHome = onHome;
-		const api = (
-			window as unknown as { Tawk_API?: { showWidget?: () => void; hideWidget?: () => void } }
-		).Tawk_API;
-		if (api) {
-			if (onHome) api.showWidget?.();
-			else api.hideWidget?.();
-		}
-	});
-
 	async function refreshAccessStatus() {
 		if (!user?.id) {
 			subscriptionStatus = null;
@@ -344,41 +330,7 @@
 	});
 
 	const effectivePalette = $derived(getEffectivePalette(user, userPalette));
-
-	// Tawk chat: pass logged-in user name and email when available
-	$effect(() => {
-		if (typeof window === 'undefined') return;
-		const w = window as unknown as {
-			Tawk_API?: {
-				setAttributes: (
-					attrs: Record<string, string | number | boolean | undefined>,
-					cb?: () => void
-				) => void;
-			};
-			__tawkSetVisitorAttributes?: () => void;
-		};
-		const u = user;
-		const setTawkVisitor = () => {
-			if (!u?.email) return;
-			const name =
-				(u as User & { user_metadata?: { full_name?: string; name?: string } }).user_metadata
-					?.full_name ??
-				(u as User & { user_metadata?: { full_name?: string; name?: string } }).user_metadata
-					?.name ??
-				u.email.split('@')[0] ??
-				'';
-			const attrs: Record<string, string | number | boolean | undefined> = {
-				name: name || undefined,
-				email: u.email
-			};
-			if (w.Tawk_API?.setAttributes) {
-				w.Tawk_API.setAttributes(attrs);
-			}
-		};
-		w.__tawkSetVisitorAttributes = setTawkVisitor;
-		if (u?.email && w.Tawk_API?.setAttributes) setTawkVisitor();
-	});
-
+	
 	// ── Handlers ────────────────────────────────────────────────────────────
 	function navigateTo(view: ViewName) {
 		currentView = view;
