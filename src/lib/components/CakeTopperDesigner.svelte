@@ -111,7 +111,7 @@
 		charSpacing: 0,
 		outlineThickness: 3,
 		outlineColor: '#ffffff',
-		baseDepth: 2.5,
+		baseDepth: 1.4,
 		stickCount: 2,
 		stickWidth: 6,
 		stickLength: 80,
