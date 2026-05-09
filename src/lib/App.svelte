@@ -38,6 +38,7 @@
 	import type { SubscriptionStatus } from '$lib/subscription';
 	import { freeTrial, loadFreeTrialForUser } from '$lib/freeTrial.svelte';
 	import { clearLicenseCache, getSubscriptionStatus } from '$lib/subscription';
+	import { notifyVisit } from '$lib/visitNotify';
 	import {
 		fetchUserPalette,
 		getEffectivePalette,
@@ -271,6 +272,7 @@
 	let authCleanup: (() => void) | null = null;
 	let hashCleanup: (() => void) | null = null;
 	let visibilityCleanup: (() => void) | null = null;
+	let visitNotifyTimer: number | null = null;
 
 	// ── Persist view on change ──────────────────────────────────────────────
 	$effect(() => {
@@ -540,6 +542,18 @@
 			window.history.replaceState({}, '', url.pathname + url.hash || '/');
 		}
 
+		// One-shot visit notification (Telegram). Fired ~1.5s after mount so auth +
+		// subscription state has time to settle, giving the operator user info when
+		// available. The helper itself dedupes via sessionStorage.
+		visitNotifyTimer = window.setTimeout(() => {
+			notifyVisit({
+				email: user?.email,
+				userId: user?.id,
+				subscriptionStatus,
+				view: currentView
+			});
+		}, 1500);
+
 		// Auth initialization
 		(async () => {
 			const initialSession = await getSession();
@@ -575,6 +589,7 @@
 		if (authCleanup) authCleanup();
 		if (hashCleanup) hashCleanup();
 		if (visibilityCleanup) visibilityCleanup();
+		if (visitNotifyTimer != null) window.clearTimeout(visitNotifyTimer);
 	});
 </script>
 
