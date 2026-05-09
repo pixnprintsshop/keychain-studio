@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
+	import { freeTrial } from '$lib/freeTrial.svelte';
 	import posthog from 'posthog-js';
 
 	interface Props {
@@ -8,7 +9,10 @@
 		exportDisabled: boolean;
 		exportTitle: string;
 		exportLoading?: boolean;
-		/** When true, show lock icon + "Export STL" on the export button (e.g. when login required). */
+		/** True when the caller has determined the user has no active subscription/license.
+		 * When the user still has free-trial credits we suppress the lock icon and show a
+		 * "Free trial" chip instead — buttons remain functional. When credits run out we
+		 * fall back to the original locked appearance. */
 		showLockIcon?: boolean;
 		/** Optional: when provided, show a second "Export 3MF" button for multipart 3MF export (base, border, text). */
 		onExport3MF?: () => void;
@@ -29,6 +33,11 @@
 		onOpenWithBambuStudio,
 		openBambuStudioLoading = false,
 	}: Props = $props();
+
+	/** True only when the caller indicates "not entitled" AND free-trial credits are exhausted. */
+	const lockedForReal = $derived(showLockIcon && freeTrial.credits === 0);
+	/** Show the free-trial chip while the visitor is on the trial path. */
+	const showFreeTrialChip = $derived(showLockIcon && freeTrial.credits > 0);
 
 	function handleSnapshot() {
 		posthog.capture('snapshot_downloaded');
@@ -54,6 +63,21 @@
 </script>
 
 <div class="flex items-center gap-2">
+	{#if showFreeTrialChip}
+		<span
+			class="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/95 px-3 py-1.5 text-[11px] font-medium text-blue-700 shadow-sm backdrop-blur"
+			title={`Free trial: ${freeTrial.credits} of ${freeTrial.totalCredits} downloads remaining`}
+		>
+			<svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+				<path
+					fill-rule="evenodd"
+					d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 3a1 1 0 011 1v3.586l2.707 2.707a1 1 0 01-1.414 1.414l-3-3A1 1 0 019 10V6a1 1 0 011-1z"
+					clip-rule="evenodd"
+				/>
+			</svg>
+			{freeTrial.credits} free download{freeTrial.credits === 1 ? '' : 's'} left
+		</span>
+	{/if}
 	<Button
 		variant="outline"
 		size="icon"
@@ -79,7 +103,7 @@
 		disabled={exportDisabled || exportLoading || openBambuStudioLoading}
 		title={exportTitle}
 	>
-		{#if showLockIcon}
+		{#if lockedForReal}
 			<span class="flex items-center gap-2">
 				<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 					<path

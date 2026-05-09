@@ -1048,7 +1048,7 @@ ${slotBlock}
 	}
 
 	async function exportSTL() {
-		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		exportError = null;
 		exportLoading = true;
 		await tickThenYieldToPaint();
@@ -1092,7 +1092,7 @@ ${slotBlock}
 	}
 
 	async function export3MF() {
-		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		exportError = null;
 		exportLoading = true;
 		await tickThenYieldToPaint();
@@ -1122,7 +1122,7 @@ ${slotBlock}
 
 	async function openWithBambuStudio() {
 		if (!group || !scene) return;
-		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		openBambuStudioLoading = true;
 		await tickThenYieldToPaint();
 		try {
@@ -1630,11 +1630,11 @@ ${slotBlock}
 				<DesignerExportToolbar
 					onSnapshot={() => downloadSnapshot(renderer, scene, camera, 'id-name-tag')}
 					onExport={() =>
-						user && subscriptionStatus?.isActive ? exportSTL() : onShowPricing?.()}
+						exportSTL()}
 					onExport3MF={() =>
-						user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.()}
+						export3MF()}
 					onOpenWithBambuStudio={() =>
-						user && subscriptionStatus?.isActive ? openWithBambuStudio() : onShowPricing?.()}
+						openWithBambuStudio()}
 					{openBambuStudioLoading}
 					exportDisabled={exportLoading}
 					exportTitle={getExportTitle(

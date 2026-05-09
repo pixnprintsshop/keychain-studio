@@ -576,7 +576,7 @@
     }
 
     async function exportStl() {
-        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+        if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
         if (!group || group.children.length === 0) {
             exportError = "Add a keycap and an icon to export";
             return;
@@ -656,7 +656,7 @@
 
     async function export3MF() {
         if (!group || !scene) return;
-        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+        if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
         rebuildMeshes();
         group.updateWorldMatrix(true, true);
         const exportGroup = new THREE.Group();
@@ -700,7 +700,7 @@
 
     async function openWithBambuStudio() {
         if (!group || !scene) return;
-        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+        if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
         openBambuStudioLoading = true;
         await tickThenYieldToPaint();
         try {
@@ -1079,7 +1079,7 @@
                             camera,
                             "keycap-designer",
                         )}
-                    onExport={() => (user && subscriptionStatus?.isActive ? exportStl() : onShowPricing?.())}
+                    onExport={() => exportStl()}
                     exportDisabled={!keycapGeometry ||
                         (logoMode === "icon" && !optimizedSvg) ||
                         (logoMode === "text" && !logoChar.trim()) ||
@@ -1087,11 +1087,8 @@
                         exportLoading}
                     exportTitle={getExportTitle(user, subscriptionStatus, "Export STL")}
                     onExport3MF={() =>
-                        user && subscriptionStatus?.isActive ? void export3MF() : onShowPricing?.()}
-                    onOpenWithBambuStudio={() =>
-                        user && subscriptionStatus?.isActive
-                            ? void openWithBambuStudio()
-                            : onShowPricing?.()}
+                        export3MF()}
+                    onOpenWithBambuStudio={() => void openWithBambuStudio()}
                     openBambuStudioLoading={openBambuStudioLoading}
                     {exportLoading}
                     showLockIcon={!user || !subscriptionStatus?.isActive} />

@@ -637,7 +637,7 @@ difference() {
 	}
 
 	async function exportSTL() {
-		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		exportError = null;
 		exportLoading = true;
 		await tickThenYieldToPaint();
@@ -707,7 +707,7 @@ difference() {
 	}
 
 	async function export3MF() {
-		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		exportError = null;
 		exportLoading = true;
 		await tickThenYieldToPaint();
@@ -760,7 +760,7 @@ difference() {
 	}
 
 	async function openWithBambuStudio() {
-		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		openBambuStudioLoading = true;
 		exportError = null;
 		await tickThenYieldToPaint();
@@ -1101,7 +1101,7 @@ difference() {
 				<DesignerExportToolbar
 					onSnapshot={doSnapshot}
 					onExport={() =>
-						user && subscriptionStatus?.isActive ? void exportSTL() : onShowPricing?.()}
+						exportSTL()}
 					exportDisabled={!textContent?.trim() || exportLoading}
 					exportTitle={getExportTitle(
 						user,
@@ -1110,11 +1110,8 @@ difference() {
 					)}
 					{exportLoading}
 					onExport3MF={() =>
-						user && subscriptionStatus?.isActive ? void export3MF() : onShowPricing?.()}
-					onOpenWithBambuStudio={() =>
-						user && subscriptionStatus?.isActive
-							? void openWithBambuStudio()
-							: onShowPricing?.()}
+						export3MF()}
+					onOpenWithBambuStudio={() => void openWithBambuStudio()}
 					{openBambuStudioLoading}
 					showLockIcon={!user || !subscriptionStatus?.isActive}
 				/>

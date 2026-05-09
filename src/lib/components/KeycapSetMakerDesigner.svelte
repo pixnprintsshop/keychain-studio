@@ -646,7 +646,7 @@
 	}
 
 	async function exportStl() {
-		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		if (!group || !keycapGeometry) {
 			exportError = 'Load a keycap STL to export';
 			return;
@@ -714,7 +714,7 @@
 
 	async function export3MF() {
 		if (!group || !scene) return;
-		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		exportLoading = true;
 		await tickThenYieldToPaint();
 		try {
@@ -754,7 +754,7 @@
 
 	async function openWithBambuStudio() {
 		if (!group || !scene) return;
-		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		openBambuStudioLoading = true;
 		await tickThenYieldToPaint();
 		try {
@@ -1071,16 +1071,16 @@
 				<DesignerExportToolbar
 					onSnapshot={() =>
 						downloadSnapshot(renderer, scene, camera, 'keycap-set-maker')}
-					onExport={() => (user && subscriptionStatus?.isActive ? exportStl() : onShowPricing?.())}
+					onExport={() => exportStl()}
 					exportDisabled={!keycapGeometry ||
 						legendLabels.length === 0 ||
 						!getFont(logoFontKey) ||
 						exportLoading}
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL')}
 					onExport3MF={() =>
-						user && subscriptionStatus?.isActive ? void export3MF() : onShowPricing?.()}
+						export3MF()}
 					onOpenWithBambuStudio={() =>
-						user && subscriptionStatus?.isActive ? void openWithBambuStudio() : onShowPricing?.()}
+						openWithBambuStudio()}
 					openBambuStudioLoading={openBambuStudioLoading}
 					{exportLoading}
 					showLockIcon={!user || !subscriptionStatus?.isActive}

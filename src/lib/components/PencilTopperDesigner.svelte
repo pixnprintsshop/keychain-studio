@@ -678,7 +678,7 @@ difference() {
 	}
 
 	async function exportStl() {
-		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		if (!textContent?.trim()) {
 			exportError = 'Nothing to export yet';
 			return;
@@ -733,7 +733,7 @@ difference() {
 	}
 
 	async function export3MF() {
-		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		if (!textContent?.trim()) {
 			exportError = 'Nothing to export yet';
 			return;
@@ -789,7 +789,7 @@ difference() {
 
 	async function openWithBambuStudio() {
 		if (!textContent?.trim()) return;
-		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		openBambuStudioLoading = true;
 		await tickThenYieldToPaint();
 		try {
@@ -1179,10 +1179,10 @@ difference() {
 			<div class="absolute right-4 bottom-4">
 				<DesignerExportToolbar
 					onSnapshot={() => downloadSnapshot(renderer, scene, camera, 'pencil-topper')}
-					onExport={() => (user && subscriptionStatus?.isActive ? exportStl() : onShowPricing?.())}
+					onExport={() => exportStl()}
 					onExport3MF={() =>
-						user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.()}
-					onOpenWithBambuStudio={() => (user && subscriptionStatus?.isActive ? openWithBambuStudio() : onShowPricing?.())}
+						export3MF()}
+					onOpenWithBambuStudio={() => openWithBambuStudio()}
 					openBambuStudioLoading={openBambuStudioLoading}
 					exportDisabled={!textContent?.trim() || exportLoading}
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF (multipart) for 3D print')}

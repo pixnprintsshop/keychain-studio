@@ -36,6 +36,7 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import type { SubscriptionStatus } from '$lib/subscription';
+	import { freeTrial, loadFreeTrialForUser } from '$lib/freeTrial.svelte';
 	import { clearLicenseCache, getSubscriptionStatus } from '$lib/subscription';
 	import {
 		fetchUserPalette,
@@ -315,6 +316,13 @@
 		getSubscriptionStatus(u.id).then((s) => {
 			subscriptionStatus = s;
 		});
+	});
+
+	// Sync free-trial state with the current account. Server-side ledger means
+	// signing out clears local credits and signing back in restores them.
+	$effect(() => {
+		const u = user;
+		void loadFreeTrialForUser(u?.id ?? null);
 	});
 
 	// Fetch user palette when user changes
@@ -826,6 +834,21 @@
 						License expired
 					</span>
 				{:else if !subscriptionStatus?.isActive}
+					{#if freeTrial.credits > 0}
+						<span
+							class="ml-2 inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-medium text-blue-800"
+							title={`Free trial: ${freeTrial.credits} of ${freeTrial.totalCredits} downloads remaining. Subscribe for unlimited exports.`}
+						>
+							<svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+								<path
+									fill-rule="evenodd"
+									d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 3a1 1 0 011 1v3.586l2.707 2.707a1 1 0 01-1.414 1.414l-3-3A1 1 0 019 10V6a1 1 0 011-1z"
+									clip-rule="evenodd"
+								/>
+							</svg>
+							Free trial — {freeTrial.credits}/{freeTrial.totalCredits} left
+						</span>
+					{/if}
 					<Button
 						variant="secondary"
 						size="xs"
@@ -859,6 +882,21 @@
 				Sign Out
 			</Button>
 		{:else}
+			<button
+				type="button"
+				onclick={() => (showLoginModal = true)}
+				class="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-medium text-blue-800 transition hover:bg-blue-100 focus:ring-2 focus:ring-blue-500/50 focus:outline-none"
+				title={`Sign in to claim ${freeTrial.totalCredits} free downloads.`}
+			>
+				<svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+					<path
+						fill-rule="evenodd"
+						d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 3a1 1 0 011 1v3.586l2.707 2.707a1 1 0 01-1.414 1.414l-3-3A1 1 0 019 10V6a1 1 0 011-1z"
+						clip-rule="evenodd"
+					/>
+				</svg>
+				Sign in for {freeTrial.totalCredits} free downloads
+			</button>
 			<Button size="xs" href="/pricing">View pricing</Button>
 			<Button
 				variant="secondary"
@@ -943,6 +981,20 @@
 								{/if}
 							</div>
 						</div>
+						{#if !subscriptionStatus?.isActive && freeTrial.credits > 0}
+							<div
+								class="flex items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-800"
+							>
+								<svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+									<path
+										fill-rule="evenodd"
+										d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 3a1 1 0 011 1v3.586l2.707 2.707a1 1 0 01-1.414 1.414l-3-3A1 1 0 019 10V6a1 1 0 011-1z"
+										clip-rule="evenodd"
+									/>
+								</svg>
+								Free trial — {freeTrial.credits}/{freeTrial.totalCredits} left
+							</div>
+						{/if}
 						<Button
 							variant="secondary"
 							size="sm"
@@ -988,6 +1040,23 @@
 							Sign Out
 						</Button>
 					{:else}
+						<button
+							type="button"
+							onclick={() => {
+								menuOpen = false;
+								showLoginModal = true;
+							}}
+							class="flex items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-800 transition hover:bg-blue-100 focus:ring-2 focus:ring-blue-500/50 focus:outline-none"
+						>
+							<svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+								<path
+									fill-rule="evenodd"
+									d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 3a1 1 0 011 1v3.586l2.707 2.707a1 1 0 01-1.414 1.414l-3-3A1 1 0 019 10V6a1 1 0 011-1z"
+									clip-rule="evenodd"
+								/>
+							</svg>
+							Sign in for {freeTrial.totalCredits} free downloads
+						</button>
 						<Button size="sm" class="w-full" href="/pricing" onclick={() => (menuOpen = false)}>
 							View pricing
 						</Button>

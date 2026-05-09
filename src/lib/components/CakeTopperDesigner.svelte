@@ -727,7 +727,7 @@
 	// ── Export ───────────────────────────────────────────────────────────────
 	async function exportSTL() {
 		if (!group || !scene) return;
-		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		rebuildMeshes();
 		group.updateWorldMatrix(true, true);
 		const geometries: THREE.BufferGeometry[] = [];
@@ -769,7 +769,7 @@
 
 	async function export3MF() {
 		if (!group || !scene) return;
-		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		rebuildMeshes();
 		group.updateWorldMatrix(true, true);
 		const exportGroup = group.clone(true);
@@ -798,7 +798,7 @@
 
 	async function openWithBambuStudio() {
 		if (!group || !scene) return;
-		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		openBambuStudioLoading = true;
 		await tickThenYieldToPaint();
 		try {
@@ -1263,14 +1263,9 @@
 				<DesignerExportToolbar
 					onSnapshot={() =>
 						downloadSnapshot(renderer, scene, camera, 'cake-topper')}
-					onExport={() =>
-						user && subscriptionStatus?.isActive ? exportSTL() : onShowPricing?.()}
-					onExport3MF={() =>
-						user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.()}
-					onOpenWithBambuStudio={() =>
-						user && subscriptionStatus?.isActive
-							? openWithBambuStudio()
-							: onShowPricing?.()}
+					onExport={() => exportSTL()}
+					onExport3MF={() => export3MF()}
+					onOpenWithBambuStudio={() => openWithBambuStudio()}
 					{openBambuStudioLoading}
 					exportDisabled={false}
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF (multipart)')}

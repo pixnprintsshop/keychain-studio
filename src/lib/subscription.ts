@@ -1,3 +1,4 @@
+import { freeTrial, tryConsumeFreeTrialCredit } from './freeTrial.svelte';
 import { supabase } from './supabase';
 
 const LICENSE_CACHE_KEY_PREFIX = 'pixnprints-license-';
@@ -143,30 +144,50 @@ export async function getSubscriptionStatus(userId: string | null): Promise<Subs
 	return { isActive: false };
 }
 
-/** Returns the export button title based on user and subscription status. */
+/** Returns the export button title based on user, subscription, and free-trial state. */
 export function getExportTitle(
 	user: { id: string } | null,
 	subscriptionStatus: SubscriptionStatus | null,
 	activeTitle: string = 'Export STL or 3MF'
 ): string {
-	if (!user) return 'Sign in to export';
+	if (subscriptionStatus?.isActive) return activeTitle;
 	if (subscriptionStatus?.licenseExpired) return 'License expired';
-	if (!subscriptionStatus?.isActive) return 'Subscribe to export';
-	return activeTitle;
+	if (!user) return 'Sign in to start free trial';
+	if (freeTrial.credits > 0) {
+		const left = freeTrial.credits;
+		return `Free trial — ${left} download${left === 1 ? '' : 's'} left`;
+	}
+	return 'Subscribe to export';
 }
 
 /**
- * Guards STL/3MF/Bambu export paths: require signed-in user and active subscription or license.
- * When blocked, calls `onShowPricing` (typically navigate to pricing). Use at the start of export handlers.
+ * Guards STL/3MF/Bambu export paths.
+ *
+ * Resolution order:
+ *  1. Active subscription/license → allow.
+ *  2. No signed-in user → call `onRequestLogin` (login is required *before* the trial),
+ *     return `false`.
+ *  3. Try to consume one server-side trial credit. If the RPC reports the cap was
+ *     not yet hit, allow the export; otherwise call `onShowPricing` and return `false`.
+ *
+ * Use at the start of export handlers: `if (!(await ensureExportAccess(...))) return;`.
  */
-export function ensureExportAccess(
+export async function ensureExportAccess(
 	user: { id: string } | null,
 	subscriptionStatus: SubscriptionStatus | null,
-	onShowPricing?: () => void
-): boolean {
-	if (!user || !subscriptionStatus?.isActive) {
-		onShowPricing?.();
+	onShowPricing?: () => void,
+	onRequestLogin?: () => void
+): Promise<boolean> {
+	if (subscriptionStatus?.isActive) return true;
+
+	if (!user) {
+		onRequestLogin?.();
 		return false;
 	}
-	return true;
+
+	const result = await tryConsumeFreeTrialCredit();
+	if (result.allowed) return true;
+
+	onShowPricing?.();
+	return false;
 }

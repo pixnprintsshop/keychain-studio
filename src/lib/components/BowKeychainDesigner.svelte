@@ -384,7 +384,7 @@
 
     /** STL: outline base + merged text, then bow + merged text on top; all merged into one watertight STL. */
     async function exportSTL() {
-        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+        if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
         if (!group || group.children.length === 0) {
             exportError = "Nothing to export";
             return;
@@ -480,7 +480,7 @@
 
     /** Multi-color 3MF: 3 objects. (1) Outline base + text. (2) Main bow + text merged. (3) Text only at top. Each one color. */
     async function export3MF() {
-        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+        if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
         if (!group || group.children.length === 0) {
             exportError = "Nothing to export";
             return;
@@ -599,7 +599,7 @@
 
     async function openWithBambuStudio() {
         if (!group || group.children.length === 0) return;
-        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+        if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
         openBambuStudioLoading = true;
         await tickThenYieldToPaint();
         try {
@@ -1248,9 +1248,9 @@
                                 "bow-keychain",
                             );
                     }}
-                    onExport={() => (user && subscriptionStatus?.isActive ? exportSTL() : onShowPricing?.())}
-                    onExport3MF={() => (user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.())}
-                    onOpenWithBambuStudio={() => (user && subscriptionStatus?.isActive ? openWithBambuStudio() : onShowPricing?.())}
+                    onExport={() => exportSTL()}
+                    onExport3MF={() => export3MF()}
+                    onOpenWithBambuStudio={() => openWithBambuStudio()}
                     openBambuStudioLoading={openBambuStudioLoading}
                     exportDisabled={false}
                     exportTitle={getExportTitle(user, subscriptionStatus, "Export STL or 3MF")}

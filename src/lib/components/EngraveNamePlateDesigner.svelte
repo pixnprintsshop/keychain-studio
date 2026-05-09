@@ -758,7 +758,7 @@
 
 	async function exportSTL() {
 		if (!group || !scene) return;
-		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		exportLoading = true;
 		await tickThenYieldToPaint();
 		try {
@@ -827,7 +827,7 @@
 
 	async function export3MF() {
 		if (!group || !scene) return;
-		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		exportLoading = true;
 		await tickThenYieldToPaint();
 		let exportRoot: THREE.Scene | null = null;
@@ -864,7 +864,7 @@
 
 	async function openWithBambuStudio() {
 		if (!group || !scene) return;
-		if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		openBambuStudioLoading = true;
 		exportLoading = true;
 		await tickThenYieldToPaint();
@@ -1413,11 +1413,11 @@
 			<div class="absolute right-4 bottom-4 z-10">
 				<DesignerExportToolbar
 					onSnapshot={() => downloadSnapshot(renderer, scene, camera, 'engrave-name-plate')}
-					onExport={() => (user && subscriptionStatus?.isActive ? exportSTL() : onShowPricing?.())}
+					onExport={() => exportSTL()}
 					onExport3MF={() =>
-						user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.()}
+						export3MF()}
 					onOpenWithBambuStudio={() =>
-						user && subscriptionStatus?.isActive ? openWithBambuStudio() : onShowPricing?.()}
+						openWithBambuStudio()}
 					exportLoading={exportLoading}
 					{openBambuStudioLoading}
 					exportDisabled={!text?.trim()}

@@ -755,7 +755,7 @@ let { user, session, subscriptionStatus, palette, onBack, onRequestLogin, onShow
 
     async function exportStl() {
         if (!group) return;
-        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+        if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
         exportError = null;
         if (group.children.length === 0) {
             exportError = "Nothing to export yet";
@@ -1252,7 +1252,7 @@ let { user, session, subscriptionStatus, palette, onBack, onRequestLogin, onShow
                             camera,
                             "svg-designer",
                         )}
-                    onExport={() => (user && subscriptionStatus?.isActive ? exportStl() : onShowPricing?.())}
+                    onExport={() => exportStl()}
                     exportDisabled={!optimizedSvg || processing}
                     exportTitle={getExportTitle(user, subscriptionStatus, "Export STL")}
                     showLockIcon={!user || !subscriptionStatus?.isActive} />

@@ -198,7 +198,7 @@
     }
 
     async function exportStl() {
-        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+        if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
         if (!group || group.children.length === 0) {
             exportError = "Nothing to export";
             return;
@@ -274,7 +274,7 @@
 
     async function export3MF() {
         if (!group || !scene) return;
-        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+        if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
         rebuildMeshes();
         group.updateWorldMatrix(true, true);
         const exportGroup = new THREE.Group();
@@ -313,7 +313,7 @@
 
     async function openWithBambuStudio() {
         if (!group || !scene) return;
-        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+        if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
         openBambuStudioLoading = true;
         await tickThenYieldToPaint();
         try {
@@ -572,11 +572,11 @@
                                 "stanley-topper",
                             );
                     }}
-                    onExport={() => (user && subscriptionStatus?.isActive ? exportStl() : onShowPricing?.())}
+                    onExport={() => exportStl()}
                     exportDisabled={!baseGeometry || exportLoading}
                     exportTitle={getExportTitle(user, subscriptionStatus, "Export STL")}
-                    onExport3MF={() => (user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.())}
-                    onOpenWithBambuStudio={() => (user && subscriptionStatus?.isActive ? openWithBambuStudio() : onShowPricing?.())}
+                    onExport3MF={() => export3MF()}
+                    onOpenWithBambuStudio={() => openWithBambuStudio()}
                     openBambuStudioLoading={openBambuStudioLoading}
                     {exportLoading}
                     showLockIcon={!user || !subscriptionStatus?.isActive} />

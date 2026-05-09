@@ -624,7 +624,7 @@
     }
 
     async function exportSTL() {
-        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+        if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
         exportError = null;
         exportLoading = true;
         await tickThenYieldToPaint();
@@ -674,7 +674,7 @@
     }
 
     async function export3MF() {
-        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+        if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
         exportError = null;
         exportLoading = true;
         await tickThenYieldToPaint();
@@ -712,7 +712,7 @@
 
     async function openWithBambuStudio() {
         if (!group || !scene) return;
-        if (!ensureExportAccess(user, subscriptionStatus, onShowPricing)) return;
+        if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
         openBambuStudioLoading = true;
         await tickThenYieldToPaint();
         try {
@@ -1118,9 +1118,9 @@
                             camera,
                             "rounded-rect",
                         )}
-                    onExport={() => (user && subscriptionStatus?.isActive ? exportSTL() : onShowPricing?.())}
-                    onExport3MF={() => (user && subscriptionStatus?.isActive ? export3MF() : onShowPricing?.())}
-                    onOpenWithBambuStudio={() => (user && subscriptionStatus?.isActive ? openWithBambuStudio() : onShowPricing?.())}
+                    onExport={() => exportSTL()}
+                    onExport3MF={() => export3MF()}
+                    onOpenWithBambuStudio={() => openWithBambuStudio()}
                     openBambuStudioLoading={openBambuStudioLoading}
                     exportDisabled={exportLoading}
                     exportTitle={getExportTitle(user, subscriptionStatus, "Export STL (single mesh) or 3MF (multipart) for 3D print")}
