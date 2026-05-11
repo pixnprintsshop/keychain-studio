@@ -81,6 +81,30 @@
 	}
 	const NEW_DESIGNERS = getNewDesigners();
 
+	/**
+	 * Designers marked as "Updated".
+	 * This uses the VITE_UPDATED_DESIGNERS env variable (comma separated ids).
+	 * Pair each id with an entry in UPDATE_NOTES below so users can hover the
+	 * badge to see what changed in the most recent release.
+	 */
+	function getUpdatedDesigners(): Set<StyleName> {
+		const envList = import.meta.env.VITE_UPDATED_DESIGNERS as string | undefined;
+		if (!envList) return new Set();
+		return new Set(
+			envList
+				.split(',')
+				.map((x) => x.trim())
+				.filter(Boolean) as StyleName[]
+		);
+	}
+	const UPDATED_DESIGNERS = getUpdatedDesigners();
+
+	// Short release notes shown in a popover when the user hovers/taps the
+	// "Updated" badge. Keep each note to one or two sentences.
+	const UPDATE_NOTES: Partial<Record<StyleName, string>> = {
+		basicName: 'Now supports multi-line text — each line has its own font, size, and depth.'
+	};
+
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper']);
 	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set([]);
 	let pendingBetaDesigner: StyleName | null = $state(null);
@@ -101,6 +125,16 @@
 				'Large ID badge with multi-line text — each line configurable.',
 			imageSrc: '/images/id-name-tag.png',
 			imageAlt: 'ID Name Tag preview'
+		},
+		{
+			id: 'basicName',
+			title: 'Basic Name Tag',
+			description: 'Simple rectangular name tag with clean, readable text.',
+			imageSrc: '/images/nametag.png',
+			imageAlt: 'Basic Name Tag preview',
+			attribution:
+				'https://makerworld.com/en/models/219037-keytag-keychain-with-custom-name?from=search#profileId-251645',
+			previewImageSrc: '/images/nametag-preview.png'
 		},
 		{
 			id: 'keycapSet',
@@ -167,16 +201,6 @@
 			attribution:
 				'https://makerworld.com/en/models/513050-flower-initial-keychains?from=search#profileId-429132',
 			previewImageSrc: '/images/flower+initial-preview.png'
-		},
-		{
-			id: 'basicName',
-			title: 'Basic Name Tag',
-			description: 'Simple rectangular name tag with clean, readable text.',
-			imageSrc: '/images/nametag.png',
-			imageAlt: 'Basic Name Tag preview',
-			attribution:
-				'https://makerworld.com/en/models/219037-keytag-keychain-with-custom-name?from=search#profileId-251645',
-			previewImageSrc: '/images/nametag-preview.png'
 		},
 		{
 			id: 'dogtag',
@@ -271,6 +295,16 @@
 
 	function isNewDesigner(style: StyleName): boolean {
 		return NEW_DESIGNERS.has(style);
+	}
+
+	// "Updated" is suppressed when a designer is also flagged "New" — the New
+	// badge already implies "look at this", so we avoid double-tagging.
+	function isUpdatedDesigner(style: StyleName): boolean {
+		return UPDATED_DESIGNERS.has(style) && !NEW_DESIGNERS.has(style);
+	}
+
+	function getUpdateNote(style: StyleName): string {
+		return UPDATE_NOTES[style] ?? 'Recently updated with improvements.';
 	}
 
 	function handleCardClick(designer: DesignerItem) {
@@ -399,7 +433,9 @@
 							? 'cursor-not-allowed border-slate-200 opacity-60'
 							: isNewDesigner(designer.id)
 								? 'cursor-pointer border-emerald-300 ring-2 ring-emerald-200/70 hover:-translate-y-1 hover:border-emerald-400 hover:shadow-lg'
-								: 'cursor-pointer border-slate-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-lg'}"
+								: isUpdatedDesigner(designer.id)
+									? 'cursor-pointer border-indigo-300 ring-2 ring-indigo-200/70 hover:-translate-y-1 hover:border-indigo-400 hover:shadow-lg'
+									: 'cursor-pointer border-slate-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-lg'}"
 					onclick={() => handleCardClick(designer)}
 				>
 					{#if isComingSoonDesigner(designer.id)}
@@ -420,11 +456,42 @@
 							>New</span
 						>
 					{/if}
+					{#if isUpdatedDesigner(designer.id)}
+						<div class="group/updated absolute top-2 left-2 z-20 sm:top-3 sm:left-3">
+							<span
+								class="inline-flex cursor-help items-center gap-1 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-indigo-800 sm:rounded-md sm:px-2 sm:text-xs"
+								title={getUpdateNote(designer.id)}
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2.5"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									class="size-2.5 sm:size-3"
+									aria-hidden="true"
+								>
+									<polyline points="23 4 23 10 17 10" />
+									<path d="M20.49 15A9 9 0 1 1 5.64 5.64L23 10" />
+								</svg>
+								Updated
+							</span>
+							<div
+								class="pointer-events-none absolute top-full left-0 mt-1 w-36 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] leading-snug text-slate-700 opacity-0 shadow-lg transition-opacity duration-150 group-hover/updated:opacity-100 sm:w-44 sm:text-xs"
+								role="tooltip"
+							>
+								<p class="mb-0.5 font-semibold text-indigo-700">What's new</p>
+								{getUpdateNote(designer.id)}
+							</div>
+						</div>
+					{/if}
 					{#if isBetaDesigner(designer.id)}
 						<span
 							class="absolute left-2 z-10 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-800 sm:left-3 sm:rounded-md sm:px-2 sm:text-xs {isNewDesigner(
 								designer.id
-							)
+							) || isUpdatedDesigner(designer.id)
 								? 'top-8 sm:top-10'
 								: 'top-2 sm:top-3'}">Beta</span
 						>

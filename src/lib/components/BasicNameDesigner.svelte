@@ -51,6 +51,11 @@
     const TEXT_BASE_EMBED = 0.2;
     /** Small embed for border so it isn't exactly coplanar with base (which can make it disappear in export). */
     const BORDER_BASE_EMBED = 0.05;
+    /** Hard cap on text width as a fraction of the tag's base width. Lines that
+     * exceed this are uniformly scaled down (preserving aspect) to fit. */
+    const TEXT_MAX_WIDTH_RATIO = 0.85;
+    /** Maximum number of stacked text lines. */
+    const MAX_LINES = 8;
 
     type KeyringPosition =
         | "topCenter"
@@ -58,6 +63,13 @@
         | "topRight"
         | "leftCenter"
         | "rightCenter";
+
+    type BasicNameLine = {
+        content: string;
+        fontKey: string;
+        size: number;
+        depth: number;
+    };
 
     interface Settings {
         baseWidth: number;
@@ -68,10 +80,9 @@
         keyringPosition: KeyringPosition;
         baseColor: string;
         accentColor: string; // border and text (same color)
-        textContent: string;
-        textFontKey: string;
-        textSize: number;
-        textDepth: number;
+        lines: BasicNameLine[];
+        /** Vertical gap (mm) between adjacent text lines. */
+        lineSpacing: number;
     }
 
     const KEYRING_POSITIONS: { value: KeyringPosition; label: string }[] = [
@@ -82,6 +93,8 @@
         { value: "rightCenter", label: "Right center" },
     ];
 
+    const DEFAULT_FONT_KEY = FONT_OPTIONS[0]?.key ?? "Titan One_Regular";
+
     const defaults: Settings = {
         baseWidth: 50,
         baseHeight: 25,
@@ -91,30 +104,92 @@
         keyringPosition: "topCenter",
         baseColor: "#000000",
         accentColor: "#24b6ff",
-        textContent: DEFAULT_TEXT,
-        textFontKey: FONT_OPTIONS[0]?.key ?? "Titan One_Regular",
-        textSize: 8,
-        textDepth: 0.8,
+        lines: [
+            {
+                content: DEFAULT_TEXT,
+                fontKey: DEFAULT_FONT_KEY,
+                size: 8,
+                depth: 0.8,
+            },
+        ],
+        lineSpacing: 1.5,
     };
+
+    function isFiniteNumber(v: unknown): v is number {
+        return typeof v === "number" && Number.isFinite(v);
+    }
+
+    function sanitizeLine(raw: unknown): BasicNameLine | null {
+        if (!raw || typeof raw !== "object") return null;
+        const r = raw as Partial<BasicNameLine>;
+        if (typeof r.content !== "string") return null;
+        const fontKey =
+            typeof r.fontKey === "string" &&
+            FONT_OPTIONS.some((o) => o.key === r.fontKey)
+                ? r.fontKey
+                : DEFAULT_FONT_KEY;
+        const size = isFiniteNumber(r.size)
+            ? Math.min(40, Math.max(1, r.size))
+            : 8;
+        const depth = isFiniteNumber(r.depth)
+            ? Math.min(5, Math.max(0.1, r.depth))
+            : 0.8;
+        return { content: r.content, fontKey, size, depth };
+    }
+
+    function cloneDefaultLines(): BasicNameLine[] {
+        return defaults.lines.map((l) => ({ ...l }));
+    }
 
     function loadSettings(): Settings {
         try {
             const stored = localStorage.getItem(STORAGE_KEY);
-            if (stored) {
-                const parsed = JSON.parse(stored);
-                if (parsed && typeof parsed === "object") {
-                    const merged = { ...defaults, ...parsed };
-                    // Migrate old borderColor/textColor to single accentColor
-                    merged.accentColor =
-                        parsed.accentColor ??
-                        parsed.borderColor ??
-                        parsed.textColor ??
-                        defaults.accentColor;
-                    return merged;
-                }
+            if (!stored) return { ...defaults, lines: cloneDefaultLines() };
+            const parsed = JSON.parse(stored);
+            if (!parsed || typeof parsed !== "object") {
+                return { ...defaults, lines: cloneDefaultLines() };
             }
-        } catch {}
-        return { ...defaults };
+            const merged: Settings = { ...defaults, ...parsed };
+            // Migrate old borderColor/textColor to single accentColor.
+            merged.accentColor =
+                parsed.accentColor ??
+                parsed.borderColor ??
+                parsed.textColor ??
+                defaults.accentColor;
+
+            // Migrate from legacy single-line schema (textContent/textFontKey/
+            // textSize/textDepth) → first entry of the new `lines` array.
+            const rawLines: unknown[] | null = Array.isArray(parsed.lines)
+                ? (parsed.lines as unknown[])
+                : null;
+            if (rawLines) {
+                const sanitized = rawLines
+                    .map(sanitizeLine)
+                    .filter(
+                        (l: BasicNameLine | null): l is BasicNameLine =>
+                            l !== null,
+                    );
+                merged.lines =
+                    sanitized.length > 0 ? sanitized : cloneDefaultLines();
+            } else if (typeof parsed.textContent === "string") {
+                const legacy = sanitizeLine({
+                    content: parsed.textContent,
+                    fontKey: parsed.textFontKey,
+                    size: parsed.textSize,
+                    depth: parsed.textDepth,
+                });
+                merged.lines = legacy ? [legacy] : cloneDefaultLines();
+            } else {
+                merged.lines = cloneDefaultLines();
+            }
+
+            merged.lineSpacing = isFiniteNumber(parsed.lineSpacing)
+                ? Math.max(0, parsed.lineSpacing)
+                : defaults.lineSpacing;
+            return merged;
+        } catch {
+            return { ...defaults, lines: cloneDefaultLines() };
+        }
     }
 
     const initial = loadSettings();
@@ -128,10 +203,8 @@
     let keyringPosition = $state(initial.keyringPosition);
     let baseColor = $state(initial.baseColor);
     let accentColor = $state(initial.accentColor);
-    let textContent = $state(initial.textContent);
-    let textFontKey = $state(initial.textFontKey);
-    let textSize = $state(initial.textSize);
-    let textDepth = $state(initial.textDepth);
+    let lines = $state<BasicNameLine[]>(initial.lines.map((l) => ({ ...l })));
+    let lineSpacing = $state(initial.lineSpacing);
 
     // ── Three.js state ──────────────────────────────────────────────────────
     let hostEl: HTMLDivElement | null = null;
@@ -161,24 +234,48 @@
 
     function saveSettings() {
         try {
-            localStorage.setItem(
-                STORAGE_KEY,
-                JSON.stringify({
-                    baseWidth,
-                    baseHeight,
-                    cornerRadius,
-                    baseDepth,
-                    topBorderDepth,
-                    keyringPosition,
-                    baseColor,
-                    accentColor,
-                    textContent,
-                    textFontKey,
-                    textSize,
-                    textDepth,
-                }),
-            );
+            const payload: Settings = {
+                baseWidth,
+                baseHeight,
+                cornerRadius,
+                baseDepth,
+                topBorderDepth,
+                keyringPosition,
+                baseColor,
+                accentColor,
+                lines,
+                lineSpacing,
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
         } catch {}
+    }
+
+    function addLine() {
+        if (lines.length >= MAX_LINES) return;
+        const last = lines[lines.length - 1];
+        const seed: BasicNameLine = last
+            ? { ...last, content: "" }
+            : {
+                  content: "",
+                  fontKey: DEFAULT_FONT_KEY,
+                  size: 8,
+                  depth: 0.8,
+              };
+        lines = [...lines, seed];
+    }
+
+    function removeLine(index: number) {
+        if (lines.length <= 1) return;
+        lines = lines.filter((_, i) => i !== index);
+    }
+
+    function moveLine(index: number, delta: -1 | 1) {
+        const target = index + delta;
+        if (target < 0 || target >= lines.length) return;
+        const next = [...lines];
+        const [item] = next.splice(index, 1);
+        next.splice(target, 0, item);
+        lines = next;
     }
 
     function rebuildMeshes() {
@@ -564,33 +661,81 @@
             group.add(topMesh);
         }
 
-        // ── Text sitting on base surface ─────────────────────────────────────
-        const textToRender = (textContent ?? "").trim();
-        if (textToRender) {
-            const font = getFont(textFontKey);
-            if (font) {
-                const shapes = font.generateShapes(textToRender, textSize);
-                if (shapes.length > 0) {
-                    const textGeo = new THREE.ExtrudeGeometry(shapes, {
-                        depth: Math.max(0.01, textDepth),
-                        bevelEnabled: false,
-                    });
-                    centerGeometryXY(textGeo);
+        // ── Multi-line text sitting on base surface ──────────────────────────
+        // Each line is extruded separately so it can stay a discrete mesh
+        // named "text" (the 3MF export traversal keys off this name). Lines are
+        // stacked vertically and centered on the inner panel midline (y = 0).
+        type LineEntry = {
+            geo: THREE.BufferGeometry;
+            height: number;
+            line: BasicNameLine;
+        };
+        const lineEntries: LineEntry[] = [];
+        const maxTextWidth = baseWidth * TEXT_MAX_WIDTH_RATIO;
+        for (const line of lines) {
+            const content = (line.content ?? "").trim();
+            if (!content) continue;
+            const font = getFont(line.fontKey);
+            if (!font) continue;
+            let shapes: THREE.Shape[];
+            try {
+                shapes = font.generateShapes(content, Math.max(1, line.size));
+            } catch (e) {
+                console.error(
+                    "BasicName generateShapes failed for line:",
+                    content,
+                    e,
+                );
+                continue;
+            }
+            if (!shapes || shapes.length === 0) continue;
+            const geo = new THREE.ExtrudeGeometry(shapes, {
+                depth: Math.max(0.05, line.depth),
+                bevelEnabled: false,
+                curveSegments: 8,
+                steps: 1,
+            });
+            centerGeometryXY(geo);
+            geo.computeBoundingBox();
+            let bb = geo.boundingBox!;
+            const w = Math.max(0.001, bb.max.x - bb.min.x);
+            // Uniformly scale X+Y (depth untouched) so over-wide lines fit the
+            // tag — depth is preserved so taller lines stay legible.
+            if (w > maxTextWidth) {
+                const s = maxTextWidth / w;
+                geo.scale(s, s, 1);
+                geo.computeBoundingBox();
+                bb = geo.boundingBox!;
+            }
+            const h = Math.max(0.001, bb.max.y - bb.min.y);
+            lineEntries.push({ geo, height: h, line });
+        }
 
-                    const textMat = new THREE.MeshStandardMaterial({
-                        color: accentColor,
-                        roughness: 0.35,
-                        metalness: 0.1,
-                    });
-
-                    const textMesh = new THREE.Mesh(textGeo, textMat);
-                    textMesh.name = "text";
-                    textMesh.castShadow = true;
-                    textMesh.receiveShadow = true;
-                    // Embed text into base so they overlap (avoids non-manifold at contact)
-                    textMesh.position.z = baseDepth - TEXT_BASE_EMBED;
-                    group.add(textMesh);
-                }
+        if (lineEntries.length > 0) {
+            const gap = Math.max(0, lineSpacing);
+            const totalHeight =
+                lineEntries.reduce((acc, e) => acc + e.height, 0) +
+                Math.max(0, lineEntries.length - 1) * gap;
+            let yCursor = totalHeight / 2;
+            for (const entry of lineEntries) {
+                const yCenter = yCursor - entry.height / 2;
+                yCursor -= entry.height + gap;
+                const textMat = new THREE.MeshStandardMaterial({
+                    color: accentColor,
+                    roughness: 0.35,
+                    metalness: 0.1,
+                });
+                const textMesh = new THREE.Mesh(entry.geo, textMat);
+                textMesh.name = "text";
+                textMesh.castShadow = true;
+                textMesh.receiveShadow = true;
+                // Embed text into base so they overlap (avoids non-manifold at contact)
+                textMesh.position.set(
+                    0,
+                    yCenter,
+                    baseDepth - TEXT_BASE_EMBED,
+                );
+                group.add(textMesh);
             }
         }
 
@@ -828,10 +973,8 @@
         void keyringPosition;
         void baseColor;
         void accentColor;
-        void textContent;
-        void textFontKey;
-        void textSize;
-        void textDepth;
+        void lines;
+        void lineSpacing;
         saveSettings();
     });
 
@@ -844,10 +987,8 @@
         void keyringPosition;
         void baseColor;
         void accentColor;
-        void textContent;
-        void textFontKey;
-        void textSize;
-        void textDepth;
+        void lines;
+        void lineSpacing;
         if (!scene || !group) return;
         rebuildMeshes();
     });
@@ -890,44 +1031,147 @@
             <div
                 class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pt-0">
                 <div
-                    class="grid grid-cols-1 gap-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-3 mb-2">
-                    <div
-                        class="text-xs font-semibold tracking-tight text-slate-700">
-                        Text
+                    class="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-3 mb-2">
+                    <div class="flex items-center justify-between">
+                        <div
+                            class="text-xs font-semibold tracking-tight text-slate-700">
+                            Lines
+                        </div>
+                        <span class="text-xs text-slate-500"
+                            >{lines.length} of {MAX_LINES}</span>
                     </div>
+
+                    {#each lines as line, i (i)}
+                        <div
+                            class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                            <div class="mb-2 flex items-center justify-between">
+                                <span
+                                    class="text-[11px] font-semibold tracking-wide text-slate-500 uppercase"
+                                    >Line {i + 1}</span>
+                                <div class="flex items-center gap-1">
+                                    <Button
+                                        variant="outline"
+                                        size="xs"
+                                        class="h-7 w-7 p-0"
+                                        title="Move up"
+                                        aria-label="Move line up"
+                                        disabled={i === 0}
+                                        onclick={() => moveLine(i, -1)}>
+                                        ↑
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="xs"
+                                        class="h-7 w-7 p-0"
+                                        title="Move down"
+                                        aria-label="Move line down"
+                                        disabled={i === lines.length - 1}
+                                        onclick={() => moveLine(i, 1)}>
+                                        ↓
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="xs"
+                                        class="h-7 w-7 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                        title="Remove line"
+                                        aria-label="Remove line"
+                                        disabled={lines.length <= 1}
+                                        onclick={() => removeLine(i)}>
+                                        ✕
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <label class="grid gap-1.5">
+                                <span
+                                    class="text-xs font-medium text-slate-700"
+                                    >Content</span>
+                                <input
+                                    class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
+                                    type="text"
+                                    bind:value={line.content}
+                                    placeholder={i === 0
+                                        ? "Name"
+                                        : "Subtitle"} />
+                            </label>
+
+                            <label class="mt-2 grid gap-1.5">
+                                <span
+                                    class="text-xs font-medium text-slate-700"
+                                    >Font</span>
+                                <FontSelect bind:value={line.fontKey} />
+                            </label>
+
+                            <div class="mt-2 grid grid-cols-2 gap-3">
+                                <label class="grid gap-1.5">
+                                    <div
+                                        class="flex items-center justify-between gap-2">
+                                        <span
+                                            class="text-xs font-medium text-slate-700"
+                                            >Size</span>
+                                        <span
+                                            class="text-xs tabular-nums text-slate-600"
+                                            >{line.size}</span>
+                                    </div>
+                                    <Slider
+                                        type="single"
+                                        bind:value={line.size}
+                                        min={2}
+                                        max={16}
+                                        step={0.5}
+                                        class="w-full" />
+                                </label>
+                                <label class="grid gap-1.5">
+                                    <div
+                                        class="flex items-center justify-between gap-2">
+                                        <span
+                                            class="text-xs font-medium text-slate-700"
+                                            >Depth</span>
+                                        <span
+                                            class="text-xs tabular-nums text-slate-600"
+                                            >{line.depth}</span>
+                                    </div>
+                                    <Slider
+                                        type="single"
+                                        bind:value={line.depth}
+                                        min={0.2}
+                                        max={3}
+                                        step={0.1}
+                                        class="w-full" />
+                                </label>
+                            </div>
+                        </div>
+                    {/each}
+
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        class="w-full"
+                        onclick={addLine}
+                        disabled={lines.length >= MAX_LINES}>
+                        + Add line
+                    </Button>
+
                     <label class="grid gap-1.5">
-                        <span class="text-xs font-medium text-slate-700"
-                            >Content</span>
-                        <input
-                            class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
-                            type="text"
-                            bind:value={textContent}
-                            placeholder="Name" />
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-xs font-medium text-slate-700"
+                                >Line spacing</span>
+                            <span class="text-xs tabular-nums text-slate-600"
+                                >{lineSpacing}</span>
+                        </div>
+                        <Slider
+                            type="single"
+                            bind:value={lineSpacing}
+                            min={0}
+                            max={10}
+                            step={0.1}
+                            class="w-full" />
                     </label>
-                    <label class="grid gap-1.5">
-                        <span class="text-xs font-medium text-slate-700"
-                            >Font</span>
-                        <FontSelect bind:value={textFontKey} />
-                    </label>
+
                     <ColorPalettePicker
                         bind:value={accentColor}
                         {palette}
                         label="Border & text color" />
-                    <label class="grid gap-1.5">
-                        <div class="flex items-center justify-between gap-2">
-                            <span class="text-xs font-medium text-slate-700"
-                                >Text depth</span>
-                            <span class="text-xs tabular-nums text-slate-600"
-                                >{textDepth}</span>
-                        </div>
-                        <Slider
-                            type="single"
-                            bind:value={textDepth}
-                            min={0.2}
-                            max={3}
-                            step={0.1}
-                            class="w-full" />
-                    </label>
                 </div>
                 <div class="grid grid-cols-1 gap-4">
                     <div
