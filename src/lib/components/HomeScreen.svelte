@@ -29,7 +29,8 @@
 		| 'bowKeychain'
 		| 'namePuzzle'
 		| 'engraveNamePlate'
-		| 'cakeTopper';
+		| 'cakeTopper'
+		| 'canvasStudio';
 
 	interface DesignerItem {
 		id: StyleName;
@@ -110,6 +111,15 @@
 	let pendingBetaDesigner: StyleName | null = $state(null);
 
 	const DESIGNERS: DesignerItem[] = [
+		{
+			id: 'canvasStudio',
+			title: 'Canvas Studio',
+			description:
+				'Free-form 2D canvas with text and built-in shapes — drag, rotate, scale, then convert to 3D.',
+			// Placeholder reuse; swap with /images/canvas-studio.png when ready.
+			imageSrc: '/images/canvas-studio.png',
+			imageAlt: 'Canvas Studio preview'
+		},
 		{
 			id: 'cakeTopper',
 			title: 'Cake Topper',

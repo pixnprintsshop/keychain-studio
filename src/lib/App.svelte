@@ -5,6 +5,7 @@
 	import BowKeychainDesigner from '$lib/components/BowKeychainDesigner.svelte';
 	import BumpyTextDesigner from '$lib/components/BumpyTextDesigner.svelte';
 	import CakeTopperDesigner from '$lib/components/CakeTopperDesigner.svelte';
+	import CanvasStudioDesigner from '$lib/components/CanvasStudioDesigner.svelte';
 	import CharmDesigner from '$lib/components/CharmDesigner.svelte';
 	import CustomSVGDesigner from '$lib/components/CustomSVGDesigner.svelte';
 	import DesktopRequiredView from '$lib/components/DesktopRequiredView.svelte';
@@ -123,6 +124,7 @@
 		| 'namePuzzle'
 		| 'engraveNamePlate'
 		| 'cakeTopper'
+		| 'canvasStudio'
 		| 'feedback'
 		| 'contact'
 		| 'settings';
@@ -148,6 +150,7 @@
 		'namePuzzle',
 		'engraveNamePlate',
 		'cakeTopper',
+		'canvasStudio',
 		'feedback',
 		'contact',
 		'settings'
@@ -173,7 +176,8 @@
 		'bowKeychain',
 		'namePuzzle',
 		'engraveNamePlate',
-		'cakeTopper'
+		'cakeTopper',
+		'canvasStudio'
 	]);
 
 	/** True when the URL hash contains Supabase OAuth callback params (tokens or error). Do not overwrite hash until Supabase has processed it. */
@@ -235,6 +239,7 @@
 				stored === 'namePuzzle' ||
 				stored === 'engraveNamePlate' ||
 				stored === 'cakeTopper' ||
+				stored === 'canvasStudio' ||
 				stored === 'feedback' ||
 				stored === 'contact' ||
 				stored === 'settings' ||
@@ -367,6 +372,7 @@
 			| 'namePuzzle'
 			| 'engraveNamePlate'
 			| 'cakeTopper'
+			| 'canvasStudio'
 	) {
 		if (MAINTENANCE_VIEWS.has(style)) return;
 		posthog.capture('designer_selected', { designer: style });
@@ -1321,6 +1327,17 @@
 			/>
 		{:else if currentView === 'cakeTopper'}
 			<CakeTopperDesigner
+				{user}
+				{session}
+				{subscriptionStatus}
+				palette={effectivePalette}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
+			/>
+		{:else if currentView === 'canvasStudio'}
+			<CanvasStudioDesigner
 				{user}
 				{session}
 				{subscriptionStatus}

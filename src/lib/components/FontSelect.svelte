@@ -16,6 +16,9 @@
         triggerClass?: string;
         /** Optional override list of fonts (defaults to all FONT_OPTIONS). */
         options?: FontOption[];
+        /** Optional callback invoked when the selection changes. Useful when
+         * binding directly to a nested value is impractical. */
+        onValueChange?: (value: string) => void;
     }
 
     let {
@@ -24,6 +27,7 @@
         id,
         triggerClass = "w-full",
         options = FONT_OPTIONS,
+        onValueChange,
     }: Props = $props();
 
     let open = $state(false);
@@ -42,6 +46,7 @@
 
     function selectFont(fontKey: string, _index: number) {
         value = fontKey;
+        onValueChange?.(fontKey);
         closeAndFocusTrigger();
     }
 </script>

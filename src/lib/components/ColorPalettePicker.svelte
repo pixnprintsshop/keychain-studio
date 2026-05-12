@@ -8,9 +8,19 @@
 		label?: string;
 		disabled?: boolean;
 		id?: string;
+		/** Optional callback invoked when the selection changes. Useful when
+		 * binding directly to a nested value is impractical. */
+		onValueChange?: (value: string) => void;
 	}
 
-	let { value = $bindable('#ffffff'), palette, label, disabled = false, id }: Props = $props();
+	let {
+		value = $bindable('#ffffff'),
+		palette,
+		label,
+		disabled = false,
+		id,
+		onValueChange
+	}: Props = $props();
 
 	let open = $state(false);
 
@@ -34,7 +44,9 @@
 	});
 
 	function selectColor(hex: string) {
-		value = normalizeHex(hex);
+		const next = normalizeHex(hex);
+		value = next;
+		onValueChange?.(next);
 		open = false;
 	}
 </script>
