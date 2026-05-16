@@ -20,10 +20,23 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ error: 'Invalid JSON' }, { status: 400 });
 	}
 
-	const { email, name, subscriptionStatus, onTrial, designName, format } = (data ?? {}) as {
+	const {
+		email,
+		name,
+		subscriptionStatus,
+		accessVia,
+		freeTrialRemaining,
+		freeTrialTotal,
+		onTrial,
+		designName,
+		format
+	} = (data ?? {}) as {
 		email?: string;
 		name?: string;
 		subscriptionStatus?: string;
+		accessVia?: string;
+		freeTrialRemaining?: number;
+		freeTrialTotal?: number;
 		onTrial?: boolean;
 		designName?: string;
 		format?: string;
@@ -35,6 +48,13 @@ export const POST: RequestHandler = async ({ request }) => {
 		`📧 Email: ${email ?? '—'}`,
 		`👤 Name: ${name ?? '—'}`,
 		`📋 Status: ${subscriptionStatus ?? '—'}`,
+		...(accessVia === 'free_trial' &&
+		typeof freeTrialRemaining === 'number' &&
+		typeof freeTrialTotal === 'number'
+			? [
+					`🎁 Free download credit: ${freeTrialRemaining} of ${freeTrialTotal} remaining (after this export)`
+				]
+			: []),
 		...(onTrial ? ['⚠️ On trial'] : []),
 		`📦 Design: ${designName ?? '—'}`,
 		`📄 Format: ${format ?? '—'}`

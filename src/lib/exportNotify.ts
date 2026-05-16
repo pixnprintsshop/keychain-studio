@@ -1,3 +1,4 @@
+import { freeTrial } from './freeTrial.svelte';
 import type { SubscriptionStatus } from './subscription';
 
 export interface ExportNotifyPayload {
@@ -8,16 +9,49 @@ export interface ExportNotifyPayload {
 	format: 'stl' | '3mf' | 'bambu_studio';
 }
 
-function formatSubscriptionStatus(s: SubscriptionStatus | null): string {
-	if (!s) return 'none';
-	if (!s.isActive) return 'inactive';
-	if (s.source === 'subscription') {
-		const trial = s.onTrial ? ' [on trial]' : '';
-		const pending = s.cancelledPendingEnd ? ' [cancelled, access until period end]' : '';
-		return `subscription (${s.plan ?? '—'})${trial}${pending}`;
+export type ExportAccessVia = 'none' | 'subscription' | 'license' | 'free_trial';
+
+/** How this export was allowed — used for Telegram status text. */
+function resolveExportAccess(subscriptionStatus: SubscriptionStatus | null): {
+	statusLabel: string;
+	accessVia: ExportAccessVia;
+	freeTrialRemaining?: number;
+	freeTrialTotal?: number;
+} {
+	if (!subscriptionStatus) {
+		return { statusLabel: 'none', accessVia: 'none' };
 	}
-	if (s.source === 'license') return 'license';
-	return 'active';
+	if (subscriptionStatus.isActive) {
+		if (subscriptionStatus.source === 'subscription') {
+			const trial = subscriptionStatus.onTrial ? ' [on trial]' : '';
+			const pending = subscriptionStatus.cancelledPendingEnd
+				? ' [cancelled, access until period end]'
+				: '';
+			return {
+				statusLabel: `subscription (${subscriptionStatus.plan ?? '—'})${trial}${pending}`,
+				accessVia: 'subscription'
+			};
+		}
+		if (subscriptionStatus.source === 'license') {
+			return { statusLabel: 'license', accessVia: 'license' };
+		}
+		return { statusLabel: 'active', accessVia: 'subscription' };
+	}
+	if (subscriptionStatus.licenseExpired) {
+		return { statusLabel: 'license expired', accessVia: 'none' };
+	}
+	// No paid access — exports only succeed via server-side free trial credits.
+	if (freeTrial.isSignedIn) {
+		const remaining = freeTrial.credits;
+		const total = freeTrial.totalCredits;
+		return {
+			statusLabel: `free trial (${remaining} of ${total} remaining)`,
+			accessVia: 'free_trial',
+			freeTrialRemaining: remaining,
+			freeTrialTotal: total
+		};
+	}
+	return { statusLabel: 'inactive', accessVia: 'none' };
 }
 
 /**
@@ -25,10 +59,14 @@ function formatSubscriptionStatus(s: SubscriptionStatus | null): string {
  */
 export function notifyExportEvent(payload: ExportNotifyPayload): void {
 	const { email, name, subscriptionStatus, designName, format } = payload;
+	const access = resolveExportAccess(subscriptionStatus);
 	const body = {
 		email: email ?? undefined,
 		name: name ?? undefined,
-		subscriptionStatus: formatSubscriptionStatus(subscriptionStatus),
+		subscriptionStatus: access.statusLabel,
+		accessVia: access.accessVia,
+		freeTrialRemaining: access.freeTrialRemaining,
+		freeTrialTotal: access.freeTrialTotal,
 		onTrial: subscriptionStatus?.onTrial ?? false,
 		designName,
 		format
