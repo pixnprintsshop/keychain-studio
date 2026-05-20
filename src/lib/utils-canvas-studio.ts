@@ -24,6 +24,10 @@ export interface BaseElement {
 	color: string;
 	/** Extrusion thickness in mm, used in phase 2. */
 	depth: number;
+	/** @deprecated Plate badge always renders a base-colored outline frame in 3D. */
+	outlineEnabled?: boolean;
+	/** @deprecated Plate badge outline width is a global plate setting. */
+	outlineThickness?: number;
 }
 
 export interface TextElement extends BaseElement {
@@ -144,6 +148,33 @@ export const DEFAULT_BASE_PARAMS: BaseParams = {
 	baseDepth: 2,
 	baseColor: '#ec4899'
 };
+
+/** Matches Canvas Studio outline-base slider range (mm). */
+export const ELEMENT_OUTLINE_THICKNESS_MIN_MM = 0.5;
+export const ELEMENT_OUTLINE_THICKNESS_MAX_MM = 10;
+
+export function clampElementOutlineThicknessMm(mm: number): number {
+	const n = Number(mm);
+	const base = Number.isFinite(n) ? n : DEFAULT_BASE_PARAMS.outlineThickness;
+	return Math.min(
+		ELEMENT_OUTLINE_THICKNESS_MAX_MM,
+		Math.max(ELEMENT_OUTLINE_THICKNESS_MIN_MM, base)
+	);
+}
+
+/** Plan-view rim width for a plate-badge element outline frame. */
+export function effectiveElementOutlineThicknessMm(
+	el: CanvasElement,
+	fallbackMm = DEFAULT_BASE_PARAMS.outlineThickness
+): number {
+	const raw = el.outlineThickness ?? fallbackMm;
+	return clampElementOutlineThicknessMm(raw);
+}
+
+/** Plate badge: outline offset and extrusion height both match base plate depth (mm). */
+export function plateBadgeOutlineThicknessMm(baseDepthMm: number): number {
+	return Math.max(0.1, baseDepthMm);
+}
 
 export const DEFAULT_KEYRING: KeyringParams = {
 	enabled: true,
@@ -511,7 +542,7 @@ export function threeShapeToClipperTree(shape: THREE.Shape, segs = 64): unknown 
 }
 
 /** Walk a PolyTree and collect every outer (non-hole) contour into a flat list. */
-function collectOuterPaths(tree: unknown): ClipperPaths {
+export function collectPolyTreeOuterPaths(tree: unknown): ClipperPaths {
 	const out: ClipperPaths = [];
 	const walk = (node: any) => {
 		const isHole = node.IsHole?.() ?? node.m_IsHole;
@@ -538,7 +569,7 @@ export function unionTreeWithCircle(
 	segs = 64
 ): unknown {
 	if (r <= 0) return tree;
-	const outerPaths = collectOuterPaths(tree);
+	const outerPaths = collectPolyTreeOuterPaths(tree);
 	const ring = clipperCirclePath(cx, cy, r, true, segs);
 	const out = new ClipperLib.PolyTree();
 	const c = new ClipperLib.Clipper();
@@ -551,6 +582,14 @@ export function unionTreeWithCircle(
 		ClipperLib.PolyFillType.pftNonZero
 	);
 	return out;
+}
+
+/**
+ * Expanded outline silhouette for one element (TextOutline / Cake Topper recipe):
+ * offset all contours, union — not a ring/difference. Extrude this as the frame; put the fill mesh on top.
+ */
+export function getElementOutlinePolyTree(el: CanvasElement, outlineWidthMm: number) {
+	return offsetUnionPaths([el], Math.max(0, outlineWidthMm));
 }
 
 /** Convert a Clipper PolyTree to an array of `THREE.Shape` objects (with holes). */
@@ -587,11 +626,24 @@ export function polyTreeToThreeShapes(tree: unknown): THREE.Shape[] {
 		return shape;
 	};
 
+	const shapeFromContour = (contour: { X: number; Y: number }[]): THREE.Shape | null => {
+		if (!contour || contour.length < 3) return null;
+		const pts = contour.map(toVec2);
+		if (THREE.ShapeUtils.isClockWise(pts)) pts.reverse();
+		return new THREE.Shape(pts);
+	};
+
 	const roots = (tree as any).Childs?.() ?? (tree as any).m_Childs ?? [];
 	for (const n of roots) {
 		const isHole = n.IsHole?.() ?? n.m_IsHole;
-		if (isHole) continue;
-		const s = buildFromOuter(n);
+		if (!isHole) {
+			const s = buildFromOuter(n);
+			if (s) shapesOut.push(s);
+			continue;
+		}
+		// Difference rings for text can surface as hole-flagged root loops; still extrude them.
+		const contour = n.Contour?.() ?? n.m_polygon ?? [];
+		const s = shapeFromContour(contour);
 		if (s) shapesOut.push(s);
 	}
 	return shapesOut;

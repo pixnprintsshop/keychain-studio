@@ -30,7 +30,8 @@
 		| 'namePuzzle'
 		| 'engraveNamePlate'
 		| 'cakeTopper'
-		| 'canvasStudio';
+		| 'canvasStudio'
+		| 'plateBadge';
 
 	interface DesignerItem {
 		id: StyleName;
@@ -106,7 +107,7 @@
 		basicName: 'Now supports multi-line text — each line has its own font, size, and depth.'
 	};
 
-	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper']);
+	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);
 	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set([]);
 	let pendingBetaDesigner: StyleName | null = $state(null);
 
@@ -119,6 +120,14 @@
 			// Placeholder reuse; swap with /images/canvas-studio.png when ready.
 			imageSrc: '/images/canvas-studio.png',
 			imageAlt: 'Canvas Studio preview'
+		},
+		{
+			id: 'plateBadge',
+			title: 'Plate badge',
+			description:
+				'Motorcycle plate accessory: fixed bar with end mounting slots',
+			imageSrc: '/images/plate-badge.png',
+			imageAlt: 'Motorcycle plate accessory badge examples'
 		},
 		{
 			id: 'cakeTopper',
@@ -342,7 +351,7 @@
 <div
 	class="flex min-h-dvh w-dvw items-center justify-center bg-slate-50 px-4 py-6 pt-20 sm:p-6 sm:pt-25"
 >
-	<div class="w-full max-w-4xl">
+	<div class="w-full max-w-6xl">
 		<div class="mb-6 text-center sm:mb-10">
 			<div class="mb-3 flex justify-center sm:mb-4">
 				<img
@@ -430,7 +439,7 @@
 			</div>
 		{/if}
 
-		<div class="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-4">
+		<div class="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-5">
 			{#each DESIGNERS as designer (designer.id)}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->

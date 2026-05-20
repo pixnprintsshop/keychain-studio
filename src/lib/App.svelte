@@ -6,6 +6,7 @@
 	import BumpyTextDesigner from '$lib/components/BumpyTextDesigner.svelte';
 	import CakeTopperDesigner from '$lib/components/CakeTopperDesigner.svelte';
 	import CanvasStudioDesigner from '$lib/components/CanvasStudioDesigner.svelte';
+	import PlateBadgeDesigner from '$lib/components/PlateBadgeDesigner.svelte';
 	import CharmDesigner from '$lib/components/CharmDesigner.svelte';
 	import CustomSVGDesigner from '$lib/components/CustomSVGDesigner.svelte';
 	import DesktopRequiredView from '$lib/components/DesktopRequiredView.svelte';
@@ -125,6 +126,7 @@
 		| 'engraveNamePlate'
 		| 'cakeTopper'
 		| 'canvasStudio'
+		| 'plateBadge'
 		| 'feedback'
 		| 'contact'
 		| 'settings';
@@ -151,6 +153,7 @@
 		'engraveNamePlate',
 		'cakeTopper',
 		'canvasStudio',
+		'plateBadge',
 		'feedback',
 		'contact',
 		'settings'
@@ -177,7 +180,8 @@
 		'namePuzzle',
 		'engraveNamePlate',
 		'cakeTopper',
-		'canvasStudio'
+		'canvasStudio',
+		'plateBadge'
 	]);
 
 	/** True when the URL hash contains Supabase OAuth callback params (tokens or error). Do not overwrite hash until Supabase has processed it. */
@@ -240,6 +244,7 @@
 				stored === 'engraveNamePlate' ||
 				stored === 'cakeTopper' ||
 				stored === 'canvasStudio' ||
+				stored === 'plateBadge' ||
 				stored === 'feedback' ||
 				stored === 'contact' ||
 				stored === 'settings' ||
@@ -373,6 +378,7 @@
 			| 'engraveNamePlate'
 			| 'cakeTopper'
 			| 'canvasStudio'
+			| 'plateBadge'
 	) {
 		if (MAINTENANCE_VIEWS.has(style)) return;
 		posthog.capture('designer_selected', { designer: style });
@@ -419,7 +425,7 @@
 		showWelcomeDialog = false;
 		localStorage.setItem(STORAGE_KEY_WELCOME, 'true');
 		if (!localStorage.getItem(STORAGE_KEY_BAMBU_ANNOUNCEMENT)) {
-			show3MFAnnouncementDialog = true;
+			// show3MFAnnouncementDialog = true;
 		}
 	}
 
@@ -756,11 +762,11 @@
 		</div>
 	{/if}
 
-	<PromotionDialog
+	<!-- <PromotionDialog
 		open={showPromotionDialog}
 		onClose={closePromotionDialog}
 		onClaim={handleClaimPromotion}
-	/>
+	/> -->
 
 	<RatingPromptModal
 		open={showRatingPromptDialog}
@@ -1338,6 +1344,17 @@
 			/>
 		{:else if currentView === 'canvasStudio'}
 			<CanvasStudioDesigner
+				{user}
+				{session}
+				{subscriptionStatus}
+				palette={effectivePalette}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
+			/>
+		{:else if currentView === 'plateBadge'}
+			<PlateBadgeDesigner
 				{user}
 				{session}
 				{subscriptionStatus}
