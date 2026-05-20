@@ -6,6 +6,9 @@
  * `trial_usage` table and the cap is enforced atomically in the
  * `consume_trial_credit` RPC, so the limit cannot be bypassed by clearing
  * localStorage. Guest users have no trial — they must sign in first.
+ *
+ * Support can add `bonus_credits` on a user's row (e.g. share promo) — the
+ * server includes those in the effective cap.
  */
 
 import { supabase } from './supabase';
@@ -17,9 +20,8 @@ const DEFAULT_FREE_TRIAL_CREDITS = 10;
  * Configurable via the `VITE_FREE_TRIAL_CREDITS` env var (positive integer).
  * Falls back to {@link DEFAULT_FREE_TRIAL_CREDITS} when unset/invalid.
  *
- * The value is also passed as `p_max` to the server-side `consume_trial_credit`
- * RPC, so changing it lets users with prior usage immediately access additional
- * credits (the server only checks `count < p_max`).
+ * The value is also passed as `p_base` / `p_max` to the server-side RPCs;
+ * effective cap = base + per-user `bonus_credits`.
  */
 export const FREE_TRIAL_INITIAL_CREDITS: number = (() => {
 	const raw = import.meta.env.VITE_FREE_TRIAL_CREDITS as string | undefined;
@@ -28,8 +30,13 @@ export const FREE_TRIAL_INITIAL_CREDITS: number = (() => {
 	return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_FREE_TRIAL_CREDITS;
 })();
 
+/** Share promo: credits granted manually after user posts and messages support. */
+export const SHARE_PROMO_BONUS_CREDITS = 20;
+
 let userId = $state<string | null>(null);
 let used = $state<number>(0);
+let bonusCredits = $state<number>(0);
+let effectiveMax = $state<number>(FREE_TRIAL_INITIAL_CREDITS);
 let loaded = $state(false);
 
 /**
@@ -38,26 +45,25 @@ let loaded = $state(false);
  * underlying `$state` cells.
  */
 export const freeTrial = {
-	/**
-	 * Remaining trial downloads. Returns 0 for guests and before the first load
-	 * resolves, so UI consumers can use a single `> 0` predicate to decide
-	 * whether to render the trial chip.
-	 */
 	get credits(): number {
 		if (!loaded) return 0;
-		return Math.max(0, FREE_TRIAL_INITIAL_CREDITS - used);
+		return Math.max(0, effectiveMax - used);
 	},
 	get hasCredits(): boolean {
 		return this.credits > 0;
 	},
 	get totalCredits(): number {
+		return loaded ? effectiveMax : FREE_TRIAL_INITIAL_CREDITS;
+	},
+	get baseCredits(): number {
 		return FREE_TRIAL_INITIAL_CREDITS;
 	},
-	/** True once the per-user trial usage has been fetched at least once. */
+	get bonusCredits(): number {
+		return bonusCredits;
+	},
 	get loaded(): boolean {
 		return loaded;
 	},
-	/** True when a user is signed in (i.e. trial logic applies). */
 	get isSignedIn(): boolean {
 		return userId !== null;
 	}
@@ -72,28 +78,45 @@ export async function loadFreeTrialForUser(uid: string | null): Promise<void> {
 	if (uid === null) {
 		userId = null;
 		used = 0;
+		bonusCredits = 0;
+		effectiveMax = FREE_TRIAL_INITIAL_CREDITS;
 		loaded = false;
 		return;
 	}
 	userId = uid;
 	loaded = false;
 	try {
-		const { data, error } = await supabase.rpc('get_trial_usage');
-		if (error) throw error;
-		used = typeof data === 'number' ? Math.max(0, data) : 0;
+		const { data, error } = await supabase.rpc('get_trial_credit_status', {
+			p_base: FREE_TRIAL_INITIAL_CREDITS
+		});
+		if (error) {
+			// Rollout: fall back until migration is applied.
+			const legacy = await supabase.rpc('get_trial_usage');
+			if (legacy.error) throw error;
+			used = typeof legacy.data === 'number' ? Math.max(0, legacy.data) : 0;
+			bonusCredits = 0;
+			effectiveMax = FREE_TRIAL_INITIAL_CREDITS;
+		} else {
+			const row = Array.isArray(data) ? data[0] : data;
+			used = typeof row?.used === 'number' ? Math.max(0, row.used) : 0;
+			bonusCredits = typeof row?.bonus_credits === 'number' ? Math.max(0, row.bonus_credits) : 0;
+			effectiveMax =
+				typeof row?.effective_max === 'number'
+					? Math.max(FREE_TRIAL_INITIAL_CREDITS, row.effective_max)
+					: FREE_TRIAL_INITIAL_CREDITS + bonusCredits;
+		}
 	} catch (e) {
 		console.error('[freeTrial] failed to load trial usage:', e);
-		// Fail closed: assume exhausted so we don't grant exports we can't verify.
 		used = FREE_TRIAL_INITIAL_CREDITS;
+		bonusCredits = 0;
+		effectiveMax = FREE_TRIAL_INITIAL_CREDITS;
 	} finally {
 		loaded = true;
 	}
 }
 
 export interface ConsumeResult {
-	/** True iff the server granted a trial-mode export. */
 	allowed: boolean;
-	/** Remaining credits after the call (0 when exhausted). */
 	remaining: number;
 }
 
@@ -112,7 +135,7 @@ export async function tryConsumeFreeTrialCredit(): Promise<ConsumeResult> {
 		const row = Array.isArray(data) ? data[0] : data;
 		const allowed = Boolean(row?.allowed);
 		const remaining = typeof row?.remaining === 'number' ? row.remaining : 0;
-		used = Math.max(0, FREE_TRIAL_INITIAL_CREDITS - remaining);
+		used = Math.max(0, effectiveMax - remaining);
 		loaded = true;
 		return { allowed, remaining };
 	} catch (e) {

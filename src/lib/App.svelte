@@ -38,7 +38,11 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import type { SubscriptionStatus } from '$lib/subscription';
-	import { freeTrial, loadFreeTrialForUser } from '$lib/freeTrial.svelte';
+	import {
+		SHARE_PROMO_BONUS_CREDITS,
+		freeTrial,
+		loadFreeTrialForUser
+	} from '$lib/freeTrial.svelte';
 	import { clearLicenseCache, getSubscriptionStatus } from '$lib/subscription';
 	import { notifyVisit } from '$lib/visitNotify';
 	import {
@@ -61,10 +65,10 @@
 	const STORAGE_KEY_VIEW = 'designer-current-view';
 	const STORAGE_KEY_SHARE_SHOWN = 'designer-share-dialog-shown';
 	const STORAGE_KEY_BAMBU_ANNOUNCEMENT = 'designer-has-seen-bambu-studio-announcement';
-	const STORAGE_KEY_PROMOTION_DISMISSED = 'designer-has-seen-promotion-dialog';
-	const PROMOTION_DISCOUNT_CODE = 'IWNZC1MW';
-	const PROMOTION_MONTHLY_CHECKOUT_URL =
-		'https://pixnprints.lemonsqueezy.com/checkout/buy/5c2e3d77-619c-411a-9f8f-377e082cff7d';
+	/** One-time share-for-credits promo for signed-in users without a subscription. */
+	const STORAGE_KEY_SHARE_CREDITS_PROMO_DISMISSED =
+		'designer-has-seen-share-credits-promo-dialog';
+	const SHARE_CREDITS_MESSENGER_URL = 'https://m.me/pixnprints.shop';
 	/** Set when user submits a rating from the prompt — never show again. */
 	const STORAGE_KEY_RATING_SUBMITTED = 'designer-rating-prompt-submitted';
 	/** Local calendar day (YYYY-MM-DD) when user dismissed without submitting — show again next day. */
@@ -98,6 +102,13 @@
 		} catch {
 			return false;
 		}
+	}
+
+	/** Signed-in users on the free-trial path only — not subscribers or license holders. */
+	function isFreeTrialOnlyUser(): boolean {
+		if (!user?.id || !freeTrial.loaded) return false;
+		if (subscriptionStatus === null) return false;
+		return !subscriptionStatus.isActive;
 	}
 
 	/** Designers under maintenance; not accessible from home and redirect to home if selected. */
@@ -273,7 +284,7 @@
 	let showSupportShareDialog = $state(false);
 	let show3MFAnnouncementDialog = $state(false);
 	let showPromotionDialog = $state(false);
-	let canShowPromotionDialog = $state(false);
+	let canShowShareCreditsPromo = $state(false);
 	let showRatingPromptDialog = $state(false);
 	/** Bumped when the local calendar day changes (visibility) so the daily rating prompt can re-evaluate. */
 	let ratingPromptDayKey = $state(0);
@@ -437,14 +448,40 @@
 	function closePromotionDialog() {
 		showPromotionDialog = false;
 		try {
-			localStorage.setItem(STORAGE_KEY_PROMOTION_DISMISSED, 'true');
+			localStorage.setItem(STORAGE_KEY_SHARE_CREDITS_PROMO_DISMISSED, 'true');
 		} catch (_) {}
+		posthog.capture('share_credits_promo_dismissed', {
+			remaining_credits: freeTrial.credits
+		});
 	}
 
-	async function handleClaimPromotion() {
-		const checkoutUrl = new URL(PROMOTION_MONTHLY_CHECKOUT_URL);
-		checkoutUrl.searchParams.set('checkout[discount_code]', PROMOTION_DISCOUNT_CODE);
-		window.location.href = checkoutUrl.toString();
+	async function handleShareCreditsPromoShare() {
+		if (typeof window === 'undefined') return;
+		const url = window.location.origin;
+		const shareData = {
+			title: 'PixnPrints – 3D print designer',
+			text: 'I design and download 3D prints with PixnPrints — great for makers and small shops.',
+			url
+		};
+		try {
+			const nav = window.navigator as Navigator & {
+				share?: (data: ShareData) => Promise<void>;
+			};
+			if (nav.share) {
+				await nav.share(shareData);
+			} else if (navigator.clipboard?.writeText) {
+				await navigator.clipboard.writeText(`${shareData.text} ${url}`);
+			}
+			posthog.capture('share_credits_promo_shared');
+		} catch {
+			// user cancelled share sheet
+		}
+	}
+
+	function handleShareCreditsPromoMessage() {
+		posthog.capture('share_credits_promo_message_clicked');
+		window.open(SHARE_CREDITS_MESSENGER_URL, '_blank', 'noopener,noreferrer');
+		closePromotionDialog();
 	}
 
 	function closeRatingPrompt() {
@@ -465,11 +502,17 @@
 
 	// Daily rating prompt until user submits (subscribed / licensed; after welcome & feature announcements)
 	let ratingPromptFired = $state(false);
+	// Share-for-credits promo: free-trial users only (after subscription/license check resolves).
 	$effect(() => {
-		if (!canShowPromotionDialog) return;
+		if (!canShowShareCreditsPromo) return;
+		if (!isFreeTrialOnlyUser()) return;
 		if (showWelcomeDialog || show3MFAnnouncementDialog || showPromotionDialog) return;
 		showPromotionDialog = true;
-		canShowPromotionDialog = false;
+		canShowShareCreditsPromo = false;
+		posthog.capture('share_credits_promo_shown', {
+			remaining_credits: freeTrial.credits,
+			total_credits: freeTrial.totalCredits
+		});
 	});
 
 	$effect(() => {
@@ -539,8 +582,8 @@
 			show3MFAnnouncementDialog = true;
 		}
 
-		// Promotion dialog: show once ever, after welcome and feature announcement dialogs.
-		canShowPromotionDialog = !localStorage.getItem(STORAGE_KEY_PROMOTION_DISMISSED);
+		// Share-for-credits promo: once per signed-in free user (new storage key vs old subscription promo).
+		canShowShareCreditsPromo = !localStorage.getItem(STORAGE_KEY_SHARE_CREDITS_PROMO_DISMISSED);
 
 		// Open login modal if redirected from pricing with ?login=1
 		if (
@@ -762,11 +805,15 @@
 		</div>
 	{/if}
 
-	<!-- <PromotionDialog
+	<PromotionDialog
 		open={showPromotionDialog}
+		remainingCredits={freeTrial.credits}
+		totalCredits={freeTrial.totalCredits}
+		bonusCredits={SHARE_PROMO_BONUS_CREDITS}
 		onClose={closePromotionDialog}
-		onClaim={handleClaimPromotion}
-	/> -->
+		onShare={handleShareCreditsPromoShare}
+		onMessageUs={handleShareCreditsPromoMessage}
+	/>
 
 	<RatingPromptModal
 		open={showRatingPromptDialog}

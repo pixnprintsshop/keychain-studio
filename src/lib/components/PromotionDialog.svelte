@@ -3,45 +3,36 @@
 
 	interface Props {
 		open: boolean;
+		remainingCredits?: number;
+		totalCredits?: number;
+		bonusCredits?: number;
 		onClose: () => void;
-		onClaim: () => void | Promise<void>;
+		onShare: () => void | Promise<void>;
+		onMessageUs: () => void;
 	}
 
-	let { open, onClose, onClaim }: Props = $props();
-	const PROMO_CODE = 'IWNZC1MW';
-	let copyFeedback = $state<'success' | 'failure' | null>(null);
+	let {
+		open,
+		remainingCredits = 0,
+		totalCredits = 10,
+		bonusCredits = 20,
+		onClose,
+		onShare,
+		onMessageUs
+	}: Props = $props();
+
+	const messengerUrl = 'https://m.me/pixnprints.shop';
+
+	const headline = $derived(
+		remainingCredits <= 0
+			? 'Out of free download credits'
+			: remainingCredits <= 2
+				? 'Running low on download credits'
+				: 'Earn more free downloads'
+	);
 
 	function handleOverlayKeydown(event: KeyboardEvent) {
 		if (event.key === 'Escape') onClose();
-	}
-
-	async function handleCopyCode() {
-		try {
-			if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-				await navigator.clipboard.writeText(PROMO_CODE);
-				copyFeedback = 'success';
-				return;
-			}
-
-			if (typeof document === 'undefined') {
-				copyFeedback = 'failure';
-				return;
-			}
-
-			const textarea = document.createElement('textarea');
-			textarea.value = PROMO_CODE;
-			textarea.setAttribute('readonly', '');
-			textarea.style.position = 'fixed';
-			textarea.style.opacity = '0';
-			document.body.appendChild(textarea);
-			textarea.select();
-
-			const copied = document.execCommand('copy');
-			document.body.removeChild(textarea);
-			copyFeedback = copied ? 'success' : 'failure';
-		} catch {
-			copyFeedback = 'failure';
-		}
 	}
 </script>
 
@@ -52,7 +43,7 @@
 		onkeydown={handleOverlayKeydown}
 		role="dialog"
 		aria-modal="true"
-		aria-labelledby="promotion-dialog-title"
+		aria-labelledby="share-credits-promo-title"
 		tabindex="-1"
 	>
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -64,69 +55,60 @@
 			<div class="p-6">
 				<div class="mb-4 flex justify-center" aria-hidden="true">
 					<div
-						class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"
+						class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-700"
 					>
-						<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
-							><!-- Icon from Tabler Icons by Paweł Kuna - https://github.com/tabler/tabler-icons/blob/master/LICENSE --><g
+						<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
+							><g
 								fill="none"
 								stroke="currentColor"
 								stroke-linecap="round"
 								stroke-linejoin="round"
 								stroke-width="2"
-								><path d="m9 15l6-6" /><circle
-									cx="9.5"
-									cy="9.5"
-									r=".5"
-									fill="currentColor"
-								/><circle cx="14.5" cy="14.5" r=".5" fill="currentColor" /><path
-									d="M5 7.2A2.2 2.2 0 0 1 7.2 5h1a2.2 2.2 0 0 0 1.55-.64l.7-.7a2.2 2.2 0 0 1 3.12 0l.7.7a2.2 2.2 0 0 0 1.55.64h1a2.2 2.2 0 0 1 2.2 2.2v1a2.2 2.2 0 0 0 .64 1.55l.7.7a2.2 2.2 0 0 1 0 3.12l-.7.7a2.2 2.2 0 0 0-.64 1.55v1a2.2 2.2 0 0 1-2.2 2.2h-1a2.2 2.2 0 0 0-1.55.64l-.7.7a2.2 2.2 0 0 1-3.12 0l-.7-.7a2.2 2.2 0 0 0-1.55-.64h-1a2.2 2.2 0 0 1-2.2-2.2v-1a2.2 2.2 0 0 0-.64-1.55l-.7-.7a2.2 2.2 0 0 1 0-3.12l.7-.7A2.2 2.2 0 0 0 5 8.2z"
+								><path
+									d="M12 3v12m0 0l4-4m-4 4l-4-4M5 21h14"
 								/></g
 							></svg
 						>
 					</div>
 				</div>
-				<h2 id="promotion-dialog-title" class="text-center text-xl font-bold text-slate-900">
-					Special subscription offer
+				<h2 id="share-credits-promo-title" class="text-center text-xl font-bold text-slate-900">
+					{headline}
 				</h2>
 				<p class="mt-3 text-center text-sm leading-relaxed text-slate-600">
-					Unlock premium access with <span class="font-semibold">20% discount on your subscription forever</span>.
-				</p>
-				<div class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center">
-					<p class="text-xs font-semibold tracking-wide text-emerald-800 uppercase">
-						Limited offer only
-					</p>
-					<div class="mt-2 flex items-center justify-center gap-2 text-sm text-emerald-900">
-						<p>
-							Code: <span class="font-mono font-semibold">{PROMO_CODE}</span>
-						</p>
-						<Button onclick={handleCopyCode} variant="ghost" size="icon">
-							<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
-								><!-- Icon from Tabler Icons by Paweł Kuna - https://github.com/tabler/tabler-icons/blob/master/LICENSE --><g
-									fill="none"
-									stroke="currentColor"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									><path
-										d="M7 9.667A2.667 2.667 0 0 1 9.667 7h8.666A2.667 2.667 0 0 1 21 9.667v8.666A2.667 2.667 0 0 1 18.333 21H9.667A2.667 2.667 0 0 1 7 18.333z"
-									/><path
-										d="M4.012 16.737A2 2 0 0 1 3 15V5c0-1.1.9-2 2-2h10c.75 0 1.158.385 1.5 1"
-									/></g
-								></svg
-							>
-						</Button>
-					</div>
-					{#if copyFeedback}
-						<p class="mt-2 text-xs text-emerald-800">
-							{copyFeedback === 'success' ? 'Copied!' : 'Could not copy'}
-						</p>
+					{#if remainingCredits <= 0}
+						You've used your {totalCredits} free trial download{totalCredits === 1 ? '' : 's'}.
+					{:else}
+						You have <span class="font-semibold text-slate-800">{remainingCredits}</span> of
+						{totalCredits} free download{totalCredits === 1 ? '' : 's'} left.
 					{/if}
+					Share something you made, mention <span class="font-semibold">PixnPrints</span>, and we'll add
+					<span class="font-semibold text-emerald-700">{bonusCredits} more download credits</span> to your
+					account.
+				</p>
+				<div class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+					<p class="font-semibold">How it works</p>
+					<ol class="mt-2 list-decimal space-y-1.5 pl-4 text-emerald-800">
+						<li>Post your print or design on social media or a group.</li>
+						<li>Tag or mention PixnPrints so others can find the app.</li>
+						<li>Send us a link or screenshot — we add {bonusCredits} credits within a day.</li>
+					</ol>
 				</div>
 				<div class="mt-6 space-y-3">
-					<Button class="w-full" onclick={onClaim}>Grab 20% discount</Button>
+					<Button class="w-full" onclick={onShare}>Share my work</Button>
+					<Button class="w-full" variant="secondary" onclick={onMessageUs}>
+						Message us with your post
+					</Button>
 					<div class="flex justify-center">
-						<Button onclick={onClose} variant="outline">Close</Button>
+						<Button onclick={onClose} variant="outline">Maybe later</Button>
 					</div>
+					<p class="text-center text-[11px] text-slate-500">
+						<a
+							href={messengerUrl}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="underline hover:text-slate-700">{messengerUrl.replace('https://', '')}</a
+						>
+					</p>
 				</div>
 			</div>
 		</div>
