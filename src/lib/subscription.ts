@@ -1,4 +1,8 @@
-import { freeTrial, tryConsumeFreeTrialCredit } from './freeTrial.svelte';
+import {
+	freeTrial,
+	getFingerprintBlockedMessage,
+	tryConsumeFreeTrialCredit
+} from './freeTrial.svelte';
 import { supabase } from './supabase';
 
 const LICENSE_CACHE_KEY_PREFIX = 'pixnprints-license-';
@@ -153,6 +157,7 @@ export function getExportTitle(
 	if (subscriptionStatus?.isActive) return activeTitle;
 	if (subscriptionStatus?.licenseExpired) return 'License expired';
 	if (!user) return 'Sign in to start free trial';
+	if (freeTrial.fingerprintBlocked) return getFingerprintBlockedMessage();
 	if (freeTrial.credits > 0) {
 		const left = freeTrial.credits;
 		return `Free trial — ${left} download${left === 1 ? '' : 's'} left`;
@@ -185,8 +190,18 @@ export async function ensureExportAccess(
 		return false;
 	}
 
+	if (freeTrial.fingerprintBlocked) {
+		onShowPricing?.();
+		return false;
+	}
+
 	const result = await tryConsumeFreeTrialCredit();
 	if (result.allowed) return true;
+
+	if (!result.fingerprintAllowed) {
+		onShowPricing?.();
+		return false;
+	}
 
 	onShowPricing?.();
 	return false;

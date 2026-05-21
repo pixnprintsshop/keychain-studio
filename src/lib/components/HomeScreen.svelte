@@ -360,7 +360,7 @@
 					class="h-12 w-auto object-contain sm:h-16"
 				/>
 			</div>
-			<p class="mt-2 text-sm text-slate-500">Choose a style to start designing your 3D keychain</p>
+			<p class="mt-2 text-sm text-slate-500">Choose a style to start designing your 3D model</p>
 		</div>
 
 		<!-- Subscription CTA: only for guests or users without access -->

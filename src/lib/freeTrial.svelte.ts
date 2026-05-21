@@ -7,13 +7,15 @@
  * `consume_trial_credit` RPC, so the limit cannot be bypassed by clearing
  * localStorage. Guest users have no trial — they must sign in first.
  *
- * Support can add `bonus_credits` on a user's row (e.g. share promo) — the
- * server includes those in the effective cap.
+ * Browser fingerprinting limits each device to 2 distinct trial accounts (emails).
  */
 
+import { getBrowserFingerprintHash } from './browserFingerprint';
 import { supabase } from './supabase';
 
 const DEFAULT_FREE_TRIAL_CREDITS = 10;
+
+export const TRIAL_MAX_ACCOUNTS_PER_FINGERPRINT = 2;
 
 /**
  * How many free downloads each signed-in user gets before the paywall.
@@ -37,6 +39,9 @@ let userId = $state<string | null>(null);
 let used = $state<number>(0);
 let bonusCredits = $state<number>(0);
 let effectiveMax = $state<number>(FREE_TRIAL_INITIAL_CREDITS);
+let fingerprintAllowed = $state(true);
+let fingerprintLinkedAccounts = $state(0);
+let fingerprintMaxAccounts = $state(TRIAL_MAX_ACCOUNTS_PER_FINGERPRINT);
 let loaded = $state(false);
 
 /**
@@ -46,7 +51,7 @@ let loaded = $state(false);
  */
 export const freeTrial = {
 	get credits(): number {
-		if (!loaded) return 0;
+		if (!loaded || !fingerprintAllowed) return 0;
 		return Math.max(0, effectiveMax - used);
 	},
 	get hasCredits(): boolean {
@@ -66,8 +71,32 @@ export const freeTrial = {
 	},
 	get isSignedIn(): boolean {
 		return userId !== null;
+	},
+	get fingerprintAllowed(): boolean {
+		return fingerprintAllowed;
+	},
+	get fingerprintBlocked(): boolean {
+		return loaded && !fingerprintAllowed;
+	},
+	get fingerprintLinkedAccounts(): number {
+		return fingerprintLinkedAccounts;
+	},
+	get fingerprintMaxAccounts(): number {
+		return fingerprintMaxAccounts;
 	}
 };
+
+function applyFingerprintFields(row: Record<string, unknown> | undefined) {
+	fingerprintAllowed = row?.fingerprint_allowed !== false;
+	fingerprintLinkedAccounts =
+		typeof row?.fingerprint_linked_accounts === 'number'
+			? Math.max(0, row.fingerprint_linked_accounts)
+			: 0;
+	fingerprintMaxAccounts =
+		typeof row?.fingerprint_max_accounts === 'number'
+			? Math.max(1, row.fingerprint_max_accounts)
+			: TRIAL_MAX_ACCOUNTS_PER_FINGERPRINT;
+}
 
 /**
  * Synchronise the trial state with the currently signed-in user.
@@ -80,14 +109,19 @@ export async function loadFreeTrialForUser(uid: string | null): Promise<void> {
 		used = 0;
 		bonusCredits = 0;
 		effectiveMax = FREE_TRIAL_INITIAL_CREDITS;
+		fingerprintAllowed = true;
+		fingerprintLinkedAccounts = 0;
+		fingerprintMaxAccounts = TRIAL_MAX_ACCOUNTS_PER_FINGERPRINT;
 		loaded = false;
 		return;
 	}
 	userId = uid;
 	loaded = false;
 	try {
+		const fingerprintHash = await getBrowserFingerprintHash();
 		const { data, error } = await supabase.rpc('get_trial_credit_status', {
-			p_base: FREE_TRIAL_INITIAL_CREDITS
+			p_base: FREE_TRIAL_INITIAL_CREDITS,
+			p_fingerprint_hash: fingerprintHash
 		});
 		if (error) {
 			// Rollout: fall back until migration is applied.
@@ -96,20 +130,24 @@ export async function loadFreeTrialForUser(uid: string | null): Promise<void> {
 			used = typeof legacy.data === 'number' ? Math.max(0, legacy.data) : 0;
 			bonusCredits = 0;
 			effectiveMax = FREE_TRIAL_INITIAL_CREDITS;
+			fingerprintAllowed = true;
+			fingerprintLinkedAccounts = 0;
 		} else {
-			const row = Array.isArray(data) ? data[0] : data;
+			const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | undefined;
 			used = typeof row?.used === 'number' ? Math.max(0, row.used) : 0;
 			bonusCredits = typeof row?.bonus_credits === 'number' ? Math.max(0, row.bonus_credits) : 0;
 			effectiveMax =
 				typeof row?.effective_max === 'number'
 					? Math.max(FREE_TRIAL_INITIAL_CREDITS, row.effective_max)
 					: FREE_TRIAL_INITIAL_CREDITS + bonusCredits;
+			applyFingerprintFields(row);
 		}
 	} catch (e) {
 		console.error('[freeTrial] failed to load trial usage:', e);
 		used = FREE_TRIAL_INITIAL_CREDITS;
 		bonusCredits = 0;
 		effectiveMax = FREE_TRIAL_INITIAL_CREDITS;
+		fingerprintAllowed = true;
 	} finally {
 		loaded = true;
 	}
@@ -118,6 +156,7 @@ export async function loadFreeTrialForUser(uid: string | null): Promise<void> {
 export interface ConsumeResult {
 	allowed: boolean;
 	remaining: number;
+	fingerprintAllowed: boolean;
 }
 
 /**
@@ -126,20 +165,31 @@ export interface ConsumeResult {
  * count immediately. Returns `{ allowed: false }` for guests or transient errors.
  */
 export async function tryConsumeFreeTrialCredit(): Promise<ConsumeResult> {
-	if (!userId) return { allowed: false, remaining: 0 };
+	if (!userId) return { allowed: false, remaining: 0, fingerprintAllowed: false };
+	if (!fingerprintAllowed) {
+		return { allowed: false, remaining: 0, fingerprintAllowed: false };
+	}
 	try {
+		const fingerprintHash = await getBrowserFingerprintHash();
 		const { data, error } = await supabase.rpc('consume_trial_credit', {
-			p_max: FREE_TRIAL_INITIAL_CREDITS
+			p_max: FREE_TRIAL_INITIAL_CREDITS,
+			p_fingerprint_hash: fingerprintHash
 		});
 		if (error) throw error;
-		const row = Array.isArray(data) ? data[0] : data;
-		const allowed = Boolean(row?.allowed);
+		const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | undefined;
+		const fpAllowed = row?.fingerprint_allowed !== false;
+		fingerprintAllowed = fpAllowed;
+		const allowed = fpAllowed && Boolean(row?.allowed);
 		const remaining = typeof row?.remaining === 'number' ? row.remaining : 0;
 		used = Math.max(0, effectiveMax - remaining);
 		loaded = true;
-		return { allowed, remaining };
+		return { allowed, remaining, fingerprintAllowed: fpAllowed };
 	} catch (e) {
 		console.error('[freeTrial] failed to consume trial credit:', e);
-		return { allowed: false, remaining: freeTrial.credits };
+		return { allowed: false, remaining: freeTrial.credits, fingerprintAllowed };
 	}
+}
+
+export function getFingerprintBlockedMessage(): string {
+	return `This device already has ${fingerprintMaxAccounts} free trial accounts. Sign in with an account that was used here before, or subscribe for unlimited exports.`;
 }

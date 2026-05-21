@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import { freeTrial } from '$lib/freeTrial.svelte';
+	import { freeTrial, getFingerprintBlockedMessage } from '$lib/freeTrial.svelte';
 	import posthog from 'posthog-js';
 
 	interface Props {
@@ -35,9 +35,14 @@
 	}: Props = $props();
 
 	/** True only when the caller indicates "not entitled" AND free-trial credits are exhausted. */
-	const lockedForReal = $derived(showLockIcon && freeTrial.credits === 0);
+	const lockedForReal = $derived(
+		showLockIcon && (freeTrial.credits === 0 || freeTrial.fingerprintBlocked)
+	);
 	/** Show the free-trial chip while the visitor is on the trial path. */
-	const showFreeTrialChip = $derived(showLockIcon && freeTrial.credits > 0);
+	const showFreeTrialChip = $derived(
+		showLockIcon && freeTrial.credits > 0 && !freeTrial.fingerprintBlocked
+	);
+	const showFingerprintBlockedChip = $derived(showLockIcon && freeTrial.fingerprintBlocked);
 
 	function handleSnapshot() {
 		posthog.capture('snapshot_downloaded');
@@ -63,6 +68,14 @@
 </script>
 
 <div class="flex items-center gap-2">
+	{#if showFingerprintBlockedChip}
+		<span
+			class="inline-flex max-w-[14rem] items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50/95 px-3 py-1.5 text-[11px] font-medium text-amber-900 shadow-sm backdrop-blur"
+			title={getFingerprintBlockedMessage()}
+		>
+			Device trial limit (2 accounts)
+		</span>
+	{/if}
 	{#if showFreeTrialChip}
 		<span
 			class="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/95 px-3 py-1.5 text-[11px] font-medium text-blue-700 shadow-sm backdrop-blur"

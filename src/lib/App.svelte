@@ -38,9 +38,11 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import type { SubscriptionStatus } from '$lib/subscription';
+	import { preloadBrowserFingerprint } from '$lib/browserFingerprint';
 	import {
 		SHARE_PROMO_BONUS_CREDITS,
 		freeTrial,
+		getFingerprintBlockedMessage,
 		loadFreeTrialForUser
 	} from '$lib/freeTrial.svelte';
 	import { clearLicenseCache, getSubscriptionStatus } from '$lib/subscription';
@@ -539,6 +541,8 @@
 
 	// ── Lifecycle ───────────────────────────────────────────────────────────
 	onMount(() => {
+		preloadBrowserFingerprint();
+
 		// Mobile detection: show DesktopRequiredView when opening a designer on small screens
 		const mq = window.matchMedia('(max-width: 768px)');
 		isMobile = mq.matches;
@@ -908,7 +912,14 @@
 						License expired
 					</span>
 				{:else if !subscriptionStatus?.isActive}
-					{#if freeTrial.credits > 0}
+					{#if freeTrial.fingerprintBlocked}
+						<span
+							class="ml-2 inline-flex max-w-xs rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-medium text-amber-900"
+							title={getFingerprintBlockedMessage()}
+						>
+							Device trial limit reached
+						</span>
+					{:else if freeTrial.credits > 0}
 						<span
 							class="ml-2 inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-medium text-blue-800"
 							title={`Free trial: ${freeTrial.credits} of ${freeTrial.totalCredits} downloads remaining. Subscribe for unlimited exports.`}
@@ -1055,7 +1066,14 @@
 								{/if}
 							</div>
 						</div>
-						{#if !subscriptionStatus?.isActive && freeTrial.credits > 0}
+						{#if !subscriptionStatus?.isActive && freeTrial.fingerprintBlocked}
+							<div
+								class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs font-medium text-amber-900"
+								title={getFingerprintBlockedMessage()}
+							>
+								Device trial limit reached (2 accounts per device)
+							</div>
+						{:else if !subscriptionStatus?.isActive && freeTrial.credits > 0}
 							<div
 								class="flex items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-800"
 							>
