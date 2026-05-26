@@ -16,6 +16,7 @@
 		| 'flower'
 		| 'basicName'
 		| 'idNameTag'
+		| 'idNameTagV2'
 		| 'customSvg'
 		| 'charm'
 		| 'keycap'
@@ -104,11 +105,12 @@
 	// Short release notes shown in a popover when the user hovers/taps the
 	// "Updated" badge. Keep each note to one or two sentences.
 	const UPDATE_NOTES: Partial<Record<StyleName, string>> = {
-		basicName: 'Now supports multi-line text — each line has its own font, size, and depth.'
+		basicName: 'Now supports multi-line text — each line has its own font, size, and depth.',
+		textOutline: 'Create separate keychains, each with multiline text and per-line controls.'
 	};
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);
-	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set([]);
+	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set(["idNameTagV2"]);
 	let pendingBetaDesigner: StyleName | null = $state(null);
 
 	const DESIGNERS: DesignerItem[] = [
@@ -124,26 +126,30 @@
 		{
 			id: 'plateBadge',
 			title: 'Plate badge',
-			description:
-				'Motorcycle plate accessory: fixed bar with end mounting slots',
+			description: 'Motorcycle plate accessory: fixed bar with end mounting slots',
 			imageSrc: '/images/plate-badge.png',
 			imageAlt: 'Motorcycle plate accessory badge examples'
 		},
 		{
 			id: 'cakeTopper',
 			title: 'Cake Topper',
-			description:
-				'Multi-line cake topper with adjustable spacing and 1 or 2 long sticks.',
+			description: 'Multi-line cake topper with adjustable spacing and 1 or 2 long sticks.',
 			imageSrc: '/images/cake-topper.png',
 			imageAlt: 'Cake Topper preview'
 		},
 		{
 			id: 'idNameTag',
 			title: 'ID Name Tag',
-			description:
-				'Large ID badge with multi-line text — each line configurable.',
+			description: 'Large ID badge with multi-line text — each line configurable.',
 			imageSrc: '/images/id-name-tag.png',
 			imageAlt: 'ID Name Tag preview'
+		},
+		{
+			id: 'idNameTagV2',
+			title: 'ID Name Tag v2',
+			description: 'Fixed STL name tag styles with selectable base and border pairs.',
+			imageSrc: '/images/id-name-tag-v2.png',
+			imageAlt: 'ID Name Tag v2 preview'
 		},
 		{
 			id: 'basicName',
@@ -158,16 +164,14 @@
 		{
 			id: 'keycapSet',
 			title: 'Keycap Set Maker',
-			description:
-				'Type your own legends (default A–Z and 0–9)',
+			description: 'Type your own legends (default A–Z and 0–9)',
 			imageSrc: '/images/keycap-set-maker.png',
 			imageAlt: 'Keycap Set Maker preview'
 		},
 		{
 			id: 'engraveNamePlate',
 			title: 'Engrave name plate',
-			description:
-				'Contour plate from your text with an engraved pocket and optional keyring tab.',
+			description: 'Contour plate from your text with an engraved pocket and optional keyring tab.',
 			imageSrc: '/images/engrave-name-plate.png',
 			imageAlt: 'Engrave name plate preview'
 		},

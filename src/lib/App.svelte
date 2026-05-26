@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { getSession, getUser, onAuthStateChange, signOut } from '$lib/auth';
 	import BasicNameDesigner from '$lib/components/BasicNameDesigner.svelte';
 	import BowKeychainDesigner from '$lib/components/BowKeychainDesigner.svelte';
@@ -17,6 +18,7 @@
 	import SettingsPage from '$lib/components/SettingsPage.svelte';
 	import HomeScreen from '$lib/components/HomeScreen.svelte';
 	import IdNameTagDesigner from '$lib/components/IdNameTagDesigner.svelte';
+	import IdNameTagV2Designer from '$lib/components/IdNameTagV2Designer.svelte';
 	import InitialDesigner from '$lib/components/InitialDesigner.svelte';
 	import KeycapDesigner from '$lib/components/KeycapDesigner.svelte';
 	import KeycapSetMakerDesigner from '$lib/components/KeycapSetMakerDesigner.svelte';
@@ -68,8 +70,7 @@
 	const STORAGE_KEY_SHARE_SHOWN = 'designer-share-dialog-shown';
 	const STORAGE_KEY_BAMBU_ANNOUNCEMENT = 'designer-has-seen-bambu-studio-announcement';
 	/** One-time share-for-credits promo for signed-in users without a subscription. */
-	const STORAGE_KEY_SHARE_CREDITS_PROMO_DISMISSED =
-		'designer-has-seen-share-credits-promo-dialog';
+	const STORAGE_KEY_SHARE_CREDITS_PROMO_DISMISSED = 'designer-has-seen-share-credits-promo-dialog';
 	const SHARE_CREDITS_MESSENGER_URL = 'https://m.me/pixnprints.shop';
 	/** Set when user submits a rating from the prompt — never show again. */
 	const STORAGE_KEY_RATING_SUBMITTED = 'designer-rating-prompt-submitted';
@@ -91,7 +92,9 @@
 				localStorage.setItem(STORAGE_KEY_RATING_DISMISSED_DAY, getLocalDateString());
 				localStorage.removeItem(LEGACY_STORAGE_KEY_RATING_PROMPT);
 			}
-		} catch (_) {}
+		} catch {
+			// localStorage can be unavailable in restricted browser contexts.
+		}
 	}
 
 	function isRatingPromptEligible(): boolean {
@@ -115,6 +118,8 @@
 
 	/** Designers under maintenance; not accessible from home and redirect to home if selected. */
 	const MAINTENANCE_VIEWS = new Set<ViewName>([]);
+	/** Designers announced as coming soon; visible on home but not route-accessible yet. */
+	const COMING_SOON_VIEWS = new Set<ViewName>(['idNameTagV2']);
 
 	// ── View / routing state ────────────────────────────────────────────────
 	type ViewName =
@@ -124,6 +129,7 @@
 		| 'flower'
 		| 'basicName'
 		| 'idNameTag'
+		| 'idNameTagV2'
 		| 'customSvg'
 		| 'charm'
 		| 'keycap'
@@ -151,6 +157,7 @@
 		'flower',
 		'basicName',
 		'idNameTag',
+		'idNameTagV2',
 		'customSvg',
 		'charm',
 		'keycap',
@@ -179,6 +186,7 @@
 		'flower',
 		'basicName',
 		'idNameTag',
+		'idNameTagV2',
 		'customSvg',
 		'charm',
 		'keycap',
@@ -197,6 +205,10 @@
 		'plateBadge'
 	]);
 
+	function isGuardedDesignerView(view: ViewName): boolean {
+		return MAINTENANCE_VIEWS.has(view) || COMING_SOON_VIEWS.has(view);
+	}
+
 	/** True when the URL hash contains Supabase OAuth callback params (tokens or error). Do not overwrite hash until Supabase has processed it. */
 	function isSupabaseAuthHash(): boolean {
 		if (typeof window === 'undefined') return false;
@@ -210,21 +222,21 @@
 		if (typeof window === 'undefined') return null;
 		const hash = (window.location.hash || '').replace(/^#/, '').trim();
 		if (hash === 'terms') {
-			goto('/terms');
+			goto(resolve('/terms'));
 			return 'home';
 		}
 		if (hash === 'privacy') {
-			goto('/privacy');
+			goto(resolve('/privacy'));
 			return 'home';
 		}
 		if (hash === 'about') {
-			goto('/about');
+			goto(resolve('/about'));
 			return 'home';
 		}
 		if (!hash || hash === 'home') return 'home';
 		if (VALID_VIEW_NAMES.includes(hash as ViewName)) {
 			const view = hash as ViewName;
-			return MAINTENANCE_VIEWS.has(view) ? 'home' : view;
+			return isGuardedDesignerView(view) ? 'home' : view;
 		}
 		return null;
 	}
@@ -242,6 +254,7 @@
 				stored === 'flower' ||
 				stored === 'basicName' ||
 				stored === 'idNameTag' ||
+				stored === 'idNameTagV2' ||
 				stored === 'customSvg' ||
 				stored === 'charm' ||
 				stored === 'keycap' ||
@@ -263,11 +276,14 @@
 				stored === 'settings' ||
 				stored === 'home'
 			) {
-				initialView = MAINTENANCE_VIEWS.has(stored as ViewName) ? 'home' : (stored as ViewName);
+				initialView = isGuardedDesignerView(stored as ViewName) ? 'home' : (stored as ViewName);
 			}
-		} catch (_) {}
+		} catch {
+			// localStorage can be unavailable in restricted browser contexts.
+		}
 	}
 	let currentView = $state<ViewName>(initialView);
+	const activeView = $derived(isGuardedDesignerView(currentView) ? 'home' : currentView);
 	let isMobile = $state(false);
 
 	// ── Welcome dialog state ────────────────────────────────────────────────
@@ -300,24 +316,26 @@
 	// ── Persist view on change ──────────────────────────────────────────────
 	$effect(() => {
 		try {
-			localStorage.setItem(STORAGE_KEY_VIEW, currentView);
-		} catch (_) {}
+			localStorage.setItem(STORAGE_KEY_VIEW, activeView);
+		} catch {
+			// localStorage can be unavailable in restricted browser contexts.
+		}
 	});
 
 	// Sync view to URL hash (so e.g. /#textOutline is shareable and refreshable). Do not overwrite hash when it contains Supabase OAuth callback params.
 	$effect(() => {
 		if (typeof window === 'undefined') return;
 		if (isSupabaseAuthHash()) return;
-		const h = currentView === 'home' ? '' : currentView;
+		const h = activeView === 'home' ? '' : activeView;
 		if (window.location.hash.replace(/^#/, '') !== h) {
 			window.location.hash = h;
 		}
 	});
 
-	// Redirect away from views under maintenance
+	// Redirect away from guarded designer views
 	$effect(() => {
-		if (MAINTENANCE_VIEWS.has(currentView)) {
-			currentView = 'home';
+		if (currentView !== activeView) {
+			currentView = activeView;
 		}
 	});
 
@@ -363,9 +381,10 @@
 	});
 
 	const effectivePalette = $derived(getEffectivePalette(user, userPalette));
-	
+
 	// ── Handlers ────────────────────────────────────────────────────────────
 	function navigateTo(view: ViewName) {
+		if (isGuardedDesignerView(view)) return;
 		currentView = view;
 	}
 
@@ -376,6 +395,7 @@
 			| 'flower'
 			| 'basicName'
 			| 'idNameTag'
+			| 'idNameTagV2'
 			| 'customSvg'
 			| 'charm'
 			| 'keycap'
@@ -393,7 +413,7 @@
 			| 'canvasStudio'
 			| 'plateBadge'
 	) {
-		if (MAINTENANCE_VIEWS.has(style)) return;
+		if (isGuardedDesignerView(style)) return;
 		posthog.capture('designer_selected', { designer: style });
 		navigateTo(style);
 	}
@@ -420,7 +440,7 @@
 	}
 
 	function showPricing() {
-		goto('/pricing');
+		goto(resolve('/pricing'));
 	}
 
 	async function handleSignOut() {
@@ -451,7 +471,9 @@
 		showPromotionDialog = false;
 		try {
 			localStorage.setItem(STORAGE_KEY_SHARE_CREDITS_PROMO_DISMISSED, 'true');
-		} catch (_) {}
+		} catch {
+			// localStorage can be unavailable in restricted browser contexts.
+		}
 		posthog.capture('share_credits_promo_dismissed', {
 			remaining_credits: freeTrial.credits
 		});
@@ -489,7 +511,9 @@
 	function closeRatingPrompt() {
 		try {
 			localStorage.setItem(STORAGE_KEY_RATING_DISMISSED_DAY, getLocalDateString());
-		} catch (_) {}
+		} catch {
+			// localStorage can be unavailable in restricted browser contexts.
+		}
 		showRatingPromptDialog = false;
 		posthog.capture('rating_prompt_dismissed');
 	}
@@ -498,7 +522,9 @@
 		try {
 			localStorage.setItem(STORAGE_KEY_RATING_SUBMITTED, 'true');
 			localStorage.removeItem(STORAGE_KEY_RATING_DISMISSED_DAY);
-		} catch (_) {}
+		} catch {
+			// localStorage can be unavailable in restricted browser contexts.
+		}
 		showRatingPromptDialog = false;
 	}
 
@@ -633,7 +659,7 @@
 					showLoginModal = false;
 					// Clean OAuth callback hash from URL after Supabase has processed it
 					if (isSupabaseAuthHash()) {
-						const h = currentView === 'home' ? '' : currentView;
+						const h = activeView === 'home' ? '' : activeView;
 						setTimeout(() => {
 							window.location.hash = h;
 						}, 0);
@@ -900,7 +926,7 @@
 			{#if subscriptionStatus}
 				{#if subscriptionStatus?.isActive}
 					<a
-						href="/subscription"
+						href={resolve('/subscription')}
 						class="ml-2 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-800 transition hover:bg-emerald-100 focus:ring-2 focus:ring-emerald-500/50 focus:outline-none"
 					>
 						{subscriptionStatus?.source === 'license' ? 'Licensed' : 'Subscribed'}
@@ -1042,7 +1068,7 @@
 								{#if subscriptionStatus}
 									{#if subscriptionStatus?.isActive}
 										<a
-											href="/subscription"
+											href={resolve('/subscription')}
 											class="text-[11px] font-medium text-emerald-700 hover:underline"
 											onclick={() => (menuOpen = false)}
 										>
@@ -1194,11 +1220,11 @@
 	<!-- Main content -->
 	<div>
 		<!-- Router -->
-		{#if currentView === 'home'}
+		{#if activeView === 'home'}
 			<HomeScreen onSelect={handleStyleSelect} {user} {subscriptionStatus} />
-		{:else if isMobile && DESIGNER_VIEWS.has(currentView)}
+		{:else if isMobile && DESIGNER_VIEWS.has(activeView)}
 			<DesktopRequiredView onBack={handleBack} />
-		{:else if currentView === 'textOutline'}
+		{:else if activeView === 'textOutline'}
 			<TextOutlineDesigner
 				{user}
 				{session}
@@ -1209,7 +1235,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'initial'}
+		{:else if activeView === 'initial'}
 			<InitialDesigner
 				{user}
 				{session}
@@ -1220,7 +1246,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'flower'}
+		{:else if activeView === 'flower'}
 			<FlowerDesigner
 				{user}
 				{session}
@@ -1231,7 +1257,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'basicName'}
+		{:else if activeView === 'basicName'}
 			<BasicNameDesigner
 				{user}
 				{session}
@@ -1242,7 +1268,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'idNameTag'}
+		{:else if activeView === 'idNameTag'}
 			<IdNameTagDesigner
 				{user}
 				{session}
@@ -1253,7 +1279,18 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'customSvg'}
+		{:else if activeView === 'idNameTagV2'}
+			<IdNameTagV2Designer
+				{user}
+				{session}
+				{subscriptionStatus}
+				palette={effectivePalette}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
+			/>
+		{:else if activeView === 'customSvg'}
 			<CustomSVGDesigner
 				{user}
 				{session}
@@ -1264,7 +1301,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'charm'}
+		{:else if activeView === 'charm'}
 			<CharmDesigner
 				{user}
 				{session}
@@ -1275,7 +1312,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'keycap'}
+		{:else if activeView === 'keycap'}
 			<KeycapDesigner
 				{user}
 				{session}
@@ -1286,7 +1323,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'keycapSet'}
+		{:else if activeView === 'keycapSet'}
 			<KeycapSetMakerDesigner
 				{user}
 				{session}
@@ -1297,7 +1334,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'whistle'}
+		{:else if activeView === 'whistle'}
 			<WhistleDesigner
 				{user}
 				{session}
@@ -1308,7 +1345,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'stanleyTopper'}
+		{:else if activeView === 'stanleyTopper'}
 			<StanleyTopperDesigner
 				{user}
 				{session}
@@ -1319,7 +1356,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'strawTopper'}
+		{:else if activeView === 'strawTopper'}
 			<StrawTopperDesigner
 				{user}
 				{session}
@@ -1330,7 +1367,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'pencilTopper'}
+		{:else if activeView === 'pencilTopper'}
 			<PencilTopperDesigner
 				{user}
 				{session}
@@ -1341,7 +1378,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'dogtag'}
+		{:else if activeView === 'dogtag'}
 			<DogTagDesigner
 				{user}
 				{session}
@@ -1352,7 +1389,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'bumpyText'}
+		{:else if activeView === 'bumpyText'}
 			<BumpyTextDesigner
 				{user}
 				{session}
@@ -1363,7 +1400,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'bowKeychain'}
+		{:else if activeView === 'bowKeychain'}
 			<BowKeychainDesigner
 				{user}
 				{session}
@@ -1374,7 +1411,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'namePuzzle'}
+		{:else if activeView === 'namePuzzle'}
 			<NamePuzzleDesigner
 				{user}
 				{session}
@@ -1385,7 +1422,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'engraveNamePlate'}
+		{:else if activeView === 'engraveNamePlate'}
 			<EngraveNamePlateDesigner
 				{user}
 				{session}
@@ -1396,7 +1433,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'cakeTopper'}
+		{:else if activeView === 'cakeTopper'}
 			<CakeTopperDesigner
 				{user}
 				{session}
@@ -1407,7 +1444,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'canvasStudio'}
+		{:else if activeView === 'canvasStudio'}
 			<CanvasStudioDesigner
 				{user}
 				{session}
@@ -1418,7 +1455,7 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'plateBadge'}
+		{:else if activeView === 'plateBadge'}
 			<PlateBadgeDesigner
 				{user}
 				{session}
@@ -1429,11 +1466,11 @@
 				onShowThankYou={() => (showThankYouDialog = true)}
 				onShowPricing={showPricing}
 			/>
-		{:else if currentView === 'feedback'}
+		{:else if activeView === 'feedback'}
 			<FeedbackPage {user} onBack={handleBack} onRequestLogin={() => (showLoginModal = true)} />
-		{:else if currentView === 'contact'}
+		{:else if activeView === 'contact'}
 			<ContactPage {user} onBack={handleBack} />
-		{:else if currentView === 'settings'}
+		{:else if activeView === 'settings'}
 			<SettingsPage
 				{user}
 				palette={effectivePalette}

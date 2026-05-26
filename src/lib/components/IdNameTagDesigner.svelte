@@ -351,17 +351,24 @@
 	// on the origin. The runtime preview wraps the result in a THREE.Shape; the
 	// SCAD export emits it as a polygon literal.
 
-	/** Wavy rounded-rectangle outline (CCW). Corner arcs stay clean (no waves —
-	 * `sin` is forced to 0 at edge endpoints by walking the straight portions
-	 * with `t ∈ [0, 1]` and integer wave counts). When `cornerR == 0` the corners
-	 * are sharp; the wave count is derived from the straight-edge length so the
-	 * inner / outer outlines line up perfectly when the inset is uniform on both
-	 * `halfW` and `cornerR` (which it is by construction in `rebuildMeshes`).
+	function smoothstep01(x: number): number {
+		const t = Math.max(0, Math.min(1, x));
+		return t * t * (3 - 2 * t);
+	}
+
+	/** Fade wave amplitude near straight-edge ends so corners meet arcs without kinks. */
+	function waveCornerEnvelope(t: number, straightLen: number, cornerR: number): number {
+		if (straightLen <= 1e-6) return 0;
+		const blend = Math.min(0.42, Math.max(0.1, (1.75 * cornerR) / straightLen));
+		return smoothstep01(t / blend) * smoothstep01((1 - t) / blend);
+	}
+
+	/** Wavy rounded-rectangle outline (CCW). Waves run on straight edges only; corner
+	 * fillets are true arcs. Endpoints use `t ∈ [0, 1]` with integer wave counts so
+	 * `sin` is 0 at each corner junction, plus a smooth envelope for seamless joins.
 	 *
 	 * `flatTopHalfW` (mm) — when > 0, suppresses the wave on the top edge inside
-	 * `|x| ≤ flatTopHalfW` (snapped OUTWARD to the nearest sin zero-crossing so
-	 * the wave naturally tapers to 0 at the boundary). Used to keep the area
-	 * directly above the lace hole flat: ^^^^---^^^^. */
+	 * `|x| ≤ flatTopHalfW` (snapped to sin zero-crossings). Used above the lace hole. */
 	function wavyOutline(
 		halfW: number,
 		halfH: number,
@@ -378,15 +385,14 @@
 		const wl = Math.max(1, wavelength);
 		const wavesTop = Math.max(2, Math.round(patternStraightTop / wl));
 		const wavesSide = Math.max(2, Math.round(patternStraightSide / wl));
-		const samplesPerWave = 12;
-		const arcSamples = 18;
+		const samplesPerWave = 14;
+		const arcSamples = Math.max(
+			CORNER_ARC_SEGMENTS,
+			Math.ceil(((Math.PI / 2) * r) / 0.35)
+		);
 		const out: THREE.Vector2[] = [];
 		const hasArcs = r > 1e-3;
 
-		// Top-edge flat region (in `t`-space, where `t ∈ [0, 1]` walks the top
-		// straight edge right→left). Snap OUTWARD to the nearest zero-crossings
-		// of `sin(2π·wavesTop·t)` (which sit at `t = k / (2·wavesTop)`) so the
-		// wave is exactly 0 at the flat boundary — no kinks.
 		let flatTop_min = -1;
 		let flatTop_max = -1;
 		if (flatTopHalfW > 0 && flatTopHalfW < halfW - r && straightTop > 0) {
@@ -401,78 +407,78 @@
 			}
 		}
 
-		// Walking CCW starting at the top-right end of the top edge:
-		//   top straight (right→left) → top-left arc → left straight (top→bottom)
-		//   → bottom-left arc → bottom straight (left→right) → bottom-right arc
-		//   → right straight (bottom→top) → top-right arc → close.
+		const pushCornerArc = (
+			cx: number,
+			cy: number,
+			a0: number,
+			a1: number,
+			skipEndpoints: boolean
+		) => {
+			const start = skipEndpoints ? 1 : 0;
+			const end = skipEndpoints ? arcSamples - 1 : arcSamples;
+			for (let i = start; i <= end; i++) {
+				const a = a0 + (i / arcSamples) * (a1 - a0);
+				out.push(new THREE.Vector2(cx + r * Math.cos(a), cy + r * Math.sin(a)));
+			}
+		};
 
-		// Top straight: y bumps outward (+y), with optional flat band over the lace hole.
+		const topWaveY = (t: number) => {
+			const env = waveCornerEnvelope(t, straightTop, r);
+			return halfH + amp * env * Math.sin(2 * Math.PI * wavesTop * t);
+		};
+		const sideWaveX = (t: number, sign: number) => {
+			const env = waveCornerEnvelope(t, straightSide, r);
+			return sign * halfW + sign * amp * env * Math.sin(2 * Math.PI * wavesSide * t);
+		};
+
+		// CCW: top (right→left) → TL arc → left → BL arc → bottom → BR arc → right → TR arc.
 		const Nt = wavesTop * samplesPerWave;
-		for (let i = 0; i < Nt; i++) {
+		for (let i = 0; i <= Nt; i++) {
 			const t = i / Nt;
 			const x = halfW - r - straightTop * t;
 			const inFlat = flatTop_min >= 0 && t >= flatTop_min && t <= flatTop_max;
-			const y = inFlat ? halfH : halfH + amp * Math.sin(2 * Math.PI * wavesTop * t);
+			const y = inFlat ? halfH : topWaveY(t);
 			out.push(new THREE.Vector2(x, y));
 		}
-		// Top-left corner arc.
+
 		if (hasArcs) {
-			const cx = -halfW + r;
-			const cy = halfH - r;
-			for (let i = 0; i <= arcSamples; i++) {
-				const a = Math.PI / 2 + (i / arcSamples) * (Math.PI / 2);
-				out.push(new THREE.Vector2(cx + r * Math.cos(a), cy + r * Math.sin(a)));
-			}
+			pushCornerArc(-halfW + r, halfH - r, Math.PI / 2, Math.PI, true);
 		}
-		// Left straight: x bumps outward (-x).
+
 		const Ns = wavesSide * samplesPerWave;
-		for (let i = 0; i < Ns; i++) {
+		for (let i = 0; i <= Ns; i++) {
 			const t = i / Ns;
 			const y = halfH - r - straightSide * t;
-			const x = -halfW - amp * Math.sin(2 * Math.PI * wavesSide * t);
+			const x = sideWaveX(t, -1);
 			out.push(new THREE.Vector2(x, y));
 		}
-		// Bottom-left corner arc.
+
 		if (hasArcs) {
-			const cx = -halfW + r;
-			const cy = -halfH + r;
-			for (let i = 0; i <= arcSamples; i++) {
-				const a = Math.PI + (i / arcSamples) * (Math.PI / 2);
-				out.push(new THREE.Vector2(cx + r * Math.cos(a), cy + r * Math.sin(a)));
-			}
+			pushCornerArc(-halfW + r, -halfH + r, Math.PI, (3 * Math.PI) / 2, true);
 		}
-		// Bottom straight: y bumps outward (-y).
-		for (let i = 0; i < Nt; i++) {
+
+		for (let i = 0; i <= Nt; i++) {
 			const t = i / Nt;
 			const x = -halfW + r + straightTop * t;
-			const y = -halfH - amp * Math.sin(2 * Math.PI * wavesTop * t);
+			const y = -halfH - amp * waveCornerEnvelope(t, straightTop, r) * Math.sin(2 * Math.PI * wavesTop * t);
 			out.push(new THREE.Vector2(x, y));
 		}
-		// Bottom-right corner arc.
+
 		if (hasArcs) {
-			const cx = halfW - r;
-			const cy = -halfH + r;
-			for (let i = 0; i <= arcSamples; i++) {
-				const a = -Math.PI / 2 + (i / arcSamples) * (Math.PI / 2);
-				out.push(new THREE.Vector2(cx + r * Math.cos(a), cy + r * Math.sin(a)));
-			}
+			pushCornerArc(halfW - r, -halfH + r, -Math.PI / 2, 0, true);
 		}
-		// Right straight: x bumps outward (+x).
-		for (let i = 0; i < Ns; i++) {
+
+		for (let i = 0; i <= Ns; i++) {
 			const t = i / Ns;
 			const y = -halfH + r + straightSide * t;
-			const x = halfW + amp * Math.sin(2 * Math.PI * wavesSide * t);
+			const x = sideWaveX(t, 1);
 			out.push(new THREE.Vector2(x, y));
 		}
-		// Top-right corner arc.
+
 		if (hasArcs) {
-			const cx = halfW - r;
-			const cy = halfH - r;
-			for (let i = 0; i <= arcSamples; i++) {
-				const a = (i / arcSamples) * (Math.PI / 2);
-				out.push(new THREE.Vector2(cx + r * Math.cos(a), cy + r * Math.sin(a)));
-			}
+			pushCornerArc(halfW - r, halfH - r, 0, Math.PI / 2, true);
 		}
+
 		return out;
 	}
 
