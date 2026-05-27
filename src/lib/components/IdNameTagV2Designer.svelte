@@ -6,10 +6,12 @@
 	import base2StlUrl from '$lib/assets/stl/idnametag/base2.stl?url';
 	import base3StlUrl from '$lib/assets/stl/idnametag/base3.stl?url';
 	import base4StlUrl from '$lib/assets/stl/idnametag/base4.stl?url';
+	import base5StlUrl from '$lib/assets/stl/idnametag/base5.stl?url';
 	import border1StlUrl from '$lib/assets/stl/idnametag/border1.stl?url';
 	import border2StlUrl from '$lib/assets/stl/idnametag/border2.stl?url';
 	import border3StlUrl from '$lib/assets/stl/idnametag/border3.stl?url';
 	import border4StlUrl from '$lib/assets/stl/idnametag/border4.stl?url';
+	import border5StlUrl from '$lib/assets/stl/idnametag/border5.stl?url';
 	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
 	import { upload3mfToSupabase } from '$lib/upload3mf';
 	import {
@@ -69,9 +71,11 @@
 	const BORDER_BASE_EMBED = 0.05;
 	const WELD_TOL_MM = 1e-3;
 	const TOP_LOOP_SNAP_MM = 1e-4;
+	/** Ignore hole loops smaller than this fraction of the outer loop area (avoids spurious inner loops on some STLs). */
+	const HOLE_MIN_AREA_RATIO = 0.005;
 	const DEFAULT_DETAIL_COLOR = '#1f2937';
 
-	type ModelPairId = 1 | 2 | 3 | 4;
+	type ModelPairId = 1 | 2 | 3 | 4 | 5;
 
 	type ModelPair = {
 		id: ModelPairId;
@@ -113,7 +117,8 @@
 		{ id: 1, label: 'Style 1', baseUrl: base1StlUrl, borderUrl: border1StlUrl },
 		{ id: 2, label: 'Style 2', baseUrl: base2StlUrl, borderUrl: border2StlUrl },
 		{ id: 3, label: 'Style 3', baseUrl: base3StlUrl, borderUrl: border3StlUrl },
-		{ id: 4, label: 'Style 4', baseUrl: base4StlUrl, borderUrl: border4StlUrl }
+		{ id: 4, label: 'Style 4', baseUrl: base4StlUrl, borderUrl: border4StlUrl },
+		{ id: 5, label: 'Style 5', baseUrl: base5StlUrl, borderUrl: border5StlUrl },
 	];
 
 	const DEFAULT_FONT_KEY = FONT_OPTIONS[0]?.key ?? 'Titan One_Regular';
@@ -132,8 +137,8 @@
 
 	const defaults: Settings = {
 		modelPairId: 1,
-		baseDepth: 2.5,
-		borderDepth: 1.2,
+		baseDepth: 2,
+		borderDepth: 1,
 		baseColor: '#ffffff',
 		commonColor: DEFAULT_DETAIL_COLOR,
 		borderColor: DEFAULT_DETAIL_COLOR,
@@ -153,7 +158,7 @@
 	}
 
 	function isModelPairId(v: unknown): v is ModelPairId {
-		return v === 1 || v === 2 || v === 3 || v === 4;
+		return v === 1 || v === 2 || v === 3 || v === 4 || v === 5;
 	}
 
 	function cloneDefaultLines(color = DEFAULT_DETAIL_COLOR): IdNameTagV2Line[] {
@@ -476,17 +481,60 @@
 		}
 	}
 
+	function isWatertightGeometry(geo: THREE.BufferGeometry): boolean {
+		const geometry = geo.index ? geo.toNonIndexed() : geo;
+		const position = geometry.getAttribute('position');
+		if (!position || position.count < 3) {
+			if (geometry !== geo) geometry.dispose();
+			return false;
+		}
+
+		const edgeCounts = new Map<string, number>();
+		const edgeKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+		const vertexKey = (x: number, y: number, z: number) =>
+			`${Math.round(x / WELD_TOL_MM)},${Math.round(y / WELD_TOL_MM)},${Math.round(z / WELD_TOL_MM)}`;
+
+		for (let i = 0; i + 2 < position.count; i += 3) {
+			const keys = [
+				vertexKey(position.getX(i), position.getY(i), position.getZ(i)),
+				vertexKey(position.getX(i + 1), position.getY(i + 1), position.getZ(i + 1)),
+				vertexKey(position.getX(i + 2), position.getY(i + 2), position.getZ(i + 2))
+			];
+			for (const [a, b] of [
+				[keys[0], keys[1]],
+				[keys[1], keys[2]],
+				[keys[2], keys[0]]
+			] as const) {
+				const key = edgeKey(a, b);
+				edgeCounts.set(key, (edgeCounts.get(key) ?? 0) + 1);
+			}
+		}
+
+		let boundaryEdges = 0;
+		let nonManifoldEdges = 0;
+		for (const count of edgeCounts.values()) {
+			if (count === 1) boundaryEdges += 1;
+			else if (count > 2) nonManifoldEdges += 1;
+		}
+
+		if (geometry !== geo) geometry.dispose();
+		return boundaryEdges === 0 && nonManifoldEdges === 0;
+	}
+
 	function buildTopPerimeterShape(srcGeo: THREE.BufferGeometry): THREE.Shape | null {
 		const loops = extractTopPerimeterLoops(srcGeo)
 			.map((loop) => ({ loop, area: signedLoopArea(loop) }))
 			.sort((a, b) => Math.abs(b.area) - Math.abs(a.area));
 		if (loops.length === 0) return null;
 
+		const outerArea = Math.abs(loops[0].area);
+		const minHoleArea = Math.max(1e-4, outerArea * HOLE_MIN_AREA_RATIO);
 		const outerPts = loops[0].loop.map((point) => point.clone());
 		if (THREE.ShapeUtils.isClockWise(outerPts)) outerPts.reverse();
 		const shape = new THREE.Shape(outerPts);
 
-		for (const { loop } of loops.slice(1)) {
+		for (const { loop, area } of loops.slice(1)) {
+			if (Math.abs(area) < minHoleArea) continue;
 			const holePts = loop.map((point) => point.clone());
 			if (!THREE.ShapeUtils.isClockWise(holePts)) holePts.reverse();
 			shape.holes.push(new THREE.Path(holePts));
@@ -510,6 +558,10 @@
 			});
 			bottomAlignGeometry(geo, zOffset);
 			geo.computeVertexNormals();
+			if (!isWatertightGeometry(geo)) {
+				geo.dispose();
+				return null;
+			}
 			return geo;
 		} catch (error) {
 			console.warn('IdNameTagV2 clean top extrusion failed; falling back to STL scaling.', error);

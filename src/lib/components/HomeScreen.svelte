@@ -3,7 +3,11 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { getFont } from '$lib/utils-3d';
-	import type { SubscriptionStatus } from '$lib/subscription';
+	import {
+		hasPaidAccess,
+		isSubscriberOnlyDesigner,
+		type SubscriptionStatus
+	} from '$lib/subscription';
 
 	// Preload font so Name Puzzle designer opens faster
 	onMount(() => {
@@ -110,8 +114,9 @@
 	};
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);
-	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set(["idNameTagV2"]);
+	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set([]);
 	let pendingBetaDesigner: StyleName | null = $state(null);
+	let pendingSubscriberDesigner: StyleName | null = $state(null);
 
 	const DESIGNERS: DesignerItem[] = [
 		{
@@ -136,13 +141,6 @@
 			description: 'Multi-line cake topper with adjustable spacing and 1 or 2 long sticks.',
 			imageSrc: '/images/cake-topper.png',
 			imageAlt: 'Cake Topper preview'
-		},
-		{
-			id: 'idNameTag',
-			title: 'ID Name Tag',
-			description: 'Large ID badge with multi-line text — each line configurable.',
-			imageSrc: '/images/id-name-tag.png',
-			imageAlt: 'ID Name Tag preview'
 		},
 		{
 			id: 'idNameTagV2',
@@ -298,11 +296,19 @@
 		onSelect: (style: StyleName) => void;
 		user?: { id: string } | null;
 		subscriptionStatus?: SubscriptionStatus | null;
+		onShowPricing?: () => void;
+		onRequestLogin?: () => void;
 	}
 
-	let { onSelect, user = null, subscriptionStatus = null }: Props = $props();
+	let {
+		onSelect,
+		user = null,
+		subscriptionStatus = null,
+		onShowPricing,
+		onRequestLogin
+	}: Props = $props();
 
-	const hasAccess = $derived(user && subscriptionStatus?.isActive);
+	const hasAccess = $derived(hasPaidAccess(user, subscriptionStatus));
 
 	function isUnderMaintenance(style: StyleName): boolean {
 		return DESIGNERS_UNDER_MAINTENANCE.has(style);
@@ -314,6 +320,14 @@
 
 	function isComingSoonDesigner(style: StyleName): boolean {
 		return COMING_SOON_DESIGNERS.has(style);
+	}
+
+	function isSubscriberOnlyDesignerStyle(style: StyleName): boolean {
+		return isSubscriberOnlyDesigner(style);
+	}
+
+	function isSubscriberLocked(style: StyleName): boolean {
+		return isSubscriberOnlyDesignerStyle(style) && !hasAccess;
 	}
 
 	function isNewDesigner(style: StyleName): boolean {
@@ -333,6 +347,14 @@
 	function handleCardClick(designer: DesignerItem) {
 		if (isComingSoonDesigner(designer.id)) return;
 		if (isUnderMaintenance(designer.id)) return;
+		if (isSubscriberLocked(designer.id)) {
+			if (!user) {
+				onRequestLogin?.();
+				return;
+			}
+			pendingSubscriberDesigner = designer.id;
+			return;
+		}
 		if (isBetaDesigner(designer.id)) {
 			pendingBetaDesigner = designer.id;
 			return;
@@ -349,6 +371,15 @@
 
 	function dismissBetaDialog() {
 		pendingBetaDesigner = null;
+	}
+
+	function dismissSubscriberDialog() {
+		pendingSubscriberDesigner = null;
+	}
+
+	function confirmSubscriberAccess() {
+		pendingSubscriberDesigner = null;
+		onShowPricing?.();
 	}
 </script>
 
@@ -418,6 +449,40 @@
 			</Dialog.Content>
 		</Dialog.Root>
 
+		<Dialog.Root
+			open={pendingSubscriberDesigner !== null}
+			onOpenChange={(open) => {
+				if (!open) pendingSubscriberDesigner = null;
+			}}
+		>
+			<Dialog.Content
+				showCloseButton={false}
+				class="max-w-md rounded-2xl border-slate-200 shadow-xl"
+			>
+				<Dialog.Header>
+					<Dialog.Title class="text-lg font-semibold text-slate-900"
+						>Subscription required</Dialog.Title
+					>
+					<Dialog.Description class="mt-2 text-sm text-slate-600">
+						{pendingSubscriberDesigner
+							? (DESIGNERS.find((d) => d.id === pendingSubscriberDesigner)?.title ??
+								'This designer')
+							: 'This designer'} is available with an active subscription or license. Free trial
+						downloads do not apply here.
+					</Dialog.Description>
+				</Dialog.Header>
+				<div class="mt-6 flex justify-end gap-3">
+					<Dialog.Close
+						class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:ring-2 focus:ring-indigo-500/50 focus:outline-none"
+						onclick={dismissSubscriberDialog}
+					>
+						Cancel
+					</Dialog.Close>
+					<Button onclick={confirmSubscriberAccess}>View pricing</Button>
+				</div>
+			</Dialog.Content>
+		</Dialog.Root>
+
 		{#if DESIGNERS_UNDER_MAINTENANCE.size > 0}
 			<div
 				class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 sm:mb-6 sm:px-4 sm:py-3"
@@ -454,7 +519,9 @@
 						? 'cursor-not-allowed border-slate-200 opacity-60'
 						: isComingSoonDesigner(designer.id)
 							? 'cursor-not-allowed border-slate-200 opacity-60'
-							: isNewDesigner(designer.id)
+							: isSubscriberLocked(designer.id)
+								? 'cursor-not-allowed border-slate-200 opacity-75'
+								: isNewDesigner(designer.id)
 								? 'cursor-pointer border-emerald-300 ring-2 ring-emerald-200/70 hover:-translate-y-1 hover:border-emerald-400 hover:shadow-lg'
 								: isUpdatedDesigner(designer.id)
 									? 'cursor-pointer border-indigo-300 ring-2 ring-indigo-200/70 hover:-translate-y-1 hover:border-indigo-400 hover:shadow-lg'
@@ -465,6 +532,12 @@
 						<span
 							class="pointer-events-none absolute top-2 right-2 z-20 rounded bg-slate-900/80 px-1.5 py-0.5 text-[10px] font-medium text-white sm:top-3 sm:right-3 sm:rounded-md sm:px-2 sm:text-xs"
 							>Coming soon</span
+						>
+					{/if}
+					{#if isSubscriberLocked(designer.id)}
+						<span
+							class="pointer-events-none absolute top-2 right-2 z-20 inline-flex items-center gap-0.5 rounded bg-emerald-900/85 px-1.5 py-0.5 text-[10px] font-medium text-white sm:top-3 sm:right-3 sm:rounded-md sm:px-2 sm:text-xs"
+							>Subscribe</span
 						>
 					{/if}
 					{#if isUnderMaintenance(designer.id)}

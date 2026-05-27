@@ -47,7 +47,12 @@
 		getFingerprintBlockedMessage,
 		loadFreeTrialForUser
 	} from '$lib/freeTrial.svelte';
-	import { clearLicenseCache, getSubscriptionStatus } from '$lib/subscription';
+	import {
+		clearLicenseCache,
+		getSubscriptionStatus,
+		hasPaidAccess,
+		isSubscriberOnlyDesigner
+	} from '$lib/subscription';
 	import { notifyVisit } from '$lib/visitNotify';
 	import {
 		fetchUserPalette,
@@ -119,7 +124,7 @@
 	/** Designers under maintenance; not accessible from home and redirect to home if selected. */
 	const MAINTENANCE_VIEWS = new Set<ViewName>([]);
 	/** Designers announced as coming soon; visible on home but not route-accessible yet. */
-	const COMING_SOON_VIEWS = new Set<ViewName>(['idNameTagV2']);
+	const COMING_SOON_VIEWS = new Set<ViewName>([]);
 
 	// ── View / routing state ────────────────────────────────────────────────
 	type ViewName =
@@ -209,6 +214,12 @@
 		return MAINTENANCE_VIEWS.has(view) || COMING_SOON_VIEWS.has(view);
 	}
 
+	function isViewAccessible(view: ViewName): boolean {
+		if (isGuardedDesignerView(view)) return false;
+		if (isSubscriberOnlyDesigner(view) && !hasPaidAccess(user, subscriptionStatus)) return false;
+		return true;
+	}
+
 	/** True when the URL hash contains Supabase OAuth callback params (tokens or error). Do not overwrite hash until Supabase has processed it. */
 	function isSupabaseAuthHash(): boolean {
 		if (typeof window === 'undefined') return false;
@@ -236,7 +247,7 @@
 		if (!hash || hash === 'home') return 'home';
 		if (VALID_VIEW_NAMES.includes(hash as ViewName)) {
 			const view = hash as ViewName;
-			return isGuardedDesignerView(view) ? 'home' : view;
+			return isViewAccessible(view) ? view : 'home';
 		}
 		return null;
 	}
@@ -276,14 +287,14 @@
 				stored === 'settings' ||
 				stored === 'home'
 			) {
-				initialView = isGuardedDesignerView(stored as ViewName) ? 'home' : (stored as ViewName);
+				initialView = isViewAccessible(stored as ViewName) ? (stored as ViewName) : 'home';
 			}
 		} catch {
 			// localStorage can be unavailable in restricted browser contexts.
 		}
 	}
 	let currentView = $state<ViewName>(initialView);
-	const activeView = $derived(isGuardedDesignerView(currentView) ? 'home' : currentView);
+	const activeView = $derived(isViewAccessible(currentView) ? currentView : 'home');
 	let isMobile = $state(false);
 
 	// ── Welcome dialog state ────────────────────────────────────────────────
@@ -384,7 +395,7 @@
 
 	// ── Handlers ────────────────────────────────────────────────────────────
 	function navigateTo(view: ViewName) {
-		if (isGuardedDesignerView(view)) return;
+		if (!isViewAccessible(view)) return;
 		currentView = view;
 	}
 
@@ -413,7 +424,13 @@
 			| 'canvasStudio'
 			| 'plateBadge'
 	) {
-		if (isGuardedDesignerView(style)) return;
+		if (!isViewAccessible(style)) {
+			if (isSubscriberOnlyDesigner(style) && !hasPaidAccess(user, subscriptionStatus)) {
+				if (!user) showLoginModal = true;
+				else showPricing();
+			}
+			return;
+		}
 		posthog.capture('designer_selected', { designer: style });
 		navigateTo(style);
 	}
@@ -1221,7 +1238,13 @@
 	<div>
 		<!-- Router -->
 		{#if activeView === 'home'}
-			<HomeScreen onSelect={handleStyleSelect} {user} {subscriptionStatus} />
+			<HomeScreen
+				onSelect={handleStyleSelect}
+				{user}
+				{subscriptionStatus}
+				onShowPricing={showPricing}
+				onRequestLogin={() => (showLoginModal = true)}
+			/>
 		{:else if isMobile && DESIGNER_VIEWS.has(activeView)}
 			<DesktopRequiredView onBack={handleBack} />
 		{:else if activeView === 'textOutline'}

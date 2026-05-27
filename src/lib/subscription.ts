@@ -206,3 +206,17 @@ export async function ensureExportAccess(
 	onShowPricing?.();
 	return false;
 }
+
+/** Designers that require an active subscription or license (not free trial). */
+export const SUBSCRIBER_ONLY_DESIGNER_IDS = ['idNameTagV2'] as const;
+
+export function hasPaidAccess(
+	user: { id: string } | null | undefined,
+	subscriptionStatus: SubscriptionStatus | null | undefined
+): boolean {
+	return Boolean(user && subscriptionStatus?.isActive);
+}
+
+export function isSubscriberOnlyDesigner(id: string): boolean {
+	return (SUBSCRIBER_ONLY_DESIGNER_IDS as readonly string[]).includes(id);
+}
