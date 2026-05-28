@@ -65,6 +65,7 @@
     const STORAGE_KEY_SETTINGS = "keychain-initial-font-settings";
     const STORAGE_KEY_KEYRING = "keychain-initial-keyring-settings";
     const STORAGE_KEY_TEXT = "keychain-initial-text";
+    const STORAGE_KEY_INITIAL_LETTER = "keychain-initial-large-letter";
     const STORAGE_KEY_FONT = "keychain-initial-font";
 
     // ── Persistence state ───────────────────────────────────────────────────
@@ -100,18 +101,43 @@
         }
     })();
 
+    /** Stored override for the large initial; null = legacy (derive from text). Blank = auto from text. */
+    const storedLargeInitialLetter: string | null = (() => {
+        try {
+            return localStorage.getItem(STORAGE_KEY_INITIAL_LETTER);
+        } catch {
+            return null;
+        }
+    })();
+
     const fontSettings = allFontSettings[restoredFont] || defaults;
-    const initialCharValue =
-        restoredText.length > 0 ? restoredText.charAt(0).toUpperCase() : "";
-    // Keyring position is tied to initialFontKey + initial char
+
+    /** Key used for mesh + keyring: explicit letter, else first letter of text, else A. */
+    function effectiveLargeInitial(letterOverride: string, bodyText: string): string {
+        const o = letterOverride.trim();
+        if (o.length > 0) return o.charAt(0).toUpperCase();
+        const t = (bodyText ?? "").trim();
+        if (t.length > 0) return t.charAt(0).toUpperCase();
+        return "A";
+    }
+
+    const bootstrapEffectiveInitial = effectiveLargeInitial(
+        storedLargeInitialLetter ?? "",
+        restoredText,
+    );
+    // Keyring position is tied to initialFontKey + effective initial char
     const restoredInitialFontKey =
         fontSettings.initialFontKey ?? DEFAULT_INITIAL_FONT_KEY;
     const charSettings =
-        allCharSettings[restoredInitialFontKey]?.[initialCharValue] ||
+        allCharSettings[restoredInitialFontKey]?.[bootstrapEffectiveInitial] ||
         DEFAULT_CHAR_SETTINGS;
 
     // ── Reactive state ──────────────────────────────────────────────────────
     let text = $state(restoredText);
+    /** Optional: large initial can differ from the first character of Text. Blank = match text (legacy behavior). */
+    let largeInitialChar = $state(
+        storedLargeInitialLetter === null ? "" : storedLargeInitialLetter,
+    );
     let textSize = $state(fontSettings.textSize);
     let outlineOffsetPx = $state(fontSettings.outlineOffsetPx);
     let baseDepth = $state(fontSettings.baseDepth);
@@ -139,11 +165,11 @@
     let keyringOffsetY = $state(charSettings.keyringOffsetY);
 
     lastFont = restoredFont;
-    lastChar = initialCharValue;
+    lastChar = bootstrapEffectiveInitial;
     lastInitialFont = restoredInitialFontKey;
 
-    function getCurrentChar(): string {
-        return text.length > 0 ? text.charAt(0).toUpperCase() : "";
+    function getKeyringInitialChar(): string {
+        return effectiveLargeInitial(largeInitialChar, text);
     }
 
     // ── Three.js state ──────────────────────────────────────────────────────
@@ -618,8 +644,7 @@
         });
 
         // ── Build the large initial mesh ────────────────────────────────────
-        const initialCharStr =
-            (text?.charAt(0)?.toUpperCase() as string) || "A";
+        const initialCharStr = effectiveLargeInitial(largeInitialChar, text);
         const initialSize = Math.max(1, Math.round(initialTextSize));
         const fontForInitial = getFont(initialFontKey);
         const initialFontShapes = fontForInitial.generateShapes(
@@ -887,6 +912,11 @@
     });
     $effect(() => {
         try {
+            localStorage.setItem(STORAGE_KEY_INITIAL_LETTER, largeInitialChar);
+        } catch {}
+    });
+    $effect(() => {
+        try {
             localStorage.setItem(STORAGE_KEY_FONT, fontKey);
         } catch {}
     });
@@ -917,7 +947,7 @@
     // Initial font change: save/load keyring position (tied to initialFontKey + char)
     $effect(() => {
         const curInitialFont = initialFontKey;
-        const currentChar = getCurrentChar();
+        const currentChar = getKeyringInitialChar();
         if (curInitialFont !== lastInitialFont) {
             if (lastInitialFont && lastChar) {
                 const wasUpdating = isUpdatingFromStorage;
@@ -939,7 +969,7 @@
 
     // Char change: save/load keyring for initial font + new char
     $effect(() => {
-        const currentChar = getCurrentChar();
+        const currentChar = getKeyringInitialChar();
         const curInitialFont = initialFontKey;
         if (currentChar !== lastChar && curInitialFont) {
             if (lastChar) {
@@ -979,7 +1009,7 @@
     // Save keyring on change (tied to initialFontKey + char)
     $effect(() => {
         if (isUpdatingFromStorage) return;
-        const currentChar = getCurrentChar();
+        const currentChar = getKeyringInitialChar();
         const curInitialFont = initialFontKey;
         void keyringOffsetX;
         void keyringOffsetY;
@@ -992,6 +1022,7 @@
     // Rebuild meshes on any visual change
     $effect(() => {
         void text;
+        void largeInitialChar;
         void textSize;
         void outlineOffsetPx;
         void baseDepth;
@@ -1050,6 +1081,26 @@
             <div
                 class="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden p-4 pt-0">
                 <div class="grid grid-cols-1 gap-4">
+                    <label class="grid gap-1.5">
+                        <span class="text-xs font-medium text-slate-700"
+                            >Large initial</span>
+                        <input
+                            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm uppercase text-slate-900 shadow-sm outline-none ring-indigo-500/25 placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2"
+                            type="text"
+                            maxlength="16"
+                            inputmode="text"
+                            placeholder="Auto (first letter of text)"
+                            value={largeInitialChar}
+                            oninput={(ev) => {
+                                const raw = ev.currentTarget.value;
+                                largeInitialChar = raw.trim()
+                                    ? raw.trim().slice(0, 1).toUpperCase()
+                                    : "";
+                            }} />
+                        <span class="text-[11px] leading-snug text-slate-500"
+                            >The big letter behind the text. Leave empty to match the first letter of the Text field.</span>
+                    </label>
+
                     <label class="grid gap-1.5">
                         <span class="text-xs font-medium text-slate-700"
                             >Text</span>
