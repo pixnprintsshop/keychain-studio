@@ -36,6 +36,7 @@
 	import TextOutlineDesigner from '$lib/components/TextOutlineDesigner.svelte';
 	import ThankYouDialog from '$lib/components/ThankYouDialog.svelte';
 	import WhistleDesigner from '$lib/components/WhistleDesigner.svelte';
+	import WhistleV2Designer from '$lib/components/WhistleV2Designer.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Popover from '$lib/components/ui/popover/index.js';
@@ -140,6 +141,7 @@
 		| 'keycap'
 		| 'keycapSet'
 		| 'whistle'
+		| 'whistleV2'
 		| 'stanleyTopper'
 		| 'strawTopper'
 		| 'pencilTopper'
@@ -168,6 +170,7 @@
 		'keycap',
 		'keycapSet',
 		'whistle',
+		'whistleV2',
 		'stanleyTopper',
 		'strawTopper',
 		'pencilTopper',
@@ -197,6 +200,7 @@
 		'keycap',
 		'keycapSet',
 		'whistle',
+		'whistleV2',
 		'stanleyTopper',
 		'strawTopper',
 		'pencilTopper',
@@ -271,6 +275,7 @@
 				stored === 'keycap' ||
 				stored === 'keycapSet' ||
 				stored === 'whistle' ||
+				stored === 'whistleV2' ||
 				stored === 'stanleyTopper' ||
 				stored === 'strawTopper' ||
 				stored === 'pencilTopper' ||
@@ -412,6 +417,7 @@
 			| 'keycap'
 			| 'keycapSet'
 			| 'whistle'
+			| 'whistleV2'
 			| 'stanleyTopper'
 			| 'strawTopper'
 			| 'pencilTopper'
@@ -1359,6 +1365,17 @@
 			/>
 		{:else if activeView === 'whistle'}
 			<WhistleDesigner
+				{user}
+				{session}
+				{subscriptionStatus}
+				palette={effectivePalette}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
+			/>
+		{:else if activeView === 'whistleV2'}
+			<WhistleV2Designer
 				{user}
 				{session}
 				{subscriptionStatus}

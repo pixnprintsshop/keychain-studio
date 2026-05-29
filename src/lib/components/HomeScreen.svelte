@@ -26,6 +26,7 @@
 		| 'keycap'
 		| 'keycapSet'
 		| 'whistle'
+		| 'whistleV2'
 		| 'stanleyTopper'
 		| 'strawTopper'
 		| 'pencilTopper'
@@ -114,11 +115,18 @@
 	};
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);
-	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set([]);
+	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set(["whistleV2"]);
 	let pendingBetaDesigner: StyleName | null = $state(null);
 	let pendingSubscriberDesigner: StyleName | null = $state(null);
 
 	const DESIGNERS: DesignerItem[] = [
+		{
+			id: 'whistleV2',
+			title: 'Whistle v2',
+			description: 'Multicolor whistle (Accent, Main, Border) with raised text on top.',
+			imageSrc: '/images/whistle-v2.png',
+			imageAlt: 'Whistle v2 preview'
+		},
 		{
 			id: 'canvasStudio',
 			title: 'Canvas Studio',
