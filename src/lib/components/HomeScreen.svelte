@@ -143,6 +143,13 @@
 			imageAlt: 'Cake Topper preview'
 		},
 		{
+			id: 'idNameTag',
+			title: 'ID Name Tag',
+			description: 'Name tag with customizable text and colors.',
+			imageSrc: '/images/id-name-tag.png',
+			imageAlt: 'ID Name Tag preview'
+		},
+		{
 			id: 'idNameTagV2',
 			title: 'ID Name Tag v2',
 			description: 'Fixed STL name tag styles with selectable base and border pairs.',
