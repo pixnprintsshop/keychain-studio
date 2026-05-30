@@ -34,6 +34,7 @@
 		| 'bumpyText'
 		| 'bowKeychain'
 		| 'articulatedKeychain'
+		| 'spotifyKeychain'
 		| 'namePuzzle'
 		| 'engraveNamePlate'
 		| 'cakeTopper'
@@ -116,7 +117,7 @@
 	};
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);
-	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set(["whistleV2"]);
+	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set(["whistleV2","spotifyKeychain","articulatedKeychain"]);
 	let pendingBetaDesigner: StyleName | null = $state(null);
 	let pendingSubscriberDesigner: StyleName | null = $state(null);
 
@@ -128,6 +129,14 @@
 				'Linked letter bases from start, mid, and end segments — type a name to build the chain.',
 			imageSrc: '/images/articulated-keychain.png',
 			imageAlt: 'Articulated Keychain preview'
+		},
+		{
+			id: 'spotifyKeychain',
+			title: 'Spotify Keychain',
+			description:
+				'Scannable Spotify Code on a keychain base — paste an album, track, playlist, or artist link.',
+			imageSrc: '/images/spotify-keychain.png',
+			imageAlt: 'Spotify Keychain preview'
 		},
 		{
 			id: 'whistleV2',

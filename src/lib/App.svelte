@@ -38,6 +38,7 @@
 	import WhistleDesigner from '$lib/components/WhistleDesigner.svelte';
 	import WhistleV2Designer from '$lib/components/WhistleV2Designer.svelte';
 	import ArticulatedKeychainDesigner from '$lib/components/ArticulatedKeychainDesigner.svelte';
+	import SpotifyKeychainDesigner from '$lib/components/SpotifyKeychainDesigner.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Popover from '$lib/components/ui/popover/index.js';
@@ -155,6 +156,7 @@
 		| 'canvasStudio'
 		| 'plateBadge'
 		| 'articulatedKeychain'
+		| 'spotifyKeychain'
 		| 'feedback'
 		| 'contact'
 		| 'settings';
@@ -185,6 +187,7 @@
 		'canvasStudio',
 		'plateBadge',
 		'articulatedKeychain',
+		'spotifyKeychain',
 		'feedback',
 		'contact',
 		'settings'
@@ -215,7 +218,8 @@
 		'cakeTopper',
 		'canvasStudio',
 		'plateBadge',
-		'articulatedKeychain'
+		'articulatedKeychain',
+		'spotifyKeychain'
 	]);
 
 	function isGuardedDesignerView(view: ViewName): boolean {
@@ -292,6 +296,7 @@
 				stored === 'canvasStudio' ||
 				stored === 'plateBadge' ||
 				stored === 'articulatedKeychain' ||
+				stored === 'spotifyKeychain' ||
 				stored === 'feedback' ||
 				stored === 'contact' ||
 				stored === 'settings' ||
@@ -435,6 +440,7 @@
 			| 'canvasStudio'
 			| 'plateBadge'
 			| 'articulatedKeychain'
+			| 'spotifyKeychain'
 	) {
 		if (!isViewAccessible(style)) {
 			if (isSubscriberOnlyDesigner(style) && !hasPaidAccess(user, subscriptionStatus)) {
@@ -1393,6 +1399,17 @@
 			/>
 		{:else if activeView === 'articulatedKeychain'}
 			<ArticulatedKeychainDesigner
+				{user}
+				{session}
+				{subscriptionStatus}
+				palette={effectivePalette}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
+			/>
+		{:else if activeView === 'spotifyKeychain'}
+			<SpotifyKeychainDesigner
 				{user}
 				{session}
 				{subscriptionStatus}
