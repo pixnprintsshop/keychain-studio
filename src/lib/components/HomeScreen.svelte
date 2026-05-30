@@ -116,7 +116,7 @@
 	};
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);
-	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set(["articulatedKeychain","whistleV2"]);
+	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set(["whistleV2"]);
 	let pendingBetaDesigner: StyleName | null = $state(null);
 	let pendingSubscriberDesigner: StyleName | null = $state(null);
 

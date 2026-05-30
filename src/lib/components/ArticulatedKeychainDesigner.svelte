@@ -96,6 +96,7 @@
 	let sceneReady = $state(false);
 
 	let textContent = $state('name');
+	let textOrientation = $state<'horizontal' | 'vertical'>('horizontal');
 	let fontKey = $state(ARTICULATED_FONT_OPTIONS[0]?.key ?? 'Titan One_Regular');
 	let textScale = $state(1);
 	let textDepth = $state(1);
@@ -165,11 +166,18 @@
 		const segH = Math.max(0.01, segmentBb.max.y - segmentBb.min.y);
 		const textW = Math.max(0.01, tb.max.x - tb.min.x);
 		const textH = Math.max(0.01, tb.max.y - tb.min.y);
-		const scaleXY = Math.min(
-			(segW * 0.72) / textW,
-			(segH * 0.72) / textH,
-			(LETTER_TARGET_HEIGHT_MM * textScale) / textH
-		);
+		const vertical = textOrientation === 'vertical';
+		const scaleXY = vertical
+			? Math.min(
+					(segW * 0.72) / textH,
+					(segH * 0.72) / textW,
+					(LETTER_TARGET_HEIGHT_MM * textScale) / textW
+				)
+			: Math.min(
+					(segW * 0.72) / textW,
+					(segH * 0.72) / textH,
+					(LETTER_TARGET_HEIGHT_MM * textScale) / textH
+				);
 
 		const textMat = new THREE.MeshStandardMaterial({
 			color: textColor,
@@ -181,6 +189,9 @@
 		textMesh.castShadow = true;
 		textMesh.receiveShadow = true;
 		textMesh.scale.set(scaleXY, scaleXY, 1);
+		if (vertical) {
+			textMesh.rotation.z = Math.PI / 2;
+		}
 
 		const topZ = segmentBb.max.z - segmentBb.min.z;
 		const centerX = (segmentBb.min.x + segmentBb.max.x) / 2;
@@ -499,6 +510,7 @@
 		void sceneReady;
 		void templateGeometries;
 		void textContent;
+		void textOrientation;
 		void fontKey;
 		void textScale;
 		void textDepth;
@@ -659,6 +671,30 @@
 							? ''
 							: 's'})
 					</p>
+				</div>
+
+				<div>
+					<p class="mb-1 text-xs font-medium text-slate-700">Letter direction</p>
+					<div class="flex items-center gap-4">
+						<label class="flex cursor-pointer items-center gap-1.5">
+							<input
+								type="radio"
+								name="articulated-text-orientation"
+								value="horizontal"
+								bind:group={textOrientation}
+							/>
+							<span class="text-xs text-slate-700">Horizontal</span>
+						</label>
+						<label class="flex cursor-pointer items-center gap-1.5">
+							<input
+								type="radio"
+								name="articulated-text-orientation"
+								value="vertical"
+								bind:group={textOrientation}
+							/>
+							<span class="text-xs text-slate-700">Vertical</span>
+						</label>
+					</div>
 				</div>
 
 				<div>
