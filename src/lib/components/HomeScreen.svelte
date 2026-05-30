@@ -33,6 +33,7 @@
 		| 'dogtag'
 		| 'bumpyText'
 		| 'bowKeychain'
+		| 'articulatedKeychain'
 		| 'namePuzzle'
 		| 'engraveNamePlate'
 		| 'cakeTopper'
@@ -115,11 +116,19 @@
 	};
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);
-	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set(["whistleV2"]);
+	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set(["articulatedKeychain","whistleV2"]);
 	let pendingBetaDesigner: StyleName | null = $state(null);
 	let pendingSubscriberDesigner: StyleName | null = $state(null);
 
 	const DESIGNERS: DesignerItem[] = [
+		{
+			id: 'articulatedKeychain',
+			title: 'Articulated Keychain',
+			description:
+				'Linked letter bases from start, mid, and end segments — type a name to build the chain.',
+			imageSrc: '/images/articulated-keychain.png',
+			imageAlt: 'Articulated Keychain preview'
+		},
 		{
 			id: 'whistleV2',
 			title: 'Whistle v2',

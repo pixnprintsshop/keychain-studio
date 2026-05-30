@@ -11,6 +11,8 @@
 		/** Optional callback invoked when the selection changes. Useful when
 		 * binding directly to a nested value is impractical. */
 		onValueChange?: (value: string) => void;
+		/** When true, only palette swatches are shown (no “current” off-palette color). */
+		paletteOnly?: boolean;
 	}
 
 	let {
@@ -19,7 +21,8 @@
 		label,
 		disabled = false,
 		id,
-		onValueChange
+		onValueChange,
+		paletteOnly = false
 	}: Props = $props();
 
 	let open = $state(false);
@@ -37,7 +40,7 @@
 
 	const displayColors = $derived.by(() => {
 		const normalized = palette.map((c) => ({ ...c, hex: normalizeHex(c.hex) }));
-		if (!isInPalette && displayValue) {
+		if (!paletteOnly && !isInPalette && displayValue) {
 			return [{ hex: displayValue, name: 'Current' }, ...normalized];
 		}
 		return normalized;

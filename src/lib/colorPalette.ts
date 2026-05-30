@@ -23,12 +23,48 @@ export const DEFAULT_PALETTE: PaletteColor[] = [
 	{ hex: '#e5e7eb', name: 'Clear' }
 ];
 
-function normalizeHex(hex: string): string {
+export function normalizeHex(hex: string): string {
 	const h = hex.replace(/^#/, '').trim();
+	if (!h) return '#ffffff';
 	if (h.length === 3) {
 		return '#' + h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
 	}
-	return h.startsWith('#') ? hex : '#' + h;
+	return h.startsWith('#') ? hex.toLowerCase() : `#${h.toLowerCase()}`;
+}
+
+/** Pick the closest palette swatch to `hex` (exact match preferred). */
+export function snapColorToPalette(
+	hex: string,
+	palette: PaletteColor[],
+	fallback = '#ffffff'
+): string {
+	if (palette.length === 0) return normalizeHex(fallback);
+
+	const target = normalizeHex(hex || fallback);
+	const exact = palette.find((c) => normalizeHex(c.hex) === target);
+	if (exact) return normalizeHex(exact.hex);
+
+	const parseRgb = (h: string): [number, number, number] => {
+		const x = h.replace('#', '');
+		return [
+			parseInt(x.slice(0, 2), 16),
+			parseInt(x.slice(2, 4), 16),
+			parseInt(x.slice(4, 6), 16)
+		];
+	};
+
+	const [tr, tg, tb] = parseRgb(target);
+	let bestHex = normalizeHex(palette[0].hex);
+	let bestDist = Infinity;
+	for (const c of palette) {
+		const [r, g, b] = parseRgb(normalizeHex(c.hex));
+		const dist = (r - tr) ** 2 + (g - tg) ** 2 + (b - tb) ** 2;
+		if (dist < bestDist) {
+			bestDist = dist;
+			bestHex = normalizeHex(c.hex);
+		}
+	}
+	return bestHex;
 }
 
 export function getEffectivePalette(
