@@ -37,6 +37,7 @@
 	import ThankYouDialog from '$lib/components/ThankYouDialog.svelte';
 	import WhistleDesigner from '$lib/components/WhistleDesigner.svelte';
 	import WhistleV2Designer from '$lib/components/WhistleV2Designer.svelte';
+	import WhistleBagTagDesigner from '$lib/components/WhistleBagTagDesigner.svelte';
 	import ArticulatedKeychainDesigner from '$lib/components/ArticulatedKeychainDesigner.svelte';
 	import SpotifyKeychainDesigner from '$lib/components/SpotifyKeychainDesigner.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -144,6 +145,7 @@
 		| 'keycapSet'
 		| 'whistle'
 		| 'whistleV2'
+		| 'whistleBagTag'
 		| 'stanleyTopper'
 		| 'strawTopper'
 		| 'pencilTopper'
@@ -175,6 +177,7 @@
 		'keycapSet',
 		'whistle',
 		'whistleV2',
+		'whistleBagTag',
 		'stanleyTopper',
 		'strawTopper',
 		'pencilTopper',
@@ -207,6 +210,7 @@
 		'keycapSet',
 		'whistle',
 		'whistleV2',
+		'whistleBagTag',
 		'stanleyTopper',
 		'strawTopper',
 		'pencilTopper',
@@ -284,6 +288,7 @@
 				stored === 'keycapSet' ||
 				stored === 'whistle' ||
 				stored === 'whistleV2' ||
+				stored === 'whistleBagTag' ||
 				stored === 'stanleyTopper' ||
 				stored === 'strawTopper' ||
 				stored === 'pencilTopper' ||
@@ -428,6 +433,7 @@
 			| 'keycapSet'
 			| 'whistle'
 			| 'whistleV2'
+			| 'whistleBagTag'
 			| 'stanleyTopper'
 			| 'strawTopper'
 			| 'pencilTopper'
@@ -1388,6 +1394,17 @@
 			/>
 		{:else if activeView === 'whistleV2'}
 			<WhistleV2Designer
+				{user}
+				{session}
+				{subscriptionStatus}
+				palette={effectivePalette}
+				onBack={handleBack}
+				onRequestLogin={() => (showLoginModal = true)}
+				onShowThankYou={() => (showThankYouDialog = true)}
+				onShowPricing={showPricing}
+			/>
+		{:else if activeView === 'whistleBagTag'}
+			<WhistleBagTagDesigner
 				{user}
 				{session}
 				{subscriptionStatus}

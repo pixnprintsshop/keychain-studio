@@ -27,6 +27,7 @@
 		| 'keycapSet'
 		| 'whistle'
 		| 'whistleV2'
+		| 'whistleBagTag'
 		| 'stanleyTopper'
 		| 'strawTopper'
 		| 'pencilTopper'
@@ -117,7 +118,7 @@
 	};
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);
-	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set(["whistleV2","spotifyKeychain","articulatedKeychain"]);
+	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set(["articulatedKeychain","whistleV2","whistleBagTag"]);
 	let pendingBetaDesigner: StyleName | null = $state(null);
 	let pendingSubscriberDesigner: StyleName | null = $state(null);
 
@@ -144,6 +145,14 @@
 			description: 'Multicolor whistle (Accent, Main, Border) with raised text on top.',
 			imageSrc: '/images/whistle-v2.png',
 			imageAlt: 'Whistle v2 preview'
+		},
+		{
+			id: 'whistleBagTag',
+			title: 'Whistle Bag Tag',
+			description:
+				'Bag tag whistle body with base, border rim, and multiline raised text (border matches text color).',
+			imageSrc: '/images/whistle-v2.png',
+			imageAlt: 'Whistle Bag Tag preview'
 		},
 		{
 			id: 'canvasStudio',
