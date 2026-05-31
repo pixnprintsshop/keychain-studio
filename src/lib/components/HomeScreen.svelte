@@ -151,7 +151,7 @@
 			title: 'Whistle Bag Tag',
 			description:
 				'Bag tag whistle body with base, border rim, and multiline raised text (border matches text color).',
-			imageSrc: '/images/whistle-v2.png',
+			imageSrc: '/images/whistle-bag-tag.png',
 			imageAlt: 'Whistle Bag Tag preview'
 		},
 		{
