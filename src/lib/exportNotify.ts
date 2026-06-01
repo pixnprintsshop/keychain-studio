@@ -1,5 +1,6 @@
 import { resolveDesignerIdForExport } from './designerExportNames';
 import { recordExport } from './exportStats.svelte';
+import { isTelegramNotifyEnabled } from './opsInDev';
 import { freeTrial } from './freeTrial.svelte';
 import type { SubscriptionStatus } from './subscription';
 import type { DesignerId } from './designers/ids';
@@ -78,6 +79,8 @@ export function notifyExportEvent(payload: ExportNotifyPayload): void {
 	};
 
 	recordExport(resolveDesignerIdForExport(designName, payload.designerId));
+
+	if (!isTelegramNotifyEnabled()) return;
 
 	fetch('/api/telegram/export-notify', {
 		method: 'POST',

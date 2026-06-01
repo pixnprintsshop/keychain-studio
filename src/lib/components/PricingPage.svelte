@@ -5,7 +5,7 @@
 	import { getSession, onAuthStateChange } from '$lib/auth';
 	import { getSubscriptionStatus, setLicenseCache } from '$lib/subscription';
 	import type { Session } from '@supabase/supabase-js';
-	import posthog from 'posthog-js';
+	import { capture } from '$lib/analytics';
 
 	interface Props {
 		onBack: () => void;
@@ -152,7 +152,7 @@
 			onRequestLogin?.();
 			return;
 		}
-		posthog.capture('checkout_initiated', { plan });
+		capture('checkout_initiated', { plan });
 		try {
 			const res = await fetch('/api/lemonsqueezy/checkout', {
 				method: 'POST',

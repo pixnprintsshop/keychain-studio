@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { freeTrial, getFingerprintBlockedMessage } from '$lib/freeTrial.svelte';
-	import posthog from 'posthog-js';
+	import { capture } from '$lib/analytics';
 
 	interface Props {
 		onSnapshot: () => void;
@@ -45,23 +45,23 @@
 	const showFingerprintBlockedChip = $derived(showLockIcon && freeTrial.fingerprintBlocked);
 
 	function handleSnapshot() {
-		posthog.capture('snapshot_downloaded');
+		capture('snapshot_downloaded');
 		onSnapshot();
 	}
 
 	function handleExportSTL() {
-		if (!exportDisabled) posthog.capture('design_exported_stl', { format: 'stl' });
+		if (!exportDisabled) capture('design_exported_stl', { format: 'stl' });
 		onExport();
 	}
 
 	function handleExport3MF() {
-		if (!exportDisabled) posthog.capture('design_exported_3mf', { format: '3mf' });
+		if (!exportDisabled) capture('design_exported_3mf', { format: '3mf' });
 		onExport3MF?.();
 	}
 
 	function handleOpenWithBambuStudio() {
 		if (!exportDisabled && !openBambuStudioLoading) {
-			posthog.capture('design_opened_bambu_studio');
+			capture('design_opened_bambu_studio');
 		}
 		onOpenWithBambuStudio?.();
 	}

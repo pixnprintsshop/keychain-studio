@@ -1,11 +1,16 @@
 import type { Handle, HandleServerError } from '@sveltejs/kit';
 import { getPostHogClient } from '$lib/server/posthog';
+import { isAnalyticsEnabled } from '$lib/server/opsInDev';
 
 // Handle requests - includes reverse proxy for PostHog
 export const handle: Handle = async ({ event, resolve }) => {
 	const { pathname } = event.url;
 
 	// Reverse proxy for PostHog - route /ingest requests to PostHog servers
+	if (pathname.startsWith('/ingest') && !isAnalyticsEnabled()) {
+		return new Response(null, { status: 204 });
+	}
+
 	if (pathname.startsWith('/ingest')) {
 		const hostname = pathname.startsWith('/ingest/static/')
 			? 'us-assets.i.posthog.com'
@@ -42,6 +47,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 // Capture server-side errors with PostHog
 export const handleError: HandleServerError = async ({ error, status, message }) => {
+	if (!isAnalyticsEnabled()) {
+		return { message, status };
+	}
+
 	const posthog = getPostHogClient();
 
 	posthog.capture({

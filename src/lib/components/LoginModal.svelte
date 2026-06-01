@@ -2,7 +2,7 @@
 	import { signIn, signInWithGoogle, signUp } from '$lib/auth';
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
-	import posthog from 'posthog-js';
+	import { capture } from '$lib/analytics';
 
 	interface Props {
 		isOpen?: boolean;
@@ -78,7 +78,7 @@
 				errorMessage = '';
 				signUpSuccessMessage =
 					'Account created! Please check your email to confirm your account before signing in.';
-				posthog.capture('user_signed_up', { method: 'email' });
+				capture('user_signed_up', { method: 'email' });
 				isSignUpMode = false;
 				password = '';
 				confirmPassword = '';
@@ -94,7 +94,7 @@
 			} else {
 				// Success
 				errorMessage = '';
-				posthog.capture('user_signed_in', { method: 'email' });
+				capture('user_signed_in', { method: 'email' });
 				isOpen = false;
 				onSuccess?.();
 			}
@@ -104,7 +104,7 @@
 	async function handleGoogleSignIn() {
 		errorMessage = '';
 		isSigningInWithGoogle = true;
-		posthog.capture('user_signed_in_google', { method: 'google' });
+		capture('user_signed_in_google', { method: 'google' });
 		const { error } = await signInWithGoogle();
 		if (error) {
 			errorMessage = error.message || 'Failed to sign in with Google';

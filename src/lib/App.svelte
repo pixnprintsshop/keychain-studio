@@ -38,7 +38,7 @@
 	} from '$lib/colorPalette';
 	import type { Session, User } from '@supabase/supabase-js';
 	import { onDestroy, onMount, type Snippet } from 'svelte';
-	import posthog from 'posthog-js';
+	import * as analytics from '$lib/analytics';
 
 	interface Props {
 		children: Snippet;
@@ -244,8 +244,8 @@
 
 	async function handleSignOut() {
 		const userId = user?.id ?? null;
-		posthog.capture('user_signed_out');
-		posthog.reset();
+		analytics.capture('user_signed_out');
+		analytics.reset();
 		await signOut();
 		clearLicenseCache(userId);
 		user = null;
@@ -273,7 +273,7 @@
 		} catch {
 			// localStorage can be unavailable in restricted browser contexts.
 		}
-		posthog.capture('share_credits_promo_dismissed', {
+		analytics.capture('share_credits_promo_dismissed', {
 			remaining_credits: freeTrial.credits
 		});
 	}
@@ -295,14 +295,14 @@
 			} else if (navigator.clipboard?.writeText) {
 				await navigator.clipboard.writeText(`${shareData.text} ${url}`);
 			}
-			posthog.capture('share_credits_promo_shared');
+			analytics.capture('share_credits_promo_shared');
 		} catch {
 			// user cancelled share sheet
 		}
 	}
 
 	function handleShareCreditsPromoMessage() {
-		posthog.capture('share_credits_promo_message_clicked');
+		analytics.capture('share_credits_promo_message_clicked');
 		window.open(SHARE_CREDITS_MESSENGER_URL, '_blank', 'noopener,noreferrer');
 		closePromotionDialog();
 	}
@@ -314,7 +314,7 @@
 			// localStorage can be unavailable in restricted browser contexts.
 		}
 		showRatingPromptDialog = false;
-		posthog.capture('rating_prompt_dismissed');
+		analytics.capture('rating_prompt_dismissed');
 	}
 
 	function handleRatingSubmitted() {
@@ -336,7 +336,7 @@
 		if (showWelcomeDialog || show3MFAnnouncementDialog || showPromotionDialog) return;
 		showPromotionDialog = true;
 		canShowShareCreditsPromo = false;
-		posthog.capture('share_credits_promo_shown', {
+		analytics.capture('share_credits_promo_shown', {
 			remaining_credits: freeTrial.credits,
 			total_credits: freeTrial.totalCredits
 		});
@@ -359,7 +359,7 @@
 		const id = window.setTimeout(() => {
 			ratingPromptFired = true;
 			showRatingPromptDialog = true;
-			posthog.capture('rating_prompt_shown');
+			analytics.capture('rating_prompt_shown');
 		}, delayMs);
 		return () => window.clearTimeout(id);
 	});
@@ -481,7 +481,7 @@
 				session = newSession;
 				user = newSession?.user ?? null;
 				if (event === 'SIGNED_IN' && user) {
-					posthog.identify(user.id, { email: user.email });
+					analytics.identify(user.id, { email: user.email });
 					showLoginModal = false;
 					if (isSupabaseAuthHash()) {
 						setTimeout(() => {

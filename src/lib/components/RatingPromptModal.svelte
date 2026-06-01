@@ -3,7 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { submitAppRating } from '$lib/app-rating';
 	import { notifyRatingSubmitted } from '$lib/ratingNotify';
-	import posthog from 'posthog-js';
+	import { capture } from '$lib/analytics';
 
 	interface Props {
 		open: boolean;
@@ -62,7 +62,7 @@
 			submitError = result.error;
 			return;
 		}
-		posthog.capture('rating_submitted', { stars });
+		capture('rating_submitted', { stars });
 		notifyRatingSubmitted(user, result.row);
 		phase = 'thanks';
 	}

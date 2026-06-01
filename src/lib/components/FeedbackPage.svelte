@@ -7,7 +7,7 @@
 		createFeedback,
 		listFeedbackForUser
 	} from '$lib/feedback';
-	import posthog from 'posthog-js';
+	import { capture } from '$lib/analytics';
 
 	interface Props {
 		user: User | null;
@@ -81,7 +81,7 @@
 			return;
 		}
 
-		posthog.capture('feedback_submitted', { category });
+		capture('feedback_submitted', { category });
 
 		// Best-effort email notification (Resend via backend route)
 		try {

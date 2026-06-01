@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
+import { isTelegramNotifyEnabled } from '$lib/server/opsInDev';
 
 const TELEGRAM_API = 'https://api.telegram.org';
 
@@ -8,6 +9,8 @@ const TELEGRAM_API = 'https://api.telegram.org';
 const COMMENT_MAX_IN_MESSAGE = 3500;
 
 export const POST: RequestHandler = async ({ request }) => {
+	if (!isTelegramNotifyEnabled()) return json({ ok: true, skipped: true });
+
 	const token = env.TELEGRAM_BOT_TOKEN;
 	const chatId = env.TELEGRAM_CHAT_ID;
 

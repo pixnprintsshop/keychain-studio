@@ -1,5 +1,6 @@
 import type { SubscriptionStatus } from './subscription';
 import { formatSubscriptionStatusForNotify } from './notifyFormat';
+import { isTelegramNotifyEnabled } from './opsInDev';
 
 /**
  * Sentinel set in `sessionStorage` after a visit notification has fired so we
@@ -23,6 +24,7 @@ export interface VisitNotifyPayload {
  */
 export function notifyVisit(payload: VisitNotifyPayload): void {
 	if (typeof window === 'undefined') return;
+	if (!isTelegramNotifyEnabled()) return;
 	try {
 		if (sessionStorage.getItem(SESSION_KEY) === '1') return;
 		sessionStorage.setItem(SESSION_KEY, '1');

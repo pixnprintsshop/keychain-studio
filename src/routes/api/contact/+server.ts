@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
 import { FEEDBACK_NOTIFY_EMAIL, RESEND_API_KEY } from '$env/static/private';
 import { sendContactEmail } from '$lib/server/email';
+import { isTelegramNotifyEnabled } from '$lib/server/opsInDev';
 
 const TELEGRAM_API = 'https://api.telegram.org';
 const MESSAGE_MAX = 5000;
@@ -55,7 +56,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 
 	const token = env.TELEGRAM_BOT_TOKEN;
 	const chatId = env.TELEGRAM_CHAT_ID;
-	const canTelegram = !!(token && chatId);
+	const canTelegram = !!(token && chatId) && isTelegramNotifyEnabled();
 	const canEmail = !!(RESEND_API_KEY && (env.CONTACT_NOTIFY_EMAIL || FEEDBACK_NOTIFY_EMAIL));
 
 	if (!canTelegram && !canEmail) {

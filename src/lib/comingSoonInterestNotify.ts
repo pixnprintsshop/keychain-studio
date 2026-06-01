@@ -1,5 +1,6 @@
 import type { SubscriptionStatus } from './subscription';
 import { formatSubscriptionStatusForNotify } from './notifyFormat';
+import { isTelegramNotifyEnabled } from './opsInDev';
 
 const STORAGE_PREFIX = 'pixnprints-cs-interest-';
 
@@ -35,6 +36,8 @@ export interface ComingSoonInterestPayload {
 export async function notifyComingSoonInterest(
 	payload: ComingSoonInterestPayload
 ): Promise<boolean> {
+	if (!isTelegramNotifyEnabled()) return true;
+
 	try {
 		const res = await fetch('/api/telegram/coming-soon-interest', {
 			method: 'POST',

@@ -2,12 +2,15 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
 import { isComingSoonDesignerId } from '$lib/comingSoonDesigners';
+import { isTelegramNotifyEnabled } from '$lib/server/opsInDev';
 import { getFlag, resolveIpAndCountry, summarizeUserAgent } from '$lib/server/visit-info';
 
 const TELEGRAM_API = 'https://api.telegram.org';
 const TELEGRAM_BODY_MAX = 3500;
 
 export const POST: RequestHandler = async ({ request }) => {
+	if (!isTelegramNotifyEnabled()) return json({ ok: true, skipped: true });
+
 	const token = env.TELEGRAM_BOT_TOKEN;
 	const chatId = env.TELEGRAM_CHAT_ID;
 

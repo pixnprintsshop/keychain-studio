@@ -1,10 +1,13 @@
 import type { User } from '@supabase/supabase-js';
 import type { AppRatingSubmissionRow } from './app-rating';
+import { isTelegramNotifyEnabled } from './opsInDev';
 
 /**
  * Notify backend of a submitted in-app rating (Telegram). Fire-and-forget; does not block UX.
  */
 export function notifyRatingSubmitted(user: User, row: AppRatingSubmissionRow): void {
+	if (!isTelegramNotifyEnabled()) return;
+
 	const body = {
 		email: user.email ?? undefined,
 		userId: row.user_id,

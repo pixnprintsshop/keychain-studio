@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '$env/dynamic/private';
-import { getPostHogClient } from '$lib/server/posthog';
+import { captureServerEvent, flushServerAnalytics } from '$lib/server/analytics';
 
 export const POST: RequestHandler = async ({ request }) => {
 	const authHeader = request.headers.get('Authorization');
@@ -122,13 +122,11 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ success: false, error: 'Failed to activate license' }, { status: 500 });
 	}
 
-	const posthog = getPostHogClient();
-	posthog.capture({
-		distinctId: user.id,
-		event: 'license_activated',
-		properties: { tier: license.tier, $set: { email: user.email } }
+	captureServerEvent(user.id, 'license_activated', {
+		tier: license.tier,
+		$set: { email: user.email }
 	});
-	await posthog.flush();
+	await flushServerAnalytics();
 
 	return json({ success: true });
 };

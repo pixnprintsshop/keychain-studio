@@ -4,12 +4,12 @@
 	import HomeScreen from '$lib/components/HomeScreen.svelte';
 	import { type DesignerId } from '$lib/designers';
 	import { getStudioContext } from '$lib/studio/context.svelte';
-	import posthog from 'posthog-js';
+	import { capture } from '$lib/analytics';
 
 	const studio = getStudioContext();
 
 	function handleStyleSelect(style: DesignerId) {
-		posthog.capture('designer_selected', { designer: style });
+		capture('designer_selected', { designer: style });
 		goto(`/${style}` as `/${typeof style}`);
 	}
 </script>

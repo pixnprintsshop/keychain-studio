@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '$env/dynamic/private';
-import { getPostHogClient } from '$lib/server/posthog';
+import { captureServerEvent, flushServerAnalytics } from '$lib/server/analytics';
 
 const LEMONSQUEEZY_API = 'https://api.lemonsqueezy.com/v1/checkouts';
 
@@ -97,13 +97,11 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ error: 'No checkout URL returned' }, { status: 502 });
 	}
 
-	const posthog = getPostHogClient();
-	posthog.capture({
-		distinctId: user.id,
-		event: 'checkout_session_created',
-		properties: { plan, $set: { email: user.email } }
+	captureServerEvent(user.id, 'checkout_session_created', {
+		plan,
+		$set: { email: user.email }
 	});
-	await posthog.flush();
+	await flushServerAnalytics();
 
 	return json({ url });
 };

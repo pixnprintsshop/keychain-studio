@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { User } from '@supabase/supabase-js';
 	import { Button } from '$lib/components/ui/button';
-	import posthog from 'posthog-js';
+	import { capture } from '$lib/analytics';
 
 	interface Props {
 		user: User | null;
@@ -62,7 +62,7 @@
 				return;
 			}
 
-			posthog.capture('contact_submitted');
+			capture('contact_submitted');
 			submitSuccess = true;
 			subject = '';
 			message = '';
