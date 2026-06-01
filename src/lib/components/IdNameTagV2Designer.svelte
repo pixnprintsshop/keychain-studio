@@ -1,6 +1,16 @@
 <script lang="ts">
-	import type { PaletteColor } from '$lib/colorPalette';
+	import { snapColorToPalette, type PaletteColor } from '$lib/colorPalette';
 	import { exportTo3MF } from '$lib/export-to-3mf';
+	import ClipperLib from 'clipper-lib';
+	import * as Dialog from '$lib/components/ui/dialog';
+	import {
+		cloneDefaultIdNameTagV2PresetsAsCustom,
+		DEFAULT_ID_NAME_TAG_V2_COLOR_PRESETS,
+		isCustomIdNameTagV2PresetId,
+		loadUserIdNameTagV2Presets,
+		persistIdNameTagV2CustomPresets,
+		type IdNameTagV2ColorPreset
+	} from '$lib/idNameTagV2Presets';
 	import { notifyExportEvent } from '$lib/exportNotify';
 	import base1StlUrl from '$lib/assets/stl/idnametag/base1.stl?url';
 	import base2StlUrl from '$lib/assets/stl/idnametag/base2.stl?url';
@@ -73,6 +83,9 @@
 	const BACK_TEXT_DEPTH_MM = 0.4;
 	const WELD_TOL_MM = 1e-3;
 	const TOP_LOOP_SNAP_MM = 1e-4;
+	/** Vertical gap between stacked layers so faces do not touch. */
+	const LAYER_GAP = 0.001;
+	const CLIPPER_SCALE = 1000;
 	/** Ignore hole loops smaller than this fraction of the outer loop area (avoids spurious inner loops on some STLs). */
 	const HOLE_MIN_AREA_RATIO = 0.005;
 	const DEFAULT_DETAIL_COLOR = '#1f2937';
@@ -96,6 +109,10 @@
 	};
 
 	type TextLineEntry = { geo: THREE.BufferGeometry; height: number; depth: number; color: string };
+	type FrontTextLineEntry = TextLineEntry & {
+		centeredPaths: { X: number; Y: number }[][];
+		yCenter: number;
+	};
 	type TopLoop = THREE.Vector2[];
 	type BoundaryEdge = { a: string; b: string };
 	type BoundaryEdgeCount = BoundaryEdge & { count: number };
@@ -115,6 +132,10 @@
 		lineSpacing: number;
 		backLines: IdNameTagV2Line[];
 		backLineSpacing: number;
+		textOutlineEnabled: boolean;
+		textOutlineThicknessMm: number;
+		textOutlineDepth: number;
+		textOutlineColor: string;
 	}
 
 	const MODEL_PAIRS: ModelPair[] = [
@@ -151,7 +172,11 @@
 		],
 		lineSpacing: 5,
 		backLines: [],
-		backLineSpacing: 5
+		backLineSpacing: 5,
+		textOutlineEnabled: false,
+		textOutlineThicknessMm: 1,
+		textOutlineDepth: 0.6,
+		textOutlineColor: '#ffffff'
 	};
 
 	function clamp(v: number, lo: number, hi: number): number {
@@ -257,7 +282,21 @@
 				backLines: backLines.length > 0 ? backLines : cloneDefaultLines(lineFallbackColor),
 				backLineSpacing: isFiniteNumber((parsed as Settings).backLineSpacing)
 					? clamp((parsed as Settings).backLineSpacing, 0, 20)
-					: defaults.backLineSpacing
+					: defaults.backLineSpacing,
+				textOutlineEnabled:
+					typeof parsed.textOutlineEnabled === 'boolean'
+						? parsed.textOutlineEnabled
+						: defaults.textOutlineEnabled,
+				textOutlineThicknessMm: isFiniteNumber(parsed.textOutlineThicknessMm)
+					? Math.min(8, Math.max(0.2, parsed.textOutlineThicknessMm))
+					: defaults.textOutlineThicknessMm,
+				textOutlineDepth: isFiniteNumber(parsed.textOutlineDepth)
+					? Math.min(5, Math.max(0.2, parsed.textOutlineDepth))
+					: defaults.textOutlineDepth,
+				textOutlineColor:
+					typeof parsed.textOutlineColor === 'string'
+						? parsed.textOutlineColor
+						: defaults.textOutlineColor
 			};
 		} catch {
 			return {
@@ -280,7 +319,225 @@
 	let lineSpacing = $state(initial.lineSpacing);
 	let backLines = $state<IdNameTagV2Line[]>(initial.backLines.map((line) => ({ ...line })));
 	let backLineSpacing = $state(initial.backLineSpacing);
+	let textOutlineEnabled = $state(initial.textOutlineEnabled);
+	let textOutlineThicknessMm = $state(initial.textOutlineThicknessMm);
+	let textOutlineDepth = $state(initial.textOutlineDepth);
+	let textOutlineColor = $state(initial.textOutlineColor);
 	let activeTextSide = $state<'front' | 'back'>('front');
+
+	let activePresetId = $state<string | null>(null);
+	let customPresets = $state<IdNameTagV2ColorPreset[]>([]);
+	let presetSyncError = $state<string | null>(null);
+	let customPresetsLoading = $state(false);
+	let importPresetsLoading = $state(false);
+	const galleryPresets = $derived(customPresets);
+	const hasGalleryPresets = $derived(galleryPresets.length > 0);
+
+	type PresetEditorMode = 'create' | 'edit';
+	let presetEditorOpen = $state(false);
+	let presetEditorMode = $state<PresetEditorMode>('create');
+	let presetEditorId = $state<string | null>(null);
+	let presetEditorLabel = $state('');
+	let presetEditorBase = $state('#ffffff');
+	let presetEditorBorder = $state('#1f2937');
+	let presetEditorText = $state('#1f2937');
+	let presetEditorTextOutline = $state('#ffffff');
+	let presetEditorTextOutlineEnabled = $state(false);
+
+	function snapPresetColors(base: string, border: string, text: string, textOutline: string) {
+		return {
+			base: snapColorToPalette(base, palette, baseColor),
+			border: snapColorToPalette(border, palette, borderColor),
+			text: snapColorToPalette(text, palette, commonColor),
+			textOutline: snapColorToPalette(textOutline, palette, textOutlineColor)
+		};
+	}
+
+	function findMatchingPresetId(presets: IdNameTagV2ColorPreset[]): string | null {
+		for (const preset of presets) {
+			if (
+				preset.baseColor === baseColor &&
+				preset.borderColor === borderColor &&
+				preset.textColor === commonColor &&
+				preset.textOutlineColor === textOutlineColor &&
+				(preset.textOutlineEnabled ?? false) === textOutlineEnabled
+			) {
+				return preset.id;
+			}
+		}
+		return null;
+	}
+
+	function applyColorPreset(preset: IdNameTagV2ColorPreset) {
+		const snapped = snapPresetColors(
+			preset.baseColor,
+			preset.borderColor,
+			preset.textColor,
+			preset.textOutlineColor
+		);
+		baseColor = snapped.base;
+		borderColor = snapped.border;
+		commonColor = snapped.text;
+		lines = lines.map((line) => ({ ...line, color: snapped.text }));
+		backLines = backLines.map((line) => ({ ...line, color: snapped.text }));
+		textOutlineColor = snapped.textOutline;
+		textOutlineEnabled = preset.textOutlineEnabled ?? false;
+		activePresetId = findMatchingPresetId(galleryPresets) ?? preset.id;
+	}
+
+	function setPresetEditorColors(base: string, border: string, text: string, textOutline: string) {
+		const snapped = snapPresetColors(base, border, text, textOutline);
+		presetEditorBase = snapped.base;
+		presetEditorBorder = snapped.border;
+		presetEditorText = snapped.text;
+		presetEditorTextOutline = snapped.textOutline;
+	}
+
+	function openCreatePresetEditor() {
+		presetEditorMode = 'create';
+		presetEditorId = null;
+		presetEditorLabel = 'My preset';
+		presetEditorTextOutlineEnabled = textOutlineEnabled;
+		setPresetEditorColors(baseColor, borderColor, commonColor, textOutlineColor);
+		presetEditorOpen = true;
+	}
+
+	async function syncCustomPresetsFromAccount() {
+		const userId = user?.id;
+		if (!userId) {
+			customPresets = [];
+			activePresetId = null;
+			closePresetEditor();
+			presetSyncError = null;
+			return;
+		}
+		customPresetsLoading = true;
+		presetSyncError = null;
+		try {
+			customPresets = await loadUserIdNameTagV2Presets(userId);
+			activePresetId = findMatchingPresetId(galleryPresets);
+		} catch (e) {
+			presetSyncError = e instanceof Error ? e.message : 'Failed to load presets';
+		} finally {
+			customPresetsLoading = false;
+		}
+	}
+
+	async function persistCustomPresets(presets: IdNameTagV2ColorPreset[]) {
+		if (!user?.id) return;
+		const result = await persistIdNameTagV2CustomPresets(user.id, presets);
+		if (!result.success) {
+			presetSyncError = result.error;
+			return;
+		}
+		presetSyncError = null;
+	}
+
+	function openEditPresetEditor(preset: IdNameTagV2ColorPreset) {
+		presetEditorMode = 'edit';
+		presetEditorId = preset.id;
+		presetEditorLabel = preset.label;
+		presetEditorTextOutlineEnabled = preset.textOutlineEnabled ?? false;
+		setPresetEditorColors(
+			preset.baseColor,
+			preset.borderColor,
+			preset.textColor,
+			preset.textOutlineColor
+		);
+		presetEditorOpen = true;
+	}
+
+	function closePresetEditor() {
+		presetEditorOpen = false;
+		presetEditorId = null;
+	}
+
+	function onPresetEditorOpenChange(open: boolean) {
+		if (!open) closePresetEditor();
+	}
+
+	async function commitPresetEditor() {
+		const label = presetEditorLabel.trim() || 'My preset';
+		const snapped = snapPresetColors(
+			presetEditorBase,
+			presetEditorBorder,
+			presetEditorText,
+			presetEditorTextOutline
+		);
+		const enabled = presetEditorTextOutlineEnabled;
+
+		if (presetEditorMode === 'edit' && presetEditorId) {
+			customPresets = customPresets.map((p) =>
+				p.id === presetEditorId
+					? {
+							id: p.id,
+							label,
+							baseColor: snapped.base,
+							borderColor: snapped.border,
+							textColor: snapped.text,
+							textOutlineColor: snapped.textOutline,
+							textOutlineEnabled: enabled
+						}
+					: p
+			);
+			activePresetId = presetEditorId;
+		} else {
+			const id = `custom-${crypto.randomUUID()}`;
+			customPresets = [
+				...customPresets,
+				{
+					id,
+					label,
+					baseColor: snapped.base,
+					borderColor: snapped.border,
+					textColor: snapped.text,
+					textOutlineColor: snapped.textOutline,
+					textOutlineEnabled: enabled
+				}
+			];
+			activePresetId = id;
+		}
+
+		applyColorPreset({
+			id: activePresetId!,
+			label,
+			baseColor: snapped.base,
+			borderColor: snapped.border,
+			textColor: snapped.text,
+			textOutlineColor: snapped.textOutline,
+			textOutlineEnabled: enabled
+		});
+		await persistCustomPresets(customPresets);
+		closePresetEditor();
+	}
+
+	async function deleteCustomPreset(id: string) {
+		if (!isCustomIdNameTagV2PresetId(id)) return;
+		customPresets = customPresets.filter((p) => p.id !== id);
+		await persistCustomPresets(customPresets);
+		if (activePresetId === id) activePresetId = findMatchingPresetId(galleryPresets);
+		closePresetEditor();
+	}
+
+	async function importDefaultPresets() {
+		if (!user?.id) {
+			onRequestLogin();
+			return;
+		}
+		importPresetsLoading = true;
+		presetSyncError = null;
+		try {
+			customPresets = cloneDefaultIdNameTagV2PresetsAsCustom((hex, fallback) =>
+				snapColorToPalette(hex, palette, fallback)
+			);
+			await persistCustomPresets(customPresets);
+			activePresetId = null;
+		} catch (e) {
+			presetSyncError = e instanceof Error ? e.message : 'Failed to import presets';
+		} finally {
+			importPresetsLoading = false;
+		}
+	}
 	const backPrintEnabled =
 		typeof window !== 'undefined' &&
 		new URL(window.location.href).searchParams.get('backprint') === '1';
@@ -302,6 +559,12 @@
 	let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
 	let loadError = $state<string | null>(null);
 	let basePlanSize = $state<{ x: number; y: number } | null>(null);
+	const maxTextOutlineMm = $derived(
+		Math.max(
+			0.2,
+			Math.min(8, basePlanSize ? Math.min(basePlanSize.x, basePlanSize.y) * 0.12 : 4)
+		)
+	);
 	let textCenterY = $state(0);
 	let baseSourceGeometry = $state<THREE.BufferGeometry | null>(null);
 	let borderSourceGeometry = $state<THREE.BufferGeometry | null>(null);
@@ -331,7 +594,11 @@
 				lines,
 				lineSpacing,
 				backLines,
-				backLineSpacing
+				backLineSpacing,
+				textOutlineEnabled,
+				textOutlineThicknessMm,
+				textOutlineDepth,
+				textOutlineColor
 			};
 			localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 		} catch {
@@ -580,6 +847,95 @@
 		return shape;
 	}
 
+	function polyTreeToThreeShapes(
+		tree: any,
+		toVec2: (pt: { X: number; Y: number }) => THREE.Vector2
+	): THREE.Shape[] {
+		const shapesOut: THREE.Shape[] = [];
+		const buildFromOuter = (outerNode: any): THREE.Shape | null => {
+			const contour = outerNode.Contour?.() ?? outerNode.m_polygon ?? [];
+			if (!contour || contour.length < 3) return null;
+			const outerPts = contour.map(toVec2);
+			if (THREE.ShapeUtils.isClockWise(outerPts)) outerPts.reverse();
+			const shape = new THREE.Shape(outerPts);
+			const children = outerNode.Childs?.() ?? outerNode.m_Childs ?? [];
+			for (const ch of children) {
+				const isHole = ch.IsHole?.() ?? ch.m_IsHole;
+				if (!isHole) continue;
+				const holeContour = ch.Contour?.() ?? ch.m_polygon ?? [];
+				if (holeContour.length >= 3) {
+					const holePts = holeContour.map(toVec2);
+					if (!THREE.ShapeUtils.isClockWise(holePts)) holePts.reverse();
+					shape.holes.push(new THREE.Path(holePts));
+				}
+			}
+			return shape;
+		};
+		const roots = tree.Childs?.() ?? tree.m_Childs ?? [];
+		for (const n of roots) {
+			if (n.IsHole?.() ?? n.m_IsHole) continue;
+			const s = buildFromOuter(n);
+			if (s) shapesOut.push(s);
+		}
+		return shapesOut;
+	}
+
+	function buildUnionOffsetTree(paths: any[], offsetWorld: number) {
+		const tree = new ClipperLib.PolyTree();
+		if (offsetWorld > 0) {
+			const co = new ClipperLib.ClipperOffset(2, 2);
+			co.AddPaths(paths, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+			const offsetPaths: any[] = [];
+			co.Execute(offsetPaths, offsetWorld * CLIPPER_SCALE);
+			const clipper = new ClipperLib.Clipper();
+			clipper.AddPaths(offsetPaths, ClipperLib.PolyType.ptSubject, true);
+			clipper.Execute(
+				ClipperLib.ClipType.ctUnion,
+				tree,
+				ClipperLib.PolyFillType.pftNonZero,
+				ClipperLib.PolyFillType.pftNonZero
+			);
+		} else {
+			const clipper = new ClipperLib.Clipper();
+			clipper.AddPaths(paths, ClipperLib.PolyType.ptSubject, true);
+			clipper.Execute(
+				ClipperLib.ClipType.ctUnion,
+				tree,
+				ClipperLib.PolyFillType.pftNonZero,
+				ClipperLib.PolyFillType.pftNonZero
+			);
+		}
+		return tree;
+	}
+
+	function addExtrudedBorderLayer(
+		shape: THREE.Shape,
+		z: number,
+		depth: number,
+		color: string,
+		meshName: string
+	) {
+		if (!group) return;
+		const topGeo = new THREE.ExtrudeGeometry([shape], {
+			depth: Math.max(0.1, depth),
+			bevelEnabled: false
+		});
+		topGeo.computeBoundingBox();
+		const topBb = topGeo.boundingBox!;
+		topGeo.translate(0, 0, -topBb.min.z);
+		const borderMat = new THREE.MeshStandardMaterial({
+			color,
+			roughness: 0.85,
+			metalness: 0.05
+		});
+		const topMesh = new THREE.Mesh(topGeo, borderMat);
+		topMesh.name = meshName;
+		topMesh.castShadow = true;
+		topMesh.receiveShadow = true;
+		topMesh.position.z = z;
+		group.add(topMesh);
+	}
+
 	function buildCleanTopExtrusionGeometry(
 		srcGeo: THREE.BufferGeometry,
 		targetDepth: number,
@@ -759,6 +1115,127 @@
 		return buildTextLineEntriesFrom(backLines, { fixedDepthMm: BACK_TEXT_DEPTH_MM });
 	}
 
+	function buildFrontTextLineEntries(): FrontTextLineEntry[] {
+		const SCALE = CLIPPER_SCALE;
+		const shapeDivisions = 18;
+		const ensureClipperCW = (path: { X: number; Y: number }[], clockwise: boolean) => {
+			const isCW = ClipperLib.Clipper.Orientation(path);
+			if (isCW !== clockwise) path.reverse();
+		};
+		const shapeToClipperPaths = (shape: THREE.Shape) => {
+			const toPath = (pts: THREE.Vector2[]) => {
+				const out: { X: number; Y: number }[] = [];
+				for (const p of pts) {
+					out.push({
+						X: Math.round(p.x * SCALE),
+						Y: Math.round(p.y * SCALE)
+					});
+				}
+				if (out.length > 2) {
+					const a = out[0];
+					const b = out[out.length - 1];
+					if (a.X === b.X && a.Y === b.Y) out.pop();
+				}
+				return out;
+			};
+			const paths: { X: number; Y: number }[][] = [];
+			const outer = toPath(shape.getPoints(shapeDivisions));
+			if (outer.length >= 3) {
+				ensureClipperCW(outer, true);
+				paths.push(outer);
+			}
+			for (const hole of shape.holes ?? []) {
+				const holePath = toPath(hole.getPoints(shapeDivisions));
+				if (holePath.length >= 3) {
+					ensureClipperCW(holePath, false);
+					paths.push(holePath);
+				}
+			}
+			return paths;
+		};
+
+		const lineEntries: FrontTextLineEntry[] = [];
+		const maxTextWidth = Math.max(1, (basePlanSize?.x ?? 100) * TEXT_MAX_WIDTH_RATIO);
+		for (const line of lines) {
+			const content = (line.content ?? '').trim();
+			if (!content) continue;
+			const font = getFont(line.fontKey);
+			if (!font) continue;
+			let shapes: THREE.Shape[];
+			try {
+				shapes = font.generateShapes(content, Math.max(1, line.size));
+			} catch (error) {
+				console.error('IdNameTagV2 generateShapes failed for line:', content, error);
+				continue;
+			}
+			if (!shapes || shapes.length === 0) continue;
+
+			let clipperPaths: { X: number; Y: number }[][] = [];
+			for (const shape of shapes) {
+				clipperPaths.push(...shapeToClipperPaths(shape));
+			}
+
+			const extrudeDepth = Math.max(0.05, line.depth);
+			const geo = new THREE.ExtrudeGeometry(shapes, {
+				depth: extrudeDepth,
+				bevelEnabled: false,
+				curveSegments: 8,
+				steps: 1
+			});
+			centerGeometryXY(geo);
+			bottomAlignGeometry(geo);
+			geo.computeBoundingBox();
+			let bb = geo.boundingBox;
+			if (!bb) {
+				geo.dispose();
+				continue;
+			}
+			const width = Math.max(0.001, bb.max.x - bb.min.x);
+			let fitScale = 1;
+			if (width > maxTextWidth) {
+				fitScale = maxTextWidth / width;
+				geo.scale(fitScale, fitScale, 1);
+				bottomAlignGeometry(geo);
+				bb = geo.boundingBox;
+			}
+			if (!bb) {
+				geo.dispose();
+				continue;
+			}
+			const cx = (bb.min.x + bb.max.x) / 2;
+			const cy = (bb.min.y + bb.max.y) / 2;
+			const centeredPaths = clipperPaths.map((path) =>
+				path.map((pt) => ({
+					X: Math.round((pt.X / SCALE - cx) * fitScale * SCALE),
+					Y: Math.round((pt.Y / SCALE - cy) * fitScale * SCALE)
+				}))
+			);
+			const depth = Math.max(0.001, bb.max.z - bb.min.z);
+			lineEntries.push({
+				geo,
+				height: Math.max(0.001, bb.max.y - bb.min.y),
+				depth,
+				color: line.color,
+				centeredPaths,
+				yCenter: 0
+			});
+		}
+
+		if (lineEntries.length > 0) {
+			const gap = Math.max(0, lineSpacing);
+			const totalHeight =
+				lineEntries.reduce((acc, entry) => acc + entry.height, 0) +
+				Math.max(0, lineEntries.length - 1) * gap;
+			let yCursor = totalHeight / 2;
+			for (const entry of lineEntries) {
+				entry.yCenter = yCursor - entry.height / 2;
+				yCursor -= entry.height + gap;
+			}
+		}
+
+		return lineEntries;
+	}
+
 	function loadStlGeometry(loader: STLLoader, url: string): Promise<THREE.BufferGeometry> {
 		return new Promise((resolve, reject) => {
 			loader.load(
@@ -843,6 +1320,64 @@
 		baseMesh.receiveShadow = true;
 		group.add(baseMesh);
 
+		const borderShape = buildTopPerimeterShape(borderSourceGeometry);
+		const frontEntries = buildFrontTextLineEntries();
+		const hasTextOutlineLayer =
+			textOutlineEnabled && textOutlineThicknessMm > 0 && frontEntries.length > 0;
+
+		let stackTopZ = baseDepthSafe;
+
+		if (hasTextOutlineLayer && borderShape) {
+			const textOutlineWorld = Math.min(
+				Math.max(0.1, textOutlineThicknessMm),
+				maxTextOutlineMm
+			);
+			const textOutlineZ = stackTopZ + LAYER_GAP;
+			addExtrudedBorderLayer(
+				borderShape,
+				textOutlineZ,
+				textOutlineDepth,
+				textOutlineColor,
+				'text-outline-border'
+			);
+			const textOutlineMat = new THREE.MeshStandardMaterial({
+				color: textOutlineColor,
+				roughness: 0.55,
+				metalness: 0.08
+			});
+			const toVec2 = (pt: { X: number; Y: number }) =>
+				new THREE.Vector2(pt.X / CLIPPER_SCALE, pt.Y / CLIPPER_SCALE);
+			let addedTextOutline = false;
+			for (const entry of frontEntries) {
+				if (entry.centeredPaths.length === 0) continue;
+				const textOutlineTree = buildUnionOffsetTree(entry.centeredPaths, textOutlineWorld);
+				const textOutlineShapes = polyTreeToThreeShapes(textOutlineTree, toVec2);
+				if (textOutlineShapes.length === 0) continue;
+				const textOutlineGeo = new THREE.ExtrudeGeometry(textOutlineShapes, {
+					depth: Math.max(0.1, textOutlineDepth),
+					bevelEnabled: false,
+					curveSegments: 12
+				});
+				centerGeometryXY(textOutlineGeo);
+				textOutlineGeo.computeBoundingBox();
+				const outlineBb = textOutlineGeo.boundingBox!;
+				textOutlineGeo.translate(0, 0, -outlineBb.min.z);
+				const textOutlineMesh = new THREE.Mesh(textOutlineGeo, textOutlineMat);
+				textOutlineMesh.name = 'text-outline';
+				textOutlineMesh.castShadow = true;
+				textOutlineMesh.receiveShadow = true;
+				textOutlineMesh.position.set(0, textCenterY + entry.yCenter, textOutlineZ);
+				group.add(textOutlineMesh);
+				addedTextOutline = true;
+			}
+			if (addedTextOutline) {
+				stackTopZ = textOutlineZ + textOutlineDepth;
+			}
+		}
+
+		const mainLayerZ = hasTextOutlineLayer ? stackTopZ + LAYER_GAP : borderZ;
+		const frontTextZ = hasTextOutlineLayer ? mainLayerZ : textZ;
+
 		const borderMesh = new THREE.Mesh(
 			buildPreviewSolidGeometry(borderSourceGeometry, borderDepthSafe),
 			borderMat
@@ -850,20 +1385,11 @@
 		borderMesh.name = 'border';
 		borderMesh.castShadow = true;
 		borderMesh.receiveShadow = true;
-		borderMesh.position.z = borderZ;
+		borderMesh.position.z = mainLayerZ;
 		group.add(borderMesh);
 
-		const lineEntries = buildTextLineEntriesFrom(lines);
-
-		if (lineEntries.length > 0) {
-			const gap = Math.max(0, lineSpacing);
-			const totalHeight =
-				lineEntries.reduce((acc, entry) => acc + entry.height, 0) +
-				Math.max(0, lineEntries.length - 1) * gap;
-			let yCursor = totalHeight / 2;
-			for (const entry of lineEntries) {
-				const yCenter = yCursor - entry.height / 2;
-				yCursor -= entry.height + gap;
+		if (frontEntries.length > 0) {
+			for (const entry of frontEntries) {
 				const textMesh = new THREE.Mesh(
 					entry.geo,
 					new THREE.MeshStandardMaterial({
@@ -875,7 +1401,7 @@
 				textMesh.name = 'text';
 				textMesh.castShadow = true;
 				textMesh.receiveShadow = true;
-				textMesh.position.set(0, textCenterY + yCenter, textZ);
+				textMesh.position.set(0, textCenterY + entry.yCenter, frontTextZ);
 				group.add(textMesh);
 			}
 		}
@@ -987,8 +1513,14 @@
 		baseMesh.name = 'base';
 		exportGroup.add(baseMesh);
 
+		let exportBorderZ = borderZ;
+		const borderPreview = group.children.find((child) => child.name === 'border');
+		if (borderPreview) {
+			exportBorderZ = borderPreview.position.z;
+		}
+
 		const borderMesh = new THREE.Mesh(
-			buildExportSolidGeometry(borderSourceGeometry, borderDepthSafe, borderZ),
+			buildExportSolidGeometry(borderSourceGeometry, borderDepthSafe, exportBorderZ),
 			new THREE.MeshBasicMaterial({ color: borderColor })
 		);
 		borderMesh.name = 'border';
@@ -998,19 +1530,18 @@
 			const mesh = child as THREE.Mesh;
 			if (!(mesh as unknown as { isMesh?: boolean }).isMesh || !mesh.geometry) continue;
 			// Front text comes from preview group. Back text is handled above.
-			if (mesh.name !== 'text') continue;
+			if (!['text', 'text-outline', 'text-outline-border'].includes(mesh.name)) continue;
 			const sceneMat = (
 				Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
 			) as THREE.Material & { color?: THREE.Color };
 			const color = sceneMat.color?.clone() ?? new THREE.Color(DEFAULT_DETAIL_COLOR);
 			const textGeo = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
-			if (mesh.name === 'text') {
-				if (options.liftTextOutOfEmbed) textGeo.translate(0, 0, TEXT_BASE_EMBED);
-				const textMesh = new THREE.Mesh(textGeo, new THREE.MeshBasicMaterial({ color }));
-				textMesh.name = 'text';
-				exportGroup.add(textMesh);
-				continue;
+			if (mesh.name === 'text' && options.liftTextOutOfEmbed) {
+				textGeo.translate(0, 0, TEXT_BASE_EMBED);
 			}
+			const textMesh = new THREE.Mesh(textGeo, new THREE.MeshBasicMaterial({ color }));
+			textMesh.name = mesh.name;
+			exportGroup.add(textMesh);
 		}
 
 		exportGroup.updateWorldMatrix(true, true);
@@ -1275,7 +1806,25 @@
 		void lineSpacing;
 		void backLines;
 		void backLineSpacing;
+		void textOutlineEnabled;
+		void textOutlineThicknessMm;
+		void textOutlineDepth;
+		void textOutlineColor;
 		saveSettings();
+	});
+
+	$effect(() => {
+		void user?.id;
+		void syncCustomPresetsFromAccount();
+	});
+
+	$effect(() => {
+		void baseColor;
+		void borderColor;
+		void commonColor;
+		void textOutlineColor;
+		void textOutlineEnabled;
+		activePresetId = findMatchingPresetId(galleryPresets);
 	});
 
 	$effect(() => {
@@ -1285,11 +1834,17 @@
 		void borderDepth;
 		void baseColor;
 		void borderColor;
+		void commonColor;
 		void lines;
 		void lineSpacing;
 		void backLines;
 		void backLineSpacing;
 		void activeTextSide;
+		void textOutlineEnabled;
+		void textOutlineThicknessMm;
+		void textOutlineDepth;
+		void textOutlineColor;
+		void maxTextOutlineMm;
 		if (!scene || !group || !sceneReady) return;
 		rebuildMeshes();
 	});
@@ -1685,6 +2240,222 @@
 							class="w-full"
 						/>
 					</label>
+
+					<div class="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white/70 p-3">
+						<div class="flex items-center justify-between gap-2">
+							<div class="text-xs font-semibold tracking-tight text-slate-700">Text outline</div>
+							<label class="flex items-center gap-2 text-xs font-medium text-slate-700">
+								<input
+									class="h-4 w-4 accent-indigo-500"
+									type="checkbox"
+									bind:checked={textOutlineEnabled}
+								/>
+								Enabled
+							</label>
+						</div>
+						<p class="text-[11px] leading-snug text-slate-500">
+							Middle layer between letters and the border, with a matching border frame.
+						</p>
+						{#if textOutlineEnabled}
+							<label class="grid gap-1.5">
+								<div class="flex items-center justify-between gap-2">
+									<span class="text-xs font-medium text-slate-700">Text outline thickness</span>
+									<span class="text-xs text-slate-600 tabular-nums"
+										>{textOutlineThicknessMm.toFixed(1)} mm</span
+									>
+								</div>
+								<Slider
+									type="single"
+									bind:value={textOutlineThicknessMm}
+									min={0.2}
+									max={maxTextOutlineMm}
+									step={0.1}
+									class="w-full"
+								/>
+								<p class="text-[11px] text-slate-500">
+									Max {maxTextOutlineMm.toFixed(1)} mm (inside the tag border).
+								</p>
+							</label>
+							<label class="grid gap-1.5">
+								<div class="flex items-center justify-between gap-2">
+									<span class="text-xs font-medium text-slate-700">Text outline depth</span>
+									<span class="text-xs text-slate-600 tabular-nums">{textOutlineDepth} mm</span>
+								</div>
+								<Slider
+									type="single"
+									bind:value={textOutlineDepth}
+									min={0.2}
+									max={3}
+									step={0.1}
+									class="w-full"
+								/>
+							</label>
+							<ColorPalettePicker
+								bind:value={textOutlineColor}
+								{palette}
+								label="Text outline color"
+							/>
+						{/if}
+					</div>
+				</div>
+
+				<div class="grid gap-2 rounded-2xl border border-violet-200/80 bg-violet-50/50 p-3">
+					<p class="text-xs font-semibold tracking-tight text-slate-800">Preset gallery</p>
+
+					{#if user}
+						<p class="text-[11px] text-slate-500">
+							{#if hasGalleryPresets}
+								Click a preset to apply its colors. Edit or delete any preset. Saved to your account.
+							{:else}
+								No presets yet. Import the starter set or create your own.
+							{/if}
+						</p>
+						{#if presetSyncError}
+							<p class="text-[11px] text-red-600">{presetSyncError}</p>
+						{/if}
+						{#if customPresetsLoading}
+							<p class="text-[11px] text-slate-500">Loading your presets…</p>
+						{/if}
+
+						<div class="flex items-start justify-between gap-2">
+							<div class="min-w-0 flex-1"></div>
+							<div class="flex shrink-0 flex-col gap-1">
+								{#if !hasGalleryPresets}
+									<Button
+										type="button"
+										size="sm"
+										class="h-7 px-2 text-[11px]"
+										disabled={importPresetsLoading}
+										onclick={() => void importDefaultPresets()}
+									>
+										{importPresetsLoading ? 'Importing…' : 'Import default presets'}
+									</Button>
+								{/if}
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									class="h-7 px-2 text-[11px]"
+									onclick={openCreatePresetEditor}
+								>
+									+ New
+								</Button>
+							</div>
+						</div>
+
+						{#if !hasGalleryPresets && !customPresetsLoading}
+							<p
+								class="rounded-lg border border-dashed border-violet-200 bg-white/60 px-3 py-4 text-center text-[11px] text-slate-600"
+							>
+								Import default presets to get {DEFAULT_ID_NAME_TAG_V2_COLOR_PRESETS.length} editable
+								color combos, or use + New to add one.
+							</p>
+						{/if}
+
+						<div class="grid grid-cols-3 gap-2">
+							{#each galleryPresets as preset (preset.id)}
+								<div class="relative">
+									<button
+										type="button"
+										class={[
+											'w-full overflow-hidden rounded-lg border bg-white pr-6 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60',
+											activePresetId === preset.id
+												? 'border-indigo-400 ring-2 ring-indigo-400/30'
+												: 'border-slate-200/90 hover:border-slate-300'
+										].join(' ')}
+										aria-pressed={activePresetId === preset.id}
+										aria-label={`Apply ${preset.label} colors`}
+										onclick={() => applyColorPreset(preset)}
+									>
+										<div class="flex h-11 w-full">
+											<span
+												class="min-w-0 flex-1"
+												style:background-color={preset.baseColor}
+												aria-hidden="true"
+											></span>
+											<span
+												class="min-w-0 flex-1 border-x border-white/20"
+												style:background-color={preset.textOutlineColor}
+												aria-hidden="true"
+											></span>
+											<span
+												class="min-w-0 flex-1"
+												style:background-color={preset.borderColor}
+												aria-hidden="true"
+											></span>
+										</div>
+										<span
+											class="block border-t border-slate-100 px-1 py-1.5 text-center text-[10px] font-medium leading-tight text-slate-700"
+										>
+											{preset.label}
+										</span>
+									</button>
+									<button
+										type="button"
+										class="absolute top-0.5 right-0.5 rounded bg-white/90 px-1 py-0.5 text-[9px] font-medium text-slate-600 shadow-sm hover:bg-white hover:text-indigo-700"
+										aria-label={`Edit ${preset.label}`}
+										onclick={(e) => {
+											e.stopPropagation();
+											openEditPresetEditor(preset);
+										}}
+									>
+										Edit
+									</button>
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<p class="text-[11px] leading-relaxed text-slate-600">
+							Save and reuse color combinations. Import
+							{DEFAULT_ID_NAME_TAG_V2_COLOR_PRESETS.length} starter presets, create your own, and sync
+							them to your account.
+						</p>
+						<Button type="button" size="sm" class="w-full" onclick={onRequestLogin}>
+							Sign in to use presets
+						</Button>
+						<p class="text-[10px] font-medium tracking-wide text-slate-500 uppercase">
+							Starter presets (preview)
+						</p>
+						<div class="grid grid-cols-3 gap-2 opacity-90" aria-hidden="true">
+							{#each DEFAULT_ID_NAME_TAG_V2_COLOR_PRESETS as template (template.label)}
+								<div
+									class="overflow-hidden rounded-lg border border-slate-200/90 bg-white shadow-sm"
+								>
+									<div class="flex h-11 w-full">
+										<span
+											class="min-w-0 flex-1"
+											style:background-color={snapColorToPalette(
+												template.baseColor,
+												palette,
+												template.baseColor
+											)}
+										></span>
+										<span
+											class="min-w-0 flex-1 border-x border-white/20"
+											style:background-color={snapColorToPalette(
+												template.textOutlineColor,
+												palette,
+												template.textOutlineColor
+											)}
+										></span>
+										<span
+											class="min-w-0 flex-1"
+											style:background-color={snapColorToPalette(
+												template.borderColor,
+												palette,
+												template.borderColor
+											)}
+										></span>
+									</div>
+									<span
+										class="block border-t border-slate-100 px-1 py-1.5 text-center text-[10px] leading-tight font-medium text-slate-600"
+									>
+										{template.label}
+									</span>
+								</div>
+							{/each}
+						</div>
+					{/if}
 				</div>
 			</div>
 		</aside>
@@ -1720,4 +2491,85 @@
 			</div>
 		</section>
 	</div>
+
+	{#if user}
+		<Dialog.Root bind:open={presetEditorOpen} onOpenChange={onPresetEditorOpenChange}>
+			<Dialog.Content class="max-w-md rounded-2xl border-slate-200 shadow-xl">
+				<Dialog.Header>
+					<Dialog.Title>
+						{presetEditorMode === 'edit' ? 'Edit preset' : 'New preset'}
+					</Dialog.Title>
+					<Dialog.Description class="text-sm text-slate-600">
+						{#if presetEditorMode === 'edit'}
+							Update this saved color combination.
+						{:else}
+							Save the current tag colors as a reusable preset.
+						{/if}
+					</Dialog.Description>
+				</Dialog.Header>
+
+				<div class="grid gap-3 py-2">
+					<label class="grid gap-1.5">
+						<span class="text-xs font-medium text-slate-700">Name</span>
+						<input
+							type="text"
+							class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
+							bind:value={presetEditorLabel}
+							maxlength={32}
+							placeholder="My preset"
+						/>
+					</label>
+					<label class="flex items-center gap-2 text-xs font-medium text-slate-700">
+						<input
+							type="checkbox"
+							class="h-4 w-4 accent-indigo-500"
+							bind:checked={presetEditorTextOutlineEnabled}
+						/>
+						Text outline layer enabled
+					</label>
+					<ColorPalettePicker
+						bind:value={presetEditorBase}
+						{palette}
+						paletteOnly
+						label="Base"
+					/>
+					<ColorPalettePicker
+						bind:value={presetEditorTextOutline}
+						{palette}
+						paletteOnly
+						label="Text outline"
+					/>
+					<ColorPalettePicker
+						bind:value={presetEditorBorder}
+						{palette}
+						paletteOnly
+						label="Border"
+					/>
+					<ColorPalettePicker
+						bind:value={presetEditorText}
+						{palette}
+						paletteOnly
+						label="Text"
+					/>
+				</div>
+
+				<Dialog.Footer class="flex flex-wrap items-center gap-2">
+					{#if presetEditorMode === 'edit' && presetEditorId}
+						<Button
+							type="button"
+							variant="outline"
+							class="text-red-600 hover:text-red-700"
+							onclick={() => void deleteCustomPreset(presetEditorId!)}
+						>
+							Delete
+						</Button>
+					{/if}
+					<div class="flex flex-wrap gap-2 sm:ml-auto">
+						<Button type="button" variant="outline" onclick={closePresetEditor}>Cancel</Button>
+						<Button type="button" onclick={() => void commitPresetEditor()}>Save preset</Button>
+					</div>
+				</Dialog.Footer>
+			</Dialog.Content>
+		</Dialog.Root>
+	{/if}
 </main>

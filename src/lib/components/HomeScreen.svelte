@@ -118,7 +118,9 @@
 		textOutline:
 			'Color preset gallery — import starters or save your own combos (base, text outline, and text). Optional text-outline layer between letters and the base outline; presets sync when signed in.',
 		whistleV2:
-			'Color preset gallery for Accent, Main, and Border — import starters or save your own. Presets sync to your account when signed in.'
+			'Color preset gallery for Accent, Main, and Border — import starters or save your own. Presets sync to your account when signed in.',
+		idNameTagV2:
+			'Optional text-outline layer with a matching border frame, plus a color preset gallery (base, outline, border, and text). Presets sync when signed in.'
 	};
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);

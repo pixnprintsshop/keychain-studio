@@ -2,7 +2,10 @@ import type { DesignerId } from '$lib/designers/ids';
 import { supabase } from './supabase';
 
 /** Designers that store custom color presets in `user_designer_presets`. */
-export type DesignerPresetDesignerId = Extract<DesignerId, 'whistleV2' | 'textOutline' | 'basicName'>;
+export type DesignerPresetDesignerId = Extract<
+	DesignerId,
+	'whistleV2' | 'textOutline' | 'basicName' | 'idNameTagV2'
+>;
 
 export const USER_DESIGNER_PRESETS_TABLE = 'user_designer_presets';
 
