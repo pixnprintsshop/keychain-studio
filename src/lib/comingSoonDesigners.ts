@@ -3,7 +3,7 @@ import type { DesignerId } from '$lib/designers/ids';
 /** Designers shown as "Coming soon" on the home grid. */
 export const COMING_SOON_DESIGNER_IDS = [
 	'articulatedKeychain',
-	// 'whistleV2',
+	'whistleV2',
 	'whistleBagTag'
 ] as const satisfies readonly DesignerId[];
 

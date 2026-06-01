@@ -113,9 +113,12 @@
 	// "Updated" badge. Any designer listed here gets the Updated badge.
 	// Keep each note to one or two sentences.
 	const UPDATE_NOTES: Partial<Record<StyleName, string>> = {
-		basicName: 'Now supports multi-line text — each line has its own font, size, and depth.',
+		basicName:
+			'Color preset gallery plus optional text-outline layer with a matching border frame. Import starters or save your own combos; presets sync to your account when signed in.',
 		textOutline:
-			'Color preset gallery — import starters or save your own combos (base, text outline, and text). Optional text-outline layer between letters and the base outline.'
+			'Color preset gallery — import starters or save your own combos (base, text outline, and text). Optional text-outline layer between letters and the base outline; presets sync when signed in.',
+		whistleV2:
+			'Color preset gallery for Accent, Main, and Border — import starters or save your own. Presets sync to your account when signed in.'
 	};
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);

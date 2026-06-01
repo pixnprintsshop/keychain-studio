@@ -1,4 +1,9 @@
-import { supabase } from './supabase';
+import {
+	fetchUserDesignerPresets,
+	loadUserDesignerPresetsWithLocalMigration,
+	persistDesignerCustomPresets,
+	saveUserDesignerPresets
+} from './designerPresets';
 
 export interface TextOutlineColorPreset {
 	id: string;
@@ -224,22 +229,12 @@ export function clearLocalTextOutlinePresets(): void {
 export async function fetchUserTextOutlinePresets(
 	userId: string
 ): Promise<TextOutlineColorPreset[] | null> {
-	const { data, error } = await supabase
-		.from('user_text_outline_presets')
-		.select('presets')
-		.eq('user_id', userId)
-		.maybeSingle();
-
-	if (error) {
-		console.error('Failed to fetch text outline presets:', error);
+	const remote = await fetchUserDesignerPresets(userId, 'textOutline');
+	if (remote === null) {
 		return null;
 	}
 
-	if (!data?.presets || !Array.isArray(data.presets)) {
-		return [];
-	}
-
-	return data.presets
+	return remote
 		.map(parseTextOutlineColorPreset)
 		.filter((p): p is TextOutlineColorPreset => p !== null);
 }
@@ -248,57 +243,22 @@ export async function saveUserTextOutlinePresets(
 	userId: string,
 	presets: TextOutlineColorPreset[]
 ): Promise<{ success: true } | { success: false; error: string }> {
-	const { error } = await supabase.from('user_text_outline_presets').upsert(
-		{
-			user_id: userId,
-			presets,
-			updated_at: new Date().toISOString()
-		},
-		{ onConflict: 'user_id' }
-	);
-
-	if (error) {
-		console.error('Failed to save text outline presets:', error);
-		return { success: false, error: error.message };
-	}
-	return { success: true };
+	return saveUserDesignerPresets(userId, 'textOutline', presets);
 }
 
 export async function loadUserTextOutlinePresets(userId: string): Promise<TextOutlineColorPreset[]> {
-	const remote = await fetchUserTextOutlinePresets(userId);
-	if (remote === null) {
-		return loadLocalTextOutlinePresets();
-	}
-
-	if (remote.length > 0) {
-		return remote;
-	}
-
-	const local = loadLocalTextOutlinePresets();
-	if (local.length === 0) {
-		return [];
-	}
-
-	const saved = await saveUserTextOutlinePresets(userId, local);
-	if (saved.success) {
-		clearLocalTextOutlinePresets();
-		return local;
-	}
-
-	return local;
+	return loadUserDesignerPresetsWithLocalMigration({
+		userId,
+		designerId: 'textOutline',
+		parse: parseTextOutlineColorPreset,
+		loadLocal: loadLocalTextOutlinePresets,
+		clearLocal: clearLocalTextOutlinePresets
+	});
 }
 
 export async function persistTextOutlineCustomPresets(
 	userId: string | null | undefined,
 	presets: TextOutlineColorPreset[]
 ): Promise<{ success: true } | { success: false; error: string }> {
-	if (userId) {
-		const result = await saveUserTextOutlinePresets(userId, presets);
-		if (result.success) {
-			saveLocalTextOutlinePresets(presets);
-		}
-		return result;
-	}
-	saveLocalTextOutlinePresets(presets);
-	return { success: true };
+	return persistDesignerCustomPresets(userId, 'textOutline', presets, saveLocalTextOutlinePresets);
 }

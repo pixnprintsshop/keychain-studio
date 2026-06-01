@@ -1,4 +1,9 @@
-import { supabase } from './supabase';
+import {
+	fetchUserDesignerPresets,
+	loadUserDesignerPresetsWithLocalMigration,
+	persistDesignerCustomPresets,
+	saveUserDesignerPresets
+} from './designerPresets';
 
 export interface WhistleV2ColorPreset {
 	id: string;
@@ -122,22 +127,12 @@ export function clearLocalWhistleV2Presets(): void {
 export async function fetchUserWhistleV2Presets(
 	userId: string
 ): Promise<WhistleV2ColorPreset[] | null> {
-	const { data, error } = await supabase
-		.from('user_whistle_v2_presets')
-		.select('presets')
-		.eq('user_id', userId)
-		.maybeSingle();
-
-	if (error) {
-		console.error('Failed to fetch whistle v2 presets:', error);
+	const remote = await fetchUserDesignerPresets(userId, 'whistleV2');
+	if (remote === null) {
 		return null;
 	}
 
-	if (!data?.presets || !Array.isArray(data.presets)) {
-		return [];
-	}
-
-	return data.presets
+	return remote
 		.map(parseWhistleV2ColorPreset)
 		.filter((p): p is WhistleV2ColorPreset => p !== null);
 }
@@ -146,58 +141,23 @@ export async function saveUserWhistleV2Presets(
 	userId: string,
 	presets: WhistleV2ColorPreset[]
 ): Promise<{ success: true } | { success: false; error: string }> {
-	const { error } = await supabase.from('user_whistle_v2_presets').upsert(
-		{
-			user_id: userId,
-			presets,
-			updated_at: new Date().toISOString()
-		},
-		{ onConflict: 'user_id' }
-	);
-
-	if (error) {
-		console.error('Failed to save whistle v2 presets:', error);
-		return { success: false, error: error.message };
-	}
-	return { success: true };
+	return saveUserDesignerPresets(userId, 'whistleV2', presets);
 }
 
 /** Load presets for a signed-in user; migrates local-only presets to the account once. */
 export async function loadUserWhistleV2Presets(userId: string): Promise<WhistleV2ColorPreset[]> {
-	const remote = await fetchUserWhistleV2Presets(userId);
-	if (remote === null) {
-		return loadLocalWhistleV2Presets();
-	}
-
-	if (remote.length > 0) {
-		return remote;
-	}
-
-	const local = loadLocalWhistleV2Presets();
-	if (local.length === 0) {
-		return [];
-	}
-
-	const saved = await saveUserWhistleV2Presets(userId, local);
-	if (saved.success) {
-		clearLocalWhistleV2Presets();
-		return local;
-	}
-
-	return local;
+	return loadUserDesignerPresetsWithLocalMigration({
+		userId,
+		designerId: 'whistleV2',
+		parse: parseWhistleV2ColorPreset,
+		loadLocal: loadLocalWhistleV2Presets,
+		clearLocal: clearLocalWhistleV2Presets
+	});
 }
 
 export async function persistWhistleV2CustomPresets(
 	userId: string | null | undefined,
 	presets: WhistleV2ColorPreset[]
 ): Promise<{ success: true } | { success: false; error: string }> {
-	if (userId) {
-		const result = await saveUserWhistleV2Presets(userId, presets);
-		if (result.success) {
-			saveLocalWhistleV2Presets(presets);
-		}
-		return result;
-	}
-	saveLocalWhistleV2Presets(presets);
-	return { success: true };
+	return persistDesignerCustomPresets(userId, 'whistleV2', presets, saveLocalWhistleV2Presets);
 }
