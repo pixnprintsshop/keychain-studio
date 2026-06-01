@@ -5,12 +5,10 @@
 	import base1StlUrl from '$lib/assets/stl/idnametag/base1.stl?url';
 	import base2StlUrl from '$lib/assets/stl/idnametag/base2.stl?url';
 	import base3StlUrl from '$lib/assets/stl/idnametag/base3.stl?url';
-	import base4StlUrl from '$lib/assets/stl/idnametag/base4.stl?url';
 	import base5StlUrl from '$lib/assets/stl/idnametag/base5.stl?url';
 	import border1StlUrl from '$lib/assets/stl/idnametag/border1.stl?url';
 	import border2StlUrl from '$lib/assets/stl/idnametag/border2.stl?url';
 	import border3StlUrl from '$lib/assets/stl/idnametag/border3.stl?url';
-	import border4StlUrl from '$lib/assets/stl/idnametag/border4.stl?url';
 	import border5StlUrl from '$lib/assets/stl/idnametag/border5.stl?url';
 	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
 	import { upload3mfToSupabase } from '$lib/upload3mf';
@@ -64,18 +62,22 @@
 	const STORAGE_KEY = 'keychain-idnametag-v2-settings';
 	const DESIGN_NAME = 'ID Name Tag v2';
 	const SLUG = 'id-name-tag-v2';
-	const TEXT_MAX_WIDTH_RATIO = 0.78;
+	const TEXT_MAX_WIDTH_RATIO = 0.9;
 	/** Match BasicName: sink text into the base in preview/single-mesh STL to avoid coplanar contact. */
 	const TEXT_BASE_EMBED = 0.2;
 	/** Match BasicName: sink border slightly so its bottom face is not coplanar with the base top face. */
 	const BORDER_BASE_EMBED = 0.05;
+	/** Preview only: show back text below the tag so it's visible (export stays embedded inside base). */
+	const BACK_TEXT_PREVIEW_GAP_MM = 0.005;
+	/** Back inlay thickness (fixed). */
+	const BACK_TEXT_DEPTH_MM = 0.4;
 	const WELD_TOL_MM = 1e-3;
 	const TOP_LOOP_SNAP_MM = 1e-4;
 	/** Ignore hole loops smaller than this fraction of the outer loop area (avoids spurious inner loops on some STLs). */
 	const HOLE_MIN_AREA_RATIO = 0.005;
 	const DEFAULT_DETAIL_COLOR = '#1f2937';
 
-	type ModelPairId = 1 | 2 | 3 | 4 | 5;
+	type ModelPairId = 1 | 2 | 3 | 4;
 
 	type ModelPair = {
 		id: ModelPairId;
@@ -93,7 +95,7 @@
 		color: string;
 	};
 
-	type TextLineEntry = { geo: THREE.BufferGeometry; height: number; color: string };
+	type TextLineEntry = { geo: THREE.BufferGeometry; height: number; depth: number; color: string };
 	type TopLoop = THREE.Vector2[];
 	type BoundaryEdge = { a: string; b: string };
 	type BoundaryEdgeCount = BoundaryEdge & { count: number };
@@ -111,14 +113,15 @@
 		borderColor: string;
 		lines: IdNameTagV2Line[];
 		lineSpacing: number;
+		backLines: IdNameTagV2Line[];
+		backLineSpacing: number;
 	}
 
 	const MODEL_PAIRS: ModelPair[] = [
-		{ id: 1, label: 'Style 1', baseUrl: base1StlUrl, borderUrl: border1StlUrl },
-		{ id: 2, label: 'Style 2', baseUrl: base2StlUrl, borderUrl: border2StlUrl },
-		{ id: 3, label: 'Style 3', baseUrl: base3StlUrl, borderUrl: border3StlUrl },
-		{ id: 4, label: 'Style 4', baseUrl: base4StlUrl, borderUrl: border4StlUrl },
-		{ id: 5, label: 'Style 5', baseUrl: base5StlUrl, borderUrl: border5StlUrl },
+		{ id: 1, label: 'Bubble', baseUrl: base1StlUrl, borderUrl: border1StlUrl },
+		{ id: 2, label: 'Ribbon', baseUrl: base2StlUrl, borderUrl: border2StlUrl },
+		{ id: 3, label: 'Soft', baseUrl: base3StlUrl, borderUrl: border3StlUrl },
+		{ id: 4, label: 'Classic', baseUrl: base5StlUrl, borderUrl: border5StlUrl },
 	];
 
 	const DEFAULT_FONT_KEY = FONT_OPTIONS[0]?.key ?? 'Titan One_Regular';
@@ -146,7 +149,9 @@
 			createLine({ content: 'Nickname', size: 18, depth: 1 }),
 			createLine({ content: 'Full name', size: 9, depth: 1 })
 		],
-		lineSpacing: 5
+		lineSpacing: 5,
+		backLines: [],
+		backLineSpacing: 5
 	};
 
 	function clamp(v: number, lo: number, hi: number): number {
@@ -193,10 +198,19 @@
 	function loadSettings(): Settings {
 		try {
 			const stored = localStorage.getItem(STORAGE_KEY);
-			if (!stored) return { ...defaults, lines: cloneDefaultLines() };
+			if (!stored)
+				return {
+					...defaults,
+					lines: cloneDefaultLines(),
+					backLines: cloneDefaultLines()
+				};
 			const parsed = JSON.parse(stored);
 			if (!parsed || typeof parsed !== 'object') {
-				return { ...defaults, lines: cloneDefaultLines() };
+				return {
+					...defaults,
+					lines: cloneDefaultLines(),
+					backLines: cloneDefaultLines()
+				};
 			}
 			const oldAccentColor = typeof parsed.accentColor === 'string' ? parsed.accentColor : null;
 			const borderColor =
@@ -216,6 +230,15 @@
 						.map((line) => sanitizeLine(line, lineFallbackColor))
 						.filter((line: IdNameTagV2Line | null): line is IdNameTagV2Line => line !== null)
 				: cloneDefaultLines(lineFallbackColor);
+
+			const rawBackLines: unknown[] | null = Array.isArray((parsed as Settings).backLines)
+				? (((parsed as Settings).backLines as unknown[]) ?? null)
+				: null;
+			const backLines = rawBackLines
+				? rawBackLines
+						.map((line) => sanitizeLine(line, lineFallbackColor))
+						.filter((line: IdNameTagV2Line | null): line is IdNameTagV2Line => line !== null)
+				: cloneDefaultLines(lineFallbackColor);
 			return {
 				modelPairId: isModelPairId(parsed.modelPairId) ? parsed.modelPairId : defaults.modelPairId,
 				baseDepth: isFiniteNumber(parsed.baseDepth)
@@ -230,10 +253,18 @@
 				lines: lines.length > 0 ? lines : cloneDefaultLines(lineFallbackColor),
 				lineSpacing: isFiniteNumber(parsed.lineSpacing)
 					? clamp(parsed.lineSpacing, 0, 20)
-					: defaults.lineSpacing
+					: defaults.lineSpacing,
+				backLines: backLines.length > 0 ? backLines : cloneDefaultLines(lineFallbackColor),
+				backLineSpacing: isFiniteNumber((parsed as Settings).backLineSpacing)
+					? clamp((parsed as Settings).backLineSpacing, 0, 20)
+					: defaults.backLineSpacing
 			};
 		} catch {
-			return { ...defaults, lines: cloneDefaultLines() };
+			return {
+				...defaults,
+				lines: cloneDefaultLines(),
+				backLines: cloneDefaultLines()
+			};
 		}
 	}
 
@@ -247,9 +278,14 @@
 	let borderColor = $state(initial.borderColor);
 	let lines = $state<IdNameTagV2Line[]>(initial.lines.map((line) => ({ ...line })));
 	let lineSpacing = $state(initial.lineSpacing);
+	let backLines = $state<IdNameTagV2Line[]>(initial.backLines.map((line) => ({ ...line })));
+	let backLineSpacing = $state(initial.backLineSpacing);
+	let activeTextSide = $state<'front' | 'back'>('front');
+	const backPrintEnabled =
+		typeof window !== 'undefined' &&
+		new URL(window.location.href).searchParams.get('backprint') === '1';
 
 	let hostEl: HTMLDivElement | null = null;
-	let canvasEl: HTMLCanvasElement | null = null;
 	let renderer: THREE.WebGLRenderer | null = null;
 	let scene: THREE.Scene | null = null;
 	let camera: THREE.PerspectiveCamera | null = null;
@@ -270,10 +306,8 @@
 	let baseSourceGeometry = $state<THREE.BufferGeometry | null>(null);
 	let borderSourceGeometry = $state<THREE.BufferGeometry | null>(null);
 	let loadToken = 0;
-
-	const selectedModelPair = $derived(
-		MODEL_PAIRS.find((pair) => pair.id === selectedPairId) ?? MODEL_PAIRS[0]
-	);
+	let mountGeneration = 0;
+	let loadedPairId: ModelPairId | null = null;
 
 	function resize() {
 		if (!renderer || !camera || !hostEl) return;
@@ -295,7 +329,9 @@
 				commonColor,
 				borderColor,
 				lines,
-				lineSpacing
+				lineSpacing,
+				backLines,
+				backLineSpacing
 			};
 			localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 		} catch {
@@ -489,7 +525,7 @@
 			return false;
 		}
 
-		const edgeCounts = new Map<string, number>();
+		const edgeCounts: Record<string, number | undefined> = {};
 		const edgeKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 		const vertexKey = (x: number, y: number, z: number) =>
 			`${Math.round(x / WELD_TOL_MM)},${Math.round(y / WELD_TOL_MM)},${Math.round(z / WELD_TOL_MM)}`;
@@ -506,13 +542,14 @@
 				[keys[2], keys[0]]
 			] as const) {
 				const key = edgeKey(a, b);
-				edgeCounts.set(key, (edgeCounts.get(key) ?? 0) + 1);
+				edgeCounts[key] = (edgeCounts[key] ?? 0) + 1;
 			}
 		}
 
 		let boundaryEdges = 0;
 		let nonManifoldEdges = 0;
-		for (const count of edgeCounts.values()) {
+		for (const count of Object.values(edgeCounts)) {
+			if (!count) continue;
 			if (count === 1) boundaryEdges += 1;
 			else if (count > 2) nonManifoldEdges += 1;
 		}
@@ -615,6 +652,31 @@
 		return welded;
 	}
 
+	function mirrorGeometryX(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+		// Negative scale flips winding; force non-indexed and swap triangle order to keep outward normals.
+		let g = geo.index ? geo.toNonIndexed() : geo.clone();
+		if (g !== geo) geo.dispose();
+		g.applyMatrix4(new THREE.Matrix4().makeScale(-1, 1, 1));
+		const pos = g.getAttribute('position');
+		if (pos) {
+			for (let i = 0; i < pos.count; i += 3) {
+				// swap 2nd and 3rd vertex
+				const x1 = pos.getX(i + 1);
+				const y1 = pos.getY(i + 1);
+				const z1 = pos.getZ(i + 1);
+				const x2 = pos.getX(i + 2);
+				const y2 = pos.getY(i + 2);
+				const z2 = pos.getZ(i + 2);
+				pos.setXYZ(i + 1, x2, y2, z2);
+				pos.setXYZ(i + 2, x1, y1, z1);
+			}
+			pos.needsUpdate = true;
+		}
+		g.computeVertexNormals();
+		g.computeBoundingBox();
+		return g;
+	}
+
 	function buildExportSolidGeometry(
 		srcGeo: THREE.BufferGeometry,
 		targetDepth: number,
@@ -634,10 +696,13 @@
 		return cleanExportGeometry(geo);
 	}
 
-	function buildTextLineEntries(): TextLineEntry[] {
+	function buildTextLineEntriesFrom(
+		sourceLines: IdNameTagV2Line[],
+		options: { fixedDepthMm?: number } = {}
+	): TextLineEntry[] {
 		const lineEntries: TextLineEntry[] = [];
 		const maxTextWidth = Math.max(1, (basePlanSize?.x ?? 100) * TEXT_MAX_WIDTH_RATIO);
-		for (const line of lines) {
+		for (const line of sourceLines) {
 			const content = (line.content ?? '').trim();
 			if (!content) continue;
 			const font = getFont(line.fontKey);
@@ -650,8 +715,12 @@
 				continue;
 			}
 			if (!shapes || shapes.length === 0) continue;
+			const extrudeDepth =
+				options.fixedDepthMm != null
+					? Math.max(0.05, options.fixedDepthMm)
+					: Math.max(0.05, line.depth);
 			const geo = new THREE.ExtrudeGeometry(shapes, {
-				depth: Math.max(0.05, line.depth),
+				depth: extrudeDepth,
 				bevelEnabled: false,
 				curveSegments: 8,
 				steps: 1
@@ -675,13 +744,19 @@
 				geo.dispose();
 				continue;
 			}
+			const depth = Math.max(0.001, bb.max.z - bb.min.z);
 			lineEntries.push({
 				geo,
 				height: Math.max(0.001, bb.max.y - bb.min.y),
+				depth,
 				color: line.color
 			});
 		}
 		return lineEntries;
+	}
+
+	function buildBackTextLineEntries(): TextLineEntry[] {
+		return buildTextLineEntriesFrom(backLines, { fixedDepthMm: BACK_TEXT_DEPTH_MM });
 	}
 
 	function loadStlGeometry(loader: STLLoader, url: string): Promise<THREE.BufferGeometry> {
@@ -696,6 +771,7 @@
 	}
 
 	async function loadSelectedModelPair(pair: ModelPair) {
+		const generation = mountGeneration;
 		const token = ++loadToken;
 		loadError = null;
 		const loader = new STLLoader();
@@ -706,7 +782,7 @@
 			]);
 			normalizeImportedGeometry(baseGeo);
 			normalizeImportedGeometry(borderGeo);
-			if (token !== loadToken) {
+			if (generation !== mountGeneration || token !== loadToken) {
 				baseGeo.dispose();
 				borderGeo.dispose();
 				return;
@@ -719,9 +795,10 @@
 			const borderBounds = getGeometryBounds(borderGeo);
 			textCenterY = borderBounds ? (borderBounds.min.y + borderBounds.max.y) / 2 : 0;
 			didInitFrame = false;
+			sceneReady = true;
 			rebuildMeshes();
 		} catch (error) {
-			if (token !== loadToken) return;
+			if (generation !== mountGeneration || token !== loadToken) return;
 			loadError = error instanceof Error ? error.message : 'Failed to load STL model pair';
 			baseSourceGeometry?.dispose();
 			borderSourceGeometry?.dispose();
@@ -744,9 +821,8 @@
 
 		const baseDepthSafe = Math.max(0.1, baseDepth);
 		const borderDepthSafe = Math.max(0.1, borderDepth);
-		const raisedSurfaceZ = baseDepthSafe;
-		const borderZ = raisedSurfaceZ - BORDER_BASE_EMBED;
-		const textZ = raisedSurfaceZ - TEXT_BASE_EMBED;
+		const borderZ = baseDepthSafe - BORDER_BASE_EMBED;
+		const textZ = baseDepthSafe - TEXT_BASE_EMBED;
 		const baseMat = new THREE.MeshStandardMaterial({
 			color: baseColor,
 			roughness: 0.85,
@@ -777,7 +853,7 @@
 		borderMesh.position.z = borderZ;
 		group.add(borderMesh);
 
-		const lineEntries = buildTextLineEntries();
+		const lineEntries = buildTextLineEntriesFrom(lines);
 
 		if (lineEntries.length > 0) {
 			const gap = Math.max(0, lineSpacing);
@@ -801,6 +877,40 @@
 				textMesh.receiveShadow = true;
 				textMesh.position.set(0, textCenterY + yCenter, textZ);
 				group.add(textMesh);
+			}
+		}
+
+		if (backPrintEnabled) {
+			const backLineEntries = buildBackTextLineEntries();
+			if (backLineEntries.length > 0) {
+				const gap = Math.max(0, backLineSpacing);
+				const totalHeight =
+					backLineEntries.reduce((acc, entry) => acc + entry.height, 0) +
+					Math.max(0, backLineEntries.length - 1) * gap;
+				let yCursor = totalHeight / 2;
+				for (const entry of backLineEntries) {
+					const yCenter = yCursor - entry.height / 2;
+					yCursor -= entry.height + gap;
+					const backGeo = mirrorGeometryX(entry.geo.clone());
+					const textMesh = new THREE.Mesh(
+						backGeo,
+						new THREE.MeshStandardMaterial({
+							color: entry.color,
+							roughness: 0.35,
+							metalness: 0.1
+						})
+					);
+					textMesh.name = 'text-back';
+					textMesh.castShadow = true;
+					textMesh.receiveShadow = true;
+					// Preview: show below the tag (export embeds inside base at z≈0.02).
+					textMesh.position.set(
+						0,
+						textCenterY + yCenter,
+						-(BACK_TEXT_PREVIEW_GAP_MM)
+					);
+					group.add(textMesh);
+				}
 			}
 		}
 
@@ -842,11 +952,38 @@
 		const baseDepthSafe = Math.max(0.1, baseDepth);
 		const borderDepthSafe = Math.max(0.1, borderDepth);
 		const borderZ = baseDepthSafe - BORDER_BASE_EMBED;
+		const backInlayZ = -0.005; // lift inlay so it doesn't share the z=0 underside plane
 
-		const baseMesh = new THREE.Mesh(
-			buildExportSolidGeometry(baseSourceGeometry, baseDepthSafe),
-			new THREE.MeshBasicMaterial({ color: baseColor })
-		);
+		const baseGeo = buildExportSolidGeometry(baseSourceGeometry, baseDepthSafe);
+
+		// Back inlay meshes (embedded inside base; per-line colors for multi-material 3MF).
+		const backLineEntries = backPrintEnabled ? buildBackTextLineEntries() : [];
+		if (backLineEntries.length > 0) {
+			const gap = Math.max(0, backLineSpacing);
+			const totalHeight =
+				backLineEntries.reduce((acc, entry) => acc + entry.height, 0) +
+				Math.max(0, backLineEntries.length - 1) * gap;
+			let yCursor = totalHeight / 2;
+
+			let backLineIndex = 0;
+			for (const entry of backLineEntries) {
+				const yCenter = yCursor - entry.height / 2;
+				yCursor -= entry.height + gap;
+
+				const baseLine = mirrorGeometryX(entry.geo.clone());
+				baseLine.translate(0, textCenterY + yCenter, backInlayZ);
+				const inlayMesh = new THREE.Mesh(
+					cleanExportGeometry(baseLine),
+					new THREE.MeshBasicMaterial({ color: new THREE.Color(entry.color) })
+				);
+				const count = backLineEntries.length;
+				inlayMesh.name = count > 1 ? `text-back-${backLineIndex}` : 'text-back';
+				exportGroup.add(inlayMesh);
+				backLineIndex++;
+			}
+		}
+
+		const baseMesh = new THREE.Mesh(baseGeo, new THREE.MeshBasicMaterial({ color: baseColor }));
 		baseMesh.name = 'base';
 		exportGroup.add(baseMesh);
 
@@ -860,16 +997,20 @@
 		for (const child of group.children) {
 			const mesh = child as THREE.Mesh;
 			if (!(mesh as unknown as { isMesh?: boolean }).isMesh || !mesh.geometry) continue;
+			// Front text comes from preview group. Back text is handled above.
 			if (mesh.name !== 'text') continue;
 			const sceneMat = (
 				Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
 			) as THREE.Material & { color?: THREE.Color };
 			const color = sceneMat.color?.clone() ?? new THREE.Color(DEFAULT_DETAIL_COLOR);
 			const textGeo = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
-			if (options.liftTextOutOfEmbed) textGeo.translate(0, 0, TEXT_BASE_EMBED);
-			const textMesh = new THREE.Mesh(textGeo, new THREE.MeshBasicMaterial({ color }));
-			textMesh.name = 'text';
-			exportGroup.add(textMesh);
+			if (mesh.name === 'text') {
+				if (options.liftTextOutOfEmbed) textGeo.translate(0, 0, TEXT_BASE_EMBED);
+				const textMesh = new THREE.Mesh(textGeo, new THREE.MeshBasicMaterial({ color }));
+				textMesh.name = 'text';
+				exportGroup.add(textMesh);
+				continue;
+			}
 		}
 
 		exportGroup.updateWorldMatrix(true, true);
@@ -975,47 +1116,61 @@
 		}
 	}
 
-	function addLine() {
-		if (lines.length >= 8) return;
-		const last = lines[lines.length - 1];
-		lines = [
-			...lines,
+	function addLine(target: 'front' | 'back') {
+		const current = target === 'front' ? lines : backLines;
+		if (current.length >= 8) return;
+		const last = current[current.length - 1];
+		const next = [
+			...current,
 			createLine(
 				last
 					? {
 							content: '',
 							fontKey: last.fontKey,
 							size: last.size,
-							depth: last.depth,
+							depth: target === 'back' ? BACK_TEXT_DEPTH_MM : last.depth,
 							color: last.color
 						}
-					: { content: '', fontKey: DEFAULT_FONT_KEY, size: 12, depth: 1 }
+					: {
+							content: '',
+							fontKey: DEFAULT_FONT_KEY,
+							size: 12,
+							depth: target === 'back' ? BACK_TEXT_DEPTH_MM : 1
+						}
 			)
 		];
+		if (target === 'front') lines = next;
+		else backLines = next;
 	}
 
-	function removeLine(id: string) {
-		if (lines.length <= 1) return;
-		lines = lines.filter((line) => line.id !== id);
+	function removeLine(target: 'front' | 'back', id: string) {
+		const current = target === 'front' ? lines : backLines;
+		if (current.length <= 1) return;
+		const next = current.filter((line) => line.id !== id);
+		if (target === 'front') lines = next;
+		else backLines = next;
 	}
 
-	function moveLine(index: number, delta: -1 | 1) {
-		const target = index + delta;
-		if (target < 0 || target >= lines.length) return;
-		const next = [...lines];
+	function moveLine(target: 'front' | 'back', index: number, delta: -1 | 1) {
+		const current = target === 'front' ? lines : backLines;
+		const nextIndex = index + delta;
+		if (nextIndex < 0 || nextIndex >= current.length) return;
+		const next = [...current];
 		const [item] = next.splice(index, 1);
-		next.splice(target, 0, item);
-		lines = next;
+		next.splice(nextIndex, 0, item);
+		if (target === 'front') lines = next;
+		else backLines = next;
 	}
 
 	function applyCommonColor(color: string) {
 		commonColor = color;
 		borderColor = color;
 		lines = lines.map((line) => ({ ...line, color }));
+		backLines = backLines.map((line) => ({ ...line, color }));
 	}
 
 	onMount(() => {
-		if (!hostEl || !canvasEl) return;
+		if (!hostEl) return;
 
 		scene = new THREE.Scene();
 		scene.background = new THREE.Color(0xffffff);
@@ -1023,7 +1178,6 @@
 		camera.up.set(0, 0, 1);
 
 		renderer = new THREE.WebGLRenderer({
-			canvas: canvasEl,
 			antialias: true,
 			preserveDrawingBuffer: true
 		});
@@ -1033,6 +1187,10 @@
 		renderer.toneMappingExposure = 1.05;
 		renderer.shadowMap.enabled = true;
 		renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+		hostEl.appendChild(renderer.domElement);
+		renderer.domElement.style.width = '100%';
+		renderer.domElement.style.height = '100%';
+		renderer.domElement.style.display = 'block';
 
 		controls = new OrbitControls(camera, renderer.domElement);
 		controls.enableDamping = true;
@@ -1079,14 +1237,17 @@
 		ro = new ResizeObserver(() => resize());
 		ro.observe(hostEl);
 		resize();
-		sceneReady = true;
 
-		const tick = () => {
-			rafId = requestAnimationFrame(tick);
+		const pair = MODEL_PAIRS.find((p) => p.id === selectedPairId) ?? MODEL_PAIRS[0];
+		loadedPairId = pair.id;
+		void loadSelectedModelPair(pair);
+
+		const renderFrame = () => {
+			rafId = requestAnimationFrame(renderFrame);
 			controls?.update();
 			if (renderer && scene && camera) renderer.render(scene, camera);
 		};
-		tick();
+		renderFrame();
 
 		return () => {
 			ro?.disconnect();
@@ -1095,8 +1256,11 @@
 	});
 
 	$effect(() => {
-		const pair = selectedModelPair;
-		if (!sceneReady) return;
+		const pairId = selectedPairId;
+		if (!scene || !group || !sceneReady) return;
+		if (loadedPairId === pairId) return;
+		loadedPairId = pairId;
+		const pair = MODEL_PAIRS.find((p) => p.id === pairId) ?? MODEL_PAIRS[0];
 		void loadSelectedModelPair(pair);
 	});
 
@@ -1109,6 +1273,8 @@
 		void borderColor;
 		void lines;
 		void lineSpacing;
+		void backLines;
+		void backLineSpacing;
 		saveSettings();
 	});
 
@@ -1121,11 +1287,15 @@
 		void borderColor;
 		void lines;
 		void lineSpacing;
-		if (!sceneReady) return;
+		void backLines;
+		void backLineSpacing;
+		void activeTextSide;
+		if (!scene || !group || !sceneReady) return;
 		rebuildMeshes();
 	});
 
 	onDestroy(() => {
+		mountGeneration++;
 		cancelAnimationFrame(rafId);
 		rafId = 0;
 		loadToken++;
@@ -1141,6 +1311,9 @@
 		borderSourceGeometry = null;
 		controls?.dispose();
 		controls = null;
+		if (renderer && hostEl && renderer.domElement.parentElement === hostEl) {
+			hostEl.removeChild(renderer.domElement);
+		}
 		renderer?.dispose();
 		renderer = null;
 		scene = null;
@@ -1197,130 +1370,279 @@
 				</div>
 
 				<div class="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
-					<div class="flex items-center justify-between">
-						<div class="text-xs font-semibold tracking-tight text-slate-700">Lines</div>
-						<span class="text-xs text-slate-500">{lines.length} of 8</span>
+					<div class="flex items-center justify-between gap-3">
+						<div>
+							<div class="text-xs font-semibold tracking-tight text-slate-700">Text</div>
+							<p class="mt-1 text-xs text-slate-500">
+								{backPrintEnabled
+									? 'Edit front or back multiline text.'
+									: 'Edit multiline text on the front.'}
+							</p>
+						</div>
+						{#if backPrintEnabled}
+							<div class="grid grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+								<Button
+									type="button"
+									variant={activeTextSide === 'front' ? 'default' : 'ghost'}
+									size="xs"
+									class="h-7 px-3"
+									onclick={() => (activeTextSide = 'front')}
+								>
+									Front
+								</Button>
+								<Button
+									type="button"
+									variant={activeTextSide === 'back' ? 'default' : 'ghost'}
+									size="xs"
+									class="h-7 px-3"
+									onclick={() => (activeTextSide = 'back')}
+								>
+									Back
+								</Button>
+							</div>
+						{/if}
 					</div>
 
-					{#each lines as line, i (line.id)}
-						<div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-							<div class="mb-2 flex items-center justify-between">
-								<span class="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
-									Line {i + 1}
-								</span>
-								<div class="flex items-center gap-1">
-									<Button
-										variant="outline"
-										size="xs"
-										class="h-7 w-7 p-0"
-										title="Move up"
-										aria-label="Move line up"
-										disabled={i === 0}
-										onclick={() => moveLine(i, -1)}
-									>
-										↑
-									</Button>
-									<Button
-										variant="outline"
-										size="xs"
-										class="h-7 w-7 p-0"
-										title="Move down"
-										aria-label="Move line down"
-										disabled={i === lines.length - 1}
-										onclick={() => moveLine(i, 1)}
-									>
-										↓
-									</Button>
-									<Button
-										variant="outline"
-										size="xs"
-										class="h-7 w-7 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
-										title="Remove line"
-										aria-label="Remove line"
-										disabled={lines.length <= 1}
-										onclick={() => removeLine(line.id)}
-									>
-										✕
-									</Button>
+					<div class="flex items-center justify-between">
+						<div class="text-xs font-semibold tracking-tight text-slate-700">
+							{backPrintEnabled && activeTextSide === 'back' ? 'Back lines' : 'Front lines'}
+						</div>
+						<span class="text-xs text-slate-500">
+							{backPrintEnabled && activeTextSide === 'back' ? backLines.length : lines.length} of 8
+						</span>
+					</div>
+
+					{#if !backPrintEnabled || activeTextSide === 'front'}
+						{#each lines as line, i (line.id)}
+							<div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+								<div class="mb-2 flex items-center justify-between">
+									<span class="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
+										Line {i + 1}
+									</span>
+									<div class="flex items-center gap-1">
+										<Button
+											variant="outline"
+											size="xs"
+											class="h-7 w-7 p-0"
+											title="Move up"
+											aria-label="Move line up"
+											disabled={i === 0}
+											onclick={() => moveLine('front', i, -1)}
+										>
+											↑
+										</Button>
+										<Button
+											variant="outline"
+											size="xs"
+											class="h-7 w-7 p-0"
+											title="Move down"
+											aria-label="Move line down"
+											disabled={i === lines.length - 1}
+											onclick={() => moveLine('front', i, 1)}
+										>
+											↓
+										</Button>
+										<Button
+											variant="outline"
+											size="xs"
+											class="h-7 w-7 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
+											title="Remove line"
+											aria-label="Remove line"
+											disabled={lines.length <= 1}
+											onclick={() => removeLine('front', line.id)}
+										>
+											✕
+										</Button>
+									</div>
+								</div>
+
+								<label class="grid gap-1.5">
+									<span class="text-xs font-medium text-slate-700">Content</span>
+									<input
+										class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm ring-indigo-500/25 outline-none focus:border-indigo-400 focus:ring-2"
+										type="text"
+										bind:value={line.content}
+										placeholder={i === 0 ? 'Name' : 'Subtitle'}
+									/>
+								</label>
+
+								<label class="mt-2 grid gap-1.5">
+									<span class="text-xs font-medium text-slate-700">Font</span>
+									<FontSelect bind:value={line.fontKey} />
+								</label>
+
+								<div class="mt-2">
+									<ColorPalettePicker bind:value={line.color} {palette} label="Text color" />
+								</div>
+
+								<div class="mt-2 grid grid-cols-2 gap-3">
+									<label class="grid gap-1.5">
+										<div class="flex items-center justify-between gap-2">
+											<span class="text-xs font-medium text-slate-700">Size</span>
+											<span class="text-xs text-slate-600 tabular-nums">{line.size}</span>
+										</div>
+										<Slider
+											type="single"
+											bind:value={line.size}
+											min={4}
+											max={32}
+											step={0.5}
+											class="w-full"
+										/>
+									</label>
+									<label class="grid gap-1.5">
+										<div class="flex items-center justify-between gap-2">
+											<span class="text-xs font-medium text-slate-700">Depth</span>
+											<span class="text-xs text-slate-600 tabular-nums">{line.depth}</span>
+										</div>
+										<Slider
+											type="single"
+											bind:value={line.depth}
+											min={0.2}
+											max={3}
+											step={0.1}
+											class="w-full"
+										/>
+									</label>
 								</div>
 							</div>
+						{/each}
 
-							<label class="grid gap-1.5">
-								<span class="text-xs font-medium text-slate-700">Content</span>
-								<input
-									class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm ring-indigo-500/25 outline-none focus:border-indigo-400 focus:ring-2"
-									type="text"
-									bind:value={line.content}
-									placeholder={i === 0 ? 'Name' : 'Subtitle'}
-								/>
-							</label>
-
-							<label class="mt-2 grid gap-1.5">
-								<span class="text-xs font-medium text-slate-700">Font</span>
-								<FontSelect bind:value={line.fontKey} />
-							</label>
-
-							<div class="mt-2">
-								<ColorPalettePicker bind:value={line.color} {palette} label="Text color" />
-							</div>
-
-							<div class="mt-2 grid grid-cols-2 gap-3">
-								<label class="grid gap-1.5">
-									<div class="flex items-center justify-between gap-2">
-										<span class="text-xs font-medium text-slate-700">Size</span>
-										<span class="text-xs text-slate-600 tabular-nums">{line.size}</span>
-									</div>
-									<Slider
-										type="single"
-										bind:value={line.size}
-										min={4}
-										max={32}
-										step={0.5}
-										class="w-full"
-									/>
-								</label>
-								<label class="grid gap-1.5">
-									<div class="flex items-center justify-between gap-2">
-										<span class="text-xs font-medium text-slate-700">Depth</span>
-										<span class="text-xs text-slate-600 tabular-nums">{line.depth}</span>
-									</div>
-									<Slider
-										type="single"
-										bind:value={line.depth}
-										min={0.2}
-										max={3}
-										step={0.1}
-										class="w-full"
-									/>
-								</label>
-							</div>
-						</div>
-					{/each}
-
-					<Button
-						variant="outline"
-						size="sm"
-						class="w-full"
-						onclick={addLine}
-						disabled={lines.length >= 8}
-					>
-						+ Add line
-					</Button>
-
-					<label class="grid gap-1.5">
-						<div class="flex items-center justify-between gap-2">
-							<span class="text-xs font-medium text-slate-700">Line spacing</span>
-							<span class="text-xs text-slate-600 tabular-nums">{lineSpacing} mm</span>
-						</div>
-						<Slider
-							type="single"
-							bind:value={lineSpacing}
-							min={0}
-							max={20}
-							step={0.5}
+						<Button
+							variant="outline"
+							size="sm"
 							class="w-full"
-						/>
-					</label>
+							onclick={() => addLine('front')}
+							disabled={lines.length >= 8}
+						>
+							+ Add line
+						</Button>
+
+						<label class="grid gap-1.5">
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-xs font-medium text-slate-700">Line spacing</span>
+								<span class="text-xs text-slate-600 tabular-nums">{lineSpacing} mm</span>
+							</div>
+							<Slider
+								type="single"
+								bind:value={lineSpacing}
+								min={0}
+								max={20}
+								step={0.5}
+								class="w-full"
+							/>
+						</label>
+					{:else if backPrintEnabled}
+						{#each backLines as line, i (line.id)}
+							<div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+								<div class="mb-2 flex items-center justify-between">
+									<span class="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
+										Line {i + 1}
+									</span>
+									<div class="flex items-center gap-1">
+										<Button
+											variant="outline"
+											size="xs"
+											class="h-7 w-7 p-0"
+											title="Move up"
+											aria-label="Move line up"
+											disabled={i === 0}
+											onclick={() => moveLine('back', i, -1)}
+										>
+											↑
+										</Button>
+										<Button
+											variant="outline"
+											size="xs"
+											class="h-7 w-7 p-0"
+											title="Move down"
+											aria-label="Move line down"
+											disabled={i === backLines.length - 1}
+											onclick={() => moveLine('back', i, 1)}
+										>
+											↓
+										</Button>
+										<Button
+											variant="outline"
+											size="xs"
+											class="h-7 w-7 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
+											title="Remove line"
+											aria-label="Remove line"
+											disabled={backLines.length <= 1}
+											onclick={() => removeLine('back', line.id)}
+										>
+											✕
+										</Button>
+									</div>
+								</div>
+
+								<label class="grid gap-1.5">
+									<span class="text-xs font-medium text-slate-700">Content</span>
+									<input
+										class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm ring-indigo-500/25 outline-none focus:border-indigo-400 focus:ring-2"
+										type="text"
+										bind:value={line.content}
+										placeholder={i === 0 ? 'Back text' : 'Back subtitle'}
+									/>
+								</label>
+
+								<label class="mt-2 grid gap-1.5">
+									<span class="text-xs font-medium text-slate-700">Font</span>
+									<FontSelect bind:value={line.fontKey} />
+								</label>
+
+								<div class="mt-2">
+									<ColorPalettePicker bind:value={line.color} {palette} label="Text color" />
+								</div>
+
+								<div class="mt-2 grid grid-cols-2 gap-3">
+									<label class="grid gap-1.5">
+										<div class="flex items-center justify-between gap-2">
+											<span class="text-xs font-medium text-slate-700">Size</span>
+											<span class="text-xs text-slate-600 tabular-nums">{line.size}</span>
+										</div>
+										<Slider
+											type="single"
+											bind:value={line.size}
+											min={4}
+											max={32}
+											step={0.5}
+											class="w-full"
+										/>
+									</label>
+									<div class="grid gap-1.5">
+										<span class="text-xs font-medium text-slate-700">Depth</span>
+										<span class="text-xs text-slate-600 tabular-nums">{BACK_TEXT_DEPTH_MM} mm</span>
+									</div>
+								</div>
+							</div>
+						{/each}
+
+						<Button
+							variant="outline"
+							size="sm"
+							class="w-full"
+							onclick={() => addLine('back')}
+							disabled={backLines.length >= 8}
+						>
+							+ Add line
+						</Button>
+
+						<label class="grid gap-1.5">
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-xs font-medium text-slate-700">Line spacing</span>
+								<span class="text-xs text-slate-600 tabular-nums">{backLineSpacing} mm</span>
+							</div>
+							<Slider
+								type="single"
+								bind:value={backLineSpacing}
+								min={0}
+								max={20}
+								step={0.5}
+								class="w-full"
+							/>
+						</label>
+					{/if}
 				</div>
 
 				<div class="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
@@ -1371,9 +1693,7 @@
 			class="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_12px_30px_rgba(15,23,42,0.07)]"
 		>
 			<DesignerModelDimensionsHud sizes={modelAabbMm} />
-			<div bind:this={hostEl} class="absolute inset-0">
-				<canvas bind:this={canvasEl} class="block h-full w-full"></canvas>
-			</div>
+			<div bind:this={hostEl} class="absolute inset-0"></div>
 			<div class="absolute right-4 bottom-4">
 				<DesignerExportToolbar
 					onSnapshot={() => downloadSnapshot(renderer, scene, camera, SLUG)}

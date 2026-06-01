@@ -208,7 +208,7 @@ export async function ensureExportAccess(
 }
 
 /** Designers that require an active subscription or license (not free trial). */
-export const SUBSCRIBER_ONLY_DESIGNER_IDS = ['idNameTagV2'] as const;
+export const SUBSCRIBER_ONLY_DESIGNER_IDS = [] as const;
 
 export function hasPaidAccess(
 	user: { id: string } | null | undefined,

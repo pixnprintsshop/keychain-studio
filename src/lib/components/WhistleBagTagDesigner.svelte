@@ -62,7 +62,7 @@
 	const TEXT_PREVIEW_LIFT = 0.02;
 	/** Export: seat letter walls on the plateau like Tinkercad (no bottom cap, no air gap). */
 	const TEXT_PRINT_SEAT = 0.001;
-	const TEXT_MAX_WIDTH_RATIO = 0.78;
+	const TEXT_MAX_WIDTH_RATIO = 0.85;
 	const MAX_LINES = 6;
 	const DEFAULT_FONT_KEY = FONT_OPTIONS[0]?.key ?? 'Titan One_Regular';
 

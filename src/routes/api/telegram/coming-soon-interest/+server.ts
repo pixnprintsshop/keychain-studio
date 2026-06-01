@@ -1,0 +1,91 @@
+import { json } from '@sveltejs/kit';
+import type { RequestHandler } from './$types';
+import { env } from '$env/dynamic/private';
+import { isComingSoonDesignerId } from '$lib/comingSoonDesigners';
+import { getFlag, resolveIpAndCountry, summarizeUserAgent } from '$lib/server/visit-info';
+
+const TELEGRAM_API = 'https://api.telegram.org';
+const TELEGRAM_BODY_MAX = 3500;
+
+export const POST: RequestHandler = async ({ request }) => {
+	const token = env.TELEGRAM_BOT_TOKEN;
+	const chatId = env.TELEGRAM_CHAT_ID;
+
+	if (!token || !chatId) {
+		console.warn(
+			'Telegram coming-soon interest: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not configured'
+		);
+		return json({ ok: true });
+	}
+
+	let data: unknown;
+	try {
+		data = await request.json();
+	} catch {
+		return json({ error: 'Invalid JSON' }, { status: 400 });
+	}
+
+	const { designerId, designerTitle, email, userId, subscriptionStatus } = (data ?? {}) as {
+		designerId?: string;
+		designerTitle?: string;
+		email?: string;
+		userId?: string;
+		subscriptionStatus?: string;
+	};
+
+	if (!designerId || typeof designerId !== 'string' || !isComingSoonDesignerId(designerId)) {
+		return json({ error: 'Invalid designer' }, { status: 400 });
+	}
+
+	const title =
+		typeof designerTitle === 'string' && designerTitle.trim()
+			? designerTitle.trim().slice(0, 120)
+			: designerId;
+
+	const { ip, country } = await resolveIpAndCountry(request);
+	const flag = getFlag(country);
+	const device = summarizeUserAgent(request.headers.get('user-agent'));
+
+	const lines: string[] = [
+		'👀 Coming soon — user interest',
+		`🧩 Designer: ${title}`,
+		`🆔 Id: ${designerId}`,
+		`${flag} Country: ${country ?? '—'}`,
+		`🌐 IP: ${ip ?? '—'}`,
+		''
+	];
+
+	if (email || userId) {
+		if (email) lines.push(`📧 Email: ${email}`);
+		if (userId) lines.push(`🆔 User: ${userId}`);
+		if (subscriptionStatus) lines.push(`📋 Status: ${subscriptionStatus}`);
+	} else {
+		lines.push('👤 Guest');
+	}
+
+	lines.push('', `📱 Device: ${device}`, `🕐 Time: ${new Date().toISOString()}`);
+
+	let text = lines.join('\n');
+	if (text.length > TELEGRAM_BODY_MAX) text = `${text.slice(0, TELEGRAM_BODY_MAX)}…`;
+
+	try {
+		const res = await fetch(`${TELEGRAM_API}/bot${token}/sendMessage`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				chat_id: chatId,
+				text,
+				disable_web_page_preview: true
+			})
+		});
+		if (!res.ok) {
+			const errBody = await res.text();
+			console.error('Telegram coming-soon interest error:', res.status, errBody);
+			return json({ error: 'Failed to send' }, { status: 500 });
+		}
+		return json({ ok: true });
+	} catch (err) {
+		console.error('Telegram coming-soon interest error:', err);
+		return json({ error: 'Failed to send' }, { status: 500 });
+	}
+};

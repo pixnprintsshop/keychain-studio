@@ -72,6 +72,11 @@
 
 	/** Z amount text is sunk into the base so they overlap (avoids non-manifold at contact). */
 	const TEXT_BASE_EMBED = 0.2;
+	/** Z amount the optional text-outline layer is sunk into the base outline. */
+	const TEXT_OUTLINE_BASE_EMBED = 0.2;
+	/** Debounce heavy Clipper/Three rebuilds while sliders are dragged. */
+	const MESH_REBUILD_DEBOUNCE_MS = 220;
+	const PERSIST_DEBOUNCE_MS = 450;
 	const BATCH_ITEM_SPACING = 12;
 	const MAX_SINGLE_LINES = 8;
 	// ── Persistence state ───────────────────────────────────────────────────
@@ -146,6 +151,11 @@
 		textDepth: number;
 		textColor: string;
 		outlineColor: string;
+		textOutlineEnabled: boolean;
+		/** Outline padding around letters in mm (must stay below base outline thickness). */
+		textOutlineThicknessMm: number;
+		textOutlineDepth: number;
+		textOutlineColor: string;
 		keyringEnabled: boolean;
 		keyringOuterSize: number;
 		keyringHoleSize: number;
@@ -304,6 +314,10 @@
 				textDepth: fontSettings.textDepth,
 				textColor: fontSettings.textColor,
 				outlineColor: fontSettings.outlineColor,
+				textOutlineEnabled: false,
+				textOutlineThicknessMm: 1,
+				textOutlineDepth: 1,
+				textOutlineColor: '#000000',
 				keyringEnabled: fontSettings.keyringEnabled ?? true,
 				keyringOuterSize: charSettings.keyringOuterSize,
 				keyringHoleSize: charSettings.keyringHoleSize,
@@ -361,6 +375,23 @@
 				typeof candidate.outlineColor === 'string'
 					? candidate.outlineColor
 					: fontSettings.outlineColor,
+			textOutlineEnabled:
+				typeof candidate.textOutlineEnabled === 'boolean' ? candidate.textOutlineEnabled : false,
+			textOutlineThicknessMm: clampNumber(
+				candidate.textOutlineThicknessMm ??
+					(typeof (candidate as { textOutlineOffsetPx?: number }).textOutlineOffsetPx === 'number'
+						? (candidate as { textOutlineOffsetPx: number }).textOutlineOffsetPx *
+							(clampNumber(candidate.textSize, fontSettings.textSize, 1, 96) / 60)
+						: undefined),
+				1,
+				0.1,
+				100
+			),
+			textOutlineDepth: clampNumber(candidate.textOutlineDepth, 1.5, 0.1, 40),
+			textOutlineColor:
+				typeof candidate.textOutlineColor === 'string'
+					? candidate.textOutlineColor
+					: '#ffffff',
 			keyringEnabled:
 				typeof candidate.keyringEnabled === 'boolean'
 					? candidate.keyringEnabled
@@ -498,6 +529,10 @@
 		textDepth,
 		textColor,
 		outlineColor,
+		textOutlineEnabled: false,
+		textOutlineThicknessMm: 1,
+		textOutlineDepth: 1.5,
+		textOutlineColor: '#ffffff',
 		keyringEnabled,
 		keyringOuterSize,
 		keyringHoleSize,
@@ -515,6 +550,16 @@
 	const selectedSettings = $derived(activeEditableItem?.settings ?? null);
 	const hasSelectedItem = $derived(activeEditableItem !== null && selectedSettings !== null);
 	const editableSettings = $derived(selectedSettings ?? sharedKeychainSettings);
+	const editableMaxTextSize = $derived(
+		Math.max(
+			1,
+			...(activeEditableItem?.lines.map((line) => line.textSize) ?? [textSize])
+		)
+	);
+	const editableBaseOutlineMm = $derived(
+		(editableSettings.outlineOffsetPx * editableMaxTextSize) / 60
+	);
+	const editableMaxTextOutlineMm = $derived(Math.max(0.2, editableBaseOutlineMm - 0.2));
 	const modelItems = $derived.by<KeychainModelItem[]>(() =>
 		keychainItems.map((item, index) => {
 			const sourceText = getItemText(item);
@@ -585,6 +630,7 @@
 		const nextItem = createKeychainFromActiveDefaults();
 		keychainItems = [...keychainItems, nextItem];
 		selectedItemId = nextItem.id;
+		scheduleRebuildMeshes(true);
 		updateSelectionOutline();
 		focusActiveFirstLine();
 	}
@@ -597,6 +643,7 @@
 		keychainItems = remaining;
 		selectedItemId =
 			remaining.length === 1 ? null : (remaining[Math.max(0, currentIndex - 1)]?.id ?? null);
+		scheduleRebuildMeshes(true);
 		updateSelectionOutline();
 	}
 
@@ -679,6 +726,9 @@
 	let openBambuStudioLoading = $state(false);
 	let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
 	let selectionOutline: THREE.Box3Helper | null = null;
+	let meshRebuildTimeout: ReturnType<typeof setTimeout> | null = null;
+	let meshRebuildRaf = 0;
+	let persistTimeout: ReturnType<typeof setTimeout> | null = null;
 	const raycaster = new THREE.Raycaster();
 	const pointerNdc = new THREE.Vector2();
 	const pointerDown = new THREE.Vector2();
@@ -874,8 +924,12 @@
 				nonModelObjects.push(obj);
 				return;
 			}
-			if (liftText && obj instanceof THREE.Mesh && obj.name === 'text') {
-				obj.position.z += TEXT_BASE_EMBED;
+			if (liftText && obj instanceof THREE.Mesh) {
+				if (obj.name === 'text') {
+					obj.position.z += TEXT_BASE_EMBED;
+				} else if (obj.name === 'text-outline') {
+					obj.position.z += TEXT_OUTLINE_BASE_EMBED;
+				}
 			}
 		});
 		nonModelObjects.forEach((obj) => obj.parent?.remove(obj));
@@ -1001,6 +1055,34 @@
 		}
 	}
 
+	function clearScheduledMeshRebuild() {
+		if (meshRebuildTimeout !== null) {
+			clearTimeout(meshRebuildTimeout);
+			meshRebuildTimeout = null;
+		}
+		if (meshRebuildRaf) {
+			cancelAnimationFrame(meshRebuildRaf);
+			meshRebuildRaf = 0;
+		}
+	}
+
+	/** Coalesce rapid setting changes so sliders stay responsive during drag. */
+	function scheduleRebuildMeshes(immediate = false) {
+		if (!scene || !group) return;
+		clearScheduledMeshRebuild();
+		if (immediate) {
+			rebuildMeshes();
+			return;
+		}
+		meshRebuildRaf = requestAnimationFrame(() => {
+			meshRebuildRaf = 0;
+			meshRebuildTimeout = setTimeout(() => {
+				meshRebuildTimeout = null;
+				rebuildMeshes();
+			}, MESH_REBUILD_DEBOUNCE_MS);
+		});
+	}
+
 	// ── Rebuild meshes (outline only) ───────────────────────────────────────
 	function rebuildMeshes() {
 		if (!scene || !group || !font) return;
@@ -1075,6 +1157,33 @@
 					ClipperLib.PolyFillType.pftNonZero,
 					ClipperLib.PolyFillType.pftNonZero
 				);
+				return tree;
+			};
+			const buildUnionOffsetTree = (paths: any[], offsetWorld: number) => {
+				const tree = new ClipperLib.PolyTree();
+				if (offsetWorld > 0) {
+					const co = new ClipperLib.ClipperOffset(2, 2);
+					co.AddPaths(paths, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+					const offsetPaths: any[] = [];
+					co.Execute(offsetPaths, offsetWorld * SCALE);
+					const clipper = new ClipperLib.Clipper();
+					clipper.AddPaths(offsetPaths, ClipperLib.PolyType.ptSubject, true);
+					clipper.Execute(
+						ClipperLib.ClipType.ctUnion,
+						tree,
+						ClipperLib.PolyFillType.pftNonZero,
+						ClipperLib.PolyFillType.pftNonZero
+					);
+				} else {
+					const clipper = new ClipperLib.Clipper();
+					clipper.AddPaths(paths, ClipperLib.PolyType.ptSubject, true);
+					clipper.Execute(
+						ClipperLib.ClipType.ctUnion,
+						tree,
+						ClipperLib.PolyFillType.pftNonZero,
+						ClipperLib.PolyFillType.pftNonZero
+					);
+				}
 				return tree;
 			};
 			const collectOuterPaths = (node: any, out: any[]) => {
@@ -1177,30 +1286,21 @@
 				isFiniteNumber(textBounds.maxY);
 
 			const outlineWorld = Math.max(0, settings.outlineOffsetPx) * (maxLineSize / 60);
-			const outlineTree = new ClipperLib.PolyTree();
-			if (outlineWorld > 0) {
-				const co = new ClipperLib.ClipperOffset(2, 2);
-				co.AddPaths(inputPaths, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
-				const offsetPaths: any[] = [];
-				co.Execute(offsetPaths, outlineWorld * SCALE);
-				const c2 = new ClipperLib.Clipper();
-				c2.AddPaths(offsetPaths, ClipperLib.PolyType.ptSubject, true);
-				c2.Execute(
-					ClipperLib.ClipType.ctUnion,
-					outlineTree,
-					ClipperLib.PolyFillType.pftNonZero,
-					ClipperLib.PolyFillType.pftNonZero
-				);
-			} else {
-				const c2 = new ClipperLib.Clipper();
-				c2.AddPaths(inputPaths, ClipperLib.PolyType.ptSubject, true);
-				c2.Execute(
-					ClipperLib.ClipType.ctUnion,
-					outlineTree,
-					ClipperLib.PolyFillType.pftNonZero,
-					ClipperLib.PolyFillType.pftNonZero
-				);
-			}
+			const outlineTree = buildUnionOffsetTree(inputPaths, outlineWorld);
+			const textCenter = hasTextBounds
+				? {
+						x: (textBounds.minX + textBounds.maxX) / 2,
+						y: (textBounds.minY + textBounds.maxY) / 2
+					}
+				: getTreeCenter(buildFilledTree(inputPaths));
+			const maxTextOutlineMm = Math.max(0.1, outlineWorld - 0.1);
+			const textOutlineWorld =
+				settings.textOutlineEnabled && settings.textOutlineThicknessMm > 0
+					? Math.min(Math.max(0.1, settings.textOutlineThicknessMm), maxTextOutlineMm)
+					: 0;
+			const textOutlineTree =
+				textOutlineWorld > 0 ? buildUnionOffsetTree(inputPaths, textOutlineWorld) : null;
+			const textOutlineCenter = textOutlineTree ? getTreeCenter(textOutlineTree) : textCenter;
 
 			let baseTree: any = outlineTree;
 			const outlineCenter = getTreeCenter(outlineTree);
@@ -1304,6 +1404,8 @@
 			};
 
 			const baseShapes = polyTreeToThreeShapes(baseTree);
+			const textOutlineShapes =
+				textOutlineTree !== null ? polyTreeToThreeShapes(textOutlineTree) : [];
 			const textLineShapes = lineEntries
 				.map((entry, index) => ({
 					line: entry.line,
@@ -1350,6 +1452,44 @@
 				sourceText: item.sourceText
 			};
 			itemGroup.add(baseMesh);
+
+			const baseDepthMm = Math.max(0.1, settings.baseDepth);
+			const textOutlineDepthMm = Math.max(0.1, settings.textOutlineDepth);
+			const hasTextOutlineLayer =
+				settings.textOutlineEnabled && textOutlineShapes.length > 0 && textOutlineWorld > 0;
+			let textStackZ = baseDepthMm;
+
+			if (hasTextOutlineLayer) {
+				const textOutlineMat = new THREE.MeshStandardMaterial({
+					color: settings.textOutlineColor,
+					roughness: 0.55,
+					metalness: 0.08
+				});
+				const textOutlineGeo = new THREE.ExtrudeGeometry(textOutlineShapes, {
+					depth: textOutlineDepthMm,
+					bevelEnabled: false,
+					curveSegments: 12
+				});
+				textOutlineGeo.translate(
+					textCenter.x - textOutlineCenter.x,
+					textCenter.y - textOutlineCenter.y,
+					0
+				);
+				const textOutlineMesh = new THREE.Mesh(textOutlineGeo, textOutlineMat);
+				textOutlineMesh.name = 'text-outline';
+				textOutlineMesh.userData = {
+					partName: 'text-outline',
+					parentObjectName: exportName,
+					itemId: item.id,
+					itemIndex: item.index
+				};
+				textOutlineMesh.castShadow = true;
+				textOutlineMesh.receiveShadow = true;
+				textOutlineMesh.position.z = baseDepthMm - TEXT_OUTLINE_BASE_EMBED;
+				itemGroup.add(textOutlineMesh);
+				textStackZ = baseDepthMm - TEXT_OUTLINE_BASE_EMBED + textOutlineDepthMm;
+			}
+
 			textLineShapes.forEach((entry) => {
 				const textMat = new THREE.MeshStandardMaterial({
 					color: entry.line.textColor,
@@ -1360,7 +1500,7 @@
 					depth: Math.max(0.1, entry.line.textDepth),
 					bevelEnabled: false
 				});
-				textGeo.translate(-outlineCenter.x, -outlineCenter.y, 0);
+				textGeo.translate(-textCenter.x, -textCenter.y, 0);
 				const textMesh = new THREE.Mesh(textGeo, textMat);
 				textMesh.name = 'text';
 				textMesh.userData = {
@@ -1373,8 +1513,7 @@
 				};
 				textMesh.castShadow = true;
 				textMesh.receiveShadow = true;
-				// Embed text into base so they overlap (avoids non-manifold at contact)
-				textMesh.position.z = Math.max(0.1, settings.baseDepth) - TEXT_BASE_EMBED;
+				textMesh.position.z = textStackZ - TEXT_BASE_EMBED;
 				itemGroup.add(textMesh);
 			});
 			return itemGroup;
@@ -1552,13 +1691,28 @@
 
 	// Persist the new object-list state and legacy text mirrors for older sessions.
 	$effect(() => {
-		try {
-			localStorage.setItem(STORAGE_KEY_KEYCHAIN_ITEMS, JSON.stringify(keychainItems));
-			localStorage.setItem(STORAGE_KEY_BATCH_TEXT, persistedText);
-			localStorage.setItem(STORAGE_KEY_TEXT, modelItems[0]?.sourceText.trim() ?? '');
-		} catch {
-			// Local storage can be unavailable in private browsing contexts.
-		}
+		void keychainItems;
+		void persistedText;
+		void modelItems;
+
+		if (persistTimeout !== null) clearTimeout(persistTimeout);
+		persistTimeout = setTimeout(() => {
+			persistTimeout = null;
+			try {
+				localStorage.setItem(STORAGE_KEY_KEYCHAIN_ITEMS, JSON.stringify(keychainItems));
+				localStorage.setItem(STORAGE_KEY_BATCH_TEXT, persistedText);
+				localStorage.setItem(STORAGE_KEY_TEXT, modelItems[0]?.sourceText.trim() ?? '');
+			} catch {
+				// Local storage can be unavailable in private browsing contexts.
+			}
+		}, PERSIST_DEBOUNCE_MS);
+
+		return () => {
+			if (persistTimeout !== null) {
+				clearTimeout(persistTimeout);
+				persistTimeout = null;
+			}
+		};
 	});
 	$effect(() => {
 		try {
@@ -1598,7 +1752,7 @@
 			}, 0);
 			if (scene) {
 				font = getFont(fontKey);
-				rebuildMeshes();
+				scheduleRebuildMeshes(true);
 			}
 		}
 	});
@@ -1646,24 +1800,18 @@
 	});
 
 	$effect(() => {
-		void textSize;
-		void outlineOffsetPx;
-		void baseDepth;
-		void textDepth;
-		void textColor;
-		void outlineColor;
-		void keyringEnabled;
-		void keyringOuterSize;
-		void keyringHoleSize;
-		void keyringOffsetX;
-		void keyringOffsetY;
 		void keychainItems;
-		void modelItems;
 		if (!scene) return;
-		rebuildMeshes();
+		scheduleRebuildMeshes();
+		return () => clearScheduledMeshRebuild();
 	});
 
 	onDestroy(() => {
+		clearScheduledMeshRebuild();
+		if (persistTimeout !== null) {
+			clearTimeout(persistTimeout);
+			persistTimeout = null;
+		}
 		cancelAnimationFrame(rafId);
 		rafId = 0;
 		ro?.disconnect();
@@ -1946,7 +2094,7 @@
 
 						<label class="grid gap-1.5">
 							<div class="flex items-center justify-between gap-2">
-								<span class="text-xs font-medium text-slate-700">Outline thickness</span>
+								<span class="text-xs font-medium text-slate-700">Base outline thickness</span>
 								<span class="text-xs text-slate-600 tabular-nums"
 									>{editableSettings.outlineOffsetPx}px</span
 								>
@@ -1954,8 +2102,17 @@
 							<Slider
 								type="single"
 								value={editableSettings.outlineOffsetPx}
-								onValueChange={(value: number) =>
-									updateSelectedItemSettings({ outlineOffsetPx: value })}
+								onValueChange={(value: number) => {
+									const next: KeychainItemOverrides = { outlineOffsetPx: value };
+									const baseMm = (value * editableMaxTextSize) / 60;
+									if (
+										editableSettings.textOutlineEnabled &&
+										editableSettings.textOutlineThicknessMm >= baseMm
+									) {
+										next.textOutlineThicknessMm = Math.max(0.2, baseMm - 0.2);
+									}
+									updateSelectedItemSettings(next);
+								}}
 								min={5}
 								max={30}
 								step={1}
@@ -1970,9 +2127,87 @@
 								onValueChange={(value: string) =>
 									updateSelectedItemSettings({ outlineColor: value })}
 								{palette}
-								label="Outline color"
+								label="Base outline color"
 								disabled={!hasSelectedItem}
 							/>
+						</div>
+
+						<div class="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white/70 p-3">
+							<div class="flex items-center justify-between gap-2">
+								<div class="text-xs font-semibold tracking-tight text-slate-700">Text outline</div>
+								<label class="flex items-center gap-2 text-xs font-medium text-slate-700">
+									<input
+										class="h-4 w-4 accent-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+										type="checkbox"
+										checked={editableSettings.textOutlineEnabled}
+										onchange={(event) =>
+											updateSelectedItemSettings({
+												textOutlineEnabled: (event.currentTarget as HTMLInputElement).checked
+											})}
+										disabled={!hasSelectedItem}
+									/>
+									Enabled
+								</label>
+							</div>
+							<p class="text-[11px] leading-snug text-slate-500">
+								Optional middle layer between the letters and the base outline.
+							</p>
+
+							{#if editableSettings.textOutlineEnabled}
+								<label class="grid gap-1.5">
+									<div class="flex items-center justify-between gap-2">
+										<span class="text-xs font-medium text-slate-700">Text outline thickness</span>
+										<span class="text-xs text-slate-600 tabular-nums"
+											>{editableSettings.textOutlineThicknessMm.toFixed(1)} mm</span
+										>
+									</div>
+									<Slider
+										type="single"
+										value={editableSettings.textOutlineThicknessMm}
+										onValueChange={(value: number) =>
+											updateSelectedItemSettings({
+												textOutlineThicknessMm: Math.min(value, editableMaxTextOutlineMm)
+											})}
+										min={0.2}
+										max={editableMaxTextOutlineMm}
+										step={0.1}
+										disabled={!hasSelectedItem}
+										class="w-full"
+									/>
+									<p class="text-[11px] text-slate-500">
+										Max {editableMaxTextOutlineMm.toFixed(1)} mm (below base outline).
+									</p>
+								</label>
+
+								<label class="grid gap-1.5">
+									<div class="flex items-center justify-between gap-2">
+										<span class="text-xs font-medium text-slate-700">Text outline depth</span>
+										<span class="text-xs text-slate-600 tabular-nums"
+											>{editableSettings.textOutlineDepth}</span
+										>
+									</div>
+									<Slider
+										type="single"
+										value={editableSettings.textOutlineDepth}
+										onValueChange={(value: number) =>
+											updateSelectedItemSettings({ textOutlineDepth: value })}
+										min={0.4}
+										max={10}
+										step={0.1}
+										disabled={!hasSelectedItem}
+										class="w-full"
+									/>
+								</label>
+
+								<ColorPalettePicker
+									value={editableSettings.textOutlineColor}
+									onValueChange={(value: string) =>
+										updateSelectedItemSettings({ textOutlineColor: value })}
+									{palette}
+									label="Text outline color"
+									disabled={!hasSelectedItem}
+								/>
+							{/if}
 						</div>
 
 						<div class="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white/70 p-3">

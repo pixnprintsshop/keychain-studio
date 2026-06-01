@@ -1,17 +1,34 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import type { User } from '@supabase/supabase-js';
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
-	import { getFont } from '$lib/utils-3d';
+	import { COMING_SOON_DESIGNER_IDS } from '$lib/comingSoonDesigners';
+	import {
+		isComingSoonInterestRecorded,
+		markComingSoonInterestRecorded,
+		notifyComingSoonInterest
+	} from '$lib/comingSoonInterestNotify';
 	import {
 		hasPaidAccess,
 		isSubscriberOnlyDesigner,
 		type SubscriptionStatus
 	} from '$lib/subscription';
+	import FloatingGlobalExportCounter from '$lib/components/FloatingGlobalExportCounter.svelte';
+	import { exportStats, formatExportCount, getDesignerExportCount } from '$lib/exportStats.svelte';
+	import { getFont } from '$lib/utils-3d';
 
-	// Preload font so Name Puzzle designer opens faster
+	let comingSoonInterestSent = $state<Set<StyleName>>(new Set());
+	let comingSoonInterestSending = $state<StyleName | null>(null);
+
+	// Preload font so Name Puzzle designer opens faster; restore interest flags from session.
 	onMount(() => {
 		getFont('Roadside Sans_Regular');
+		const sent = new Set<StyleName>();
+		for (const id of COMING_SOON_DESIGNER_IDS) {
+			if (isComingSoonInterestRecorded(id)) sent.add(id as StyleName);
+		}
+		comingSoonInterestSent = sent;
 	});
 
 	type StyleName =
@@ -92,33 +109,19 @@
 	}
 	const NEW_DESIGNERS = getNewDesigners();
 
-	/**
-	 * Designers marked as "Updated".
-	 * This uses the VITE_UPDATED_DESIGNERS env variable (comma separated ids).
-	 * Pair each id with an entry in UPDATE_NOTES below so users can hover the
-	 * badge to see what changed in the most recent release.
-	 */
-	function getUpdatedDesigners(): Set<StyleName> {
-		const envList = import.meta.env.VITE_UPDATED_DESIGNERS as string | undefined;
-		if (!envList) return new Set();
-		return new Set(
-			envList
-				.split(',')
-				.map((x) => x.trim())
-				.filter(Boolean) as StyleName[]
-		);
-	}
-	const UPDATED_DESIGNERS = getUpdatedDesigners();
-
 	// Short release notes shown in a popover when the user hovers/taps the
-	// "Updated" badge. Keep each note to one or two sentences.
+	// "Updated" badge. Any designer listed here gets the Updated badge.
+	// Keep each note to one or two sentences.
 	const UPDATE_NOTES: Partial<Record<StyleName, string>> = {
 		basicName: 'Now supports multi-line text — each line has its own font, size, and depth.',
-		textOutline: 'Create separate keychains, each with multiline text and per-line controls.'
+		textOutline:
+			'Optional text-outline layer — add a second colored outline between your letters and the base outline.'
 	};
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);
-	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set(["articulatedKeychain","whistleV2","whistleBagTag"]);
+	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set(
+		COMING_SOON_DESIGNER_IDS as unknown as StyleName[]
+	);
 	let pendingBetaDesigner: StyleName | null = $state(null);
 	let pendingSubscriberDesigner: StyleName | null = $state(null);
 
@@ -130,14 +133,6 @@
 				'Linked letter bases from start, mid, and end segments — type a name to build the chain.',
 			imageSrc: '/images/articulated-keychain.png',
 			imageAlt: 'Articulated Keychain preview'
-		},
-		{
-			id: 'spotifyKeychain',
-			title: 'Spotify Keychain',
-			description:
-				'Scannable Spotify Code on a keychain base — paste an album, track, playlist, or artist link.',
-			imageSrc: '/images/spotify-keychain.png',
-			imageAlt: 'Spotify Keychain preview'
 		},
 		{
 			id: 'whistleV2',
@@ -153,6 +148,21 @@
 				'Bag tag whistle body with base, border rim, and multiline raised text (border matches text color).',
 			imageSrc: '/images/whistle-bag-tag.png',
 			imageAlt: 'Whistle Bag Tag preview'
+		},
+		{
+			id: 'textOutline',
+			title: 'Text Only',
+			description: 'Floating text model for quick name plates or labels.',
+			imageSrc: '/images/text-only.png',
+			imageAlt: 'Text Only preview'
+		},
+		{
+			id: 'spotifyKeychain',
+			title: 'Spotify Keychain',
+			description:
+				'Scannable Spotify Code on a keychain base — paste an album, track, playlist, or artist link.',
+			imageSrc: '/images/spotify-keychain.png',
+			imageAlt: 'Spotify Keychain preview'
 		},
 		{
 			id: 'canvasStudio',
@@ -216,13 +226,6 @@
 			imageAlt: 'Engrave name plate preview'
 		},
 		{
-			id: 'textOutline',
-			title: 'Text Only',
-			description: 'Floating text model for quick name plates or labels.',
-			imageSrc: '/images/text-only.png',
-			imageAlt: 'Text Only preview'
-		},
-		{
 			id: 'bumpyText',
 			title: 'Bumpy Text',
 			description:
@@ -275,13 +278,13 @@
 			attribution:
 				'https://makerworld.com/en/models/1111790-dog-tag-name-tag-keychain?from=search#profileId-1108483'
 		},
-		{
-			id: 'customSvg',
-			title: 'Custom SVG',
-			description: 'Import an SVG logo or artwork and turn it into a printable keychain.',
-			imageSrc: '/images/custom-svg.png',
-			imageAlt: 'Custom SVG Designer preview'
-		},
+		// {
+		// 	id: 'customSvg',
+		// 	title: 'Custom SVG',
+		// 	description: 'Import an SVG logo or artwork and turn it into a printable keychain.',
+		// 	imageSrc: '/images/custom-svg.png',
+		// 	imageAlt: 'Custom SVG Designer preview'
+		// },
 		{
 			id: 'charm',
 			title: 'Chunky Charm',
@@ -336,7 +339,7 @@
 
 	interface Props {
 		onSelect: (style: StyleName) => void;
-		user?: { id: string } | null;
+		user?: User | null;
 		subscriptionStatus?: SubscriptionStatus | null;
 		onShowPricing?: () => void;
 		onRequestLogin?: () => void;
@@ -379,11 +382,51 @@
 	// "Updated" is suppressed when a designer is also flagged "New" — the New
 	// badge already implies "look at this", so we avoid double-tagging.
 	function isUpdatedDesigner(style: StyleName): boolean {
-		return UPDATED_DESIGNERS.has(style) && !NEW_DESIGNERS.has(style);
+		return Boolean(UPDATE_NOTES[style]) && !NEW_DESIGNERS.has(style);
 	}
 
 	function getUpdateNote(style: StyleName): string {
-		return UPDATE_NOTES[style] ?? 'Recently updated with improvements.';
+		return UPDATE_NOTES[style] ?? '';
+	}
+
+	function designerListSortRank(id: StyleName): number {
+		if (isComingSoonDesigner(id)) return 0;
+		if (isUpdatedDesigner(id)) return 1;
+		return 2;
+	}
+
+	const designerDisplayOrder = new Map(DESIGNERS.map((designer, index) => [designer.id, index]));
+
+	const sortedDesigners = $derived(
+		[...DESIGNERS].sort((a, b) => {
+			const byRank = designerListSortRank(a.id) - designerListSortRank(b.id);
+			if (byRank !== 0) return byRank;
+			return (designerDisplayOrder.get(a.id) ?? 0) - (designerDisplayOrder.get(b.id) ?? 0);
+		})
+	);
+
+	function isComingSoonInterestDone(id: StyleName): boolean {
+		return comingSoonInterestSent.has(id);
+	}
+
+	async function handleComingSoonInterest(designer: DesignerItem, event: MouseEvent) {
+		event.stopPropagation();
+		if (isComingSoonInterestDone(designer.id) || comingSoonInterestSending === designer.id) return;
+
+		comingSoonInterestSending = designer.id;
+		const ok = await notifyComingSoonInterest({
+			designerId: designer.id,
+			designerTitle: designer.title,
+			email: user?.email,
+			userId: user?.id,
+			subscriptionStatus
+		});
+		comingSoonInterestSending = null;
+
+		if (ok) {
+			markComingSoonInterestRecorded(designer.id);
+			comingSoonInterestSent = new Set([...comingSoonInterestSent, designer.id]);
+		}
 	}
 
 	function handleCardClick(designer: DesignerItem) {
@@ -424,6 +467,8 @@
 		onShowPricing?.();
 	}
 </script>
+
+<FloatingGlobalExportCounter />
 
 <div
 	class="flex min-h-dvh w-dvw items-center justify-center bg-slate-50 px-4 py-6 pt-20 sm:p-6 sm:pt-25"
@@ -551,7 +596,7 @@
 		{/if}
 
 		<div class="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-5">
-			{#each DESIGNERS as designer (designer.id)}
+			{#each sortedDesigners as designer (designer.id)}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
@@ -560,7 +605,7 @@
 					)
 						? 'cursor-not-allowed border-slate-200 opacity-60'
 						: isComingSoonDesigner(designer.id)
-							? 'cursor-not-allowed border-slate-200 opacity-60'
+							? 'cursor-not-allowed border-slate-200'
 							: isSubscriberLocked(designer.id)
 								? 'cursor-not-allowed border-slate-200 opacity-75'
 								: isNewDesigner(designer.id)
@@ -575,6 +620,7 @@
 							class="pointer-events-none absolute top-2 right-2 z-20 rounded bg-slate-900/80 px-1.5 py-0.5 text-[10px] font-medium text-white sm:top-3 sm:right-3 sm:rounded-md sm:px-2 sm:text-xs"
 							>Coming soon</span
 						>
+
 					{/if}
 					{#if isSubscriberLocked(designer.id)}
 						<span
@@ -674,16 +720,102 @@
 							</div>
 						</div>
 					{/if}
-					<div class="aspect-4/3 w-full overflow-hidden rounded-t-xl bg-slate-100 sm:rounded-t-2xl">
-						<img
-							src={designer.imageSrc}
-							alt={designer.imageAlt}
-							class="h-full w-full object-cover transition {isUnderMaintenance(designer.id)
-								? ''
-								: 'group-hover:scale-105'}"
-						/>
+					<div class="relative">
+						<div
+							class="aspect-4/3 w-full overflow-hidden rounded-t-xl bg-slate-100 sm:rounded-t-2xl {isComingSoonDesigner(
+								designer.id
+							)
+								? 'opacity-60'
+								: ''}"
+						>
+							<img
+								src={designer.imageSrc}
+								alt={designer.imageAlt}
+								class="h-full w-full object-cover transition {isUnderMaintenance(designer.id) ||
+								isComingSoonDesigner(designer.id)
+									? ''
+									: 'group-hover:scale-105'}"
+							/>
+						</div>
+						{#if isComingSoonDesigner(designer.id)}
+							<Button
+								variant="ghost"
+								size="icon"
+								class="pointer-events-auto absolute bottom-2 left-2 z-30 size-8 cursor-pointer rounded-full border border-rose-200 bg-white text-rose-500 opacity-100 shadow-md ring-2 ring-white/90 hover:bg-rose-50 hover:text-rose-600 disabled:pointer-events-none disabled:opacity-100 sm:bottom-3 sm:left-3 sm:size-9 {isComingSoonInterestDone(
+									designer.id
+								)
+									? 'border-emerald-200 bg-white text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
+									: ''}"
+								title={isComingSoonInterestDone(designer.id)
+									? 'Thanks — we noted your interest'
+									: "I'm interested — notify the team"}
+								aria-label={isComingSoonInterestDone(designer.id)
+									? 'Interest recorded'
+									: 'Register interest in this designer'}
+								aria-disabled={isComingSoonInterestDone(designer.id)}
+								disabled={comingSoonInterestSending === designer.id}
+								onclick={(e) => {
+									if (isComingSoonInterestDone(designer.id)) return;
+									void handleComingSoonInterest(designer, e);
+								}}
+							>
+								{#if comingSoonInterestSending === designer.id}
+									<svg
+										class="size-4 animate-spin text-slate-400"
+										xmlns="http://www.w3.org/2000/svg"
+										fill="none"
+										viewBox="0 0 24 24"
+										aria-hidden="true"
+									>
+										<circle
+											class="opacity-25"
+											cx="12"
+											cy="12"
+											r="10"
+											stroke="currentColor"
+											stroke-width="4"
+										/>
+										<path
+											class="opacity-75"
+											fill="currentColor"
+											d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+										/>
+									</svg>
+								{:else if isComingSoonInterestDone(designer.id)}
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="size-4"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke-width="2"
+										stroke="currentColor"
+										aria-hidden="true"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M4.5 12.75l6 6 9-13.5"
+										/>
+									</svg>
+								{:else}
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="size-4"
+										viewBox="0 0 24 24"
+										fill="currentColor"
+										aria-hidden="true"
+									>
+										<path
+											d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"
+										/>
+									</svg>
+								{/if}
+							</Button>
+						{/if}
 					</div>
-					<div class="p-2.5 sm:p-5">
+					<div
+						class="p-2.5 sm:p-5 {isComingSoonDesigner(designer.id) ? 'pointer-events-none opacity-60' : ''}"
+					>
 						<h2 class="text-sm font-semibold text-slate-900 sm:text-lg">
 							{designer.title}
 						</h2>
@@ -692,6 +824,11 @@
 						>
 							{designer.description}
 						</p>
+						{#if exportStats.loaded && getDesignerExportCount(designer.id) > 0}
+							<p class="mt-1 text-[10px] font-medium text-slate-400 sm:text-xs">
+								{formatExportCount(getDesignerExportCount(designer.id))} exports
+							</p>
+						{/if}
 						{#if designer.attribution}
 							<!-- svelte-ignore a11y_click_events_have_key_events -->
 							<a

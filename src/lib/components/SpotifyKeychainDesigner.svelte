@@ -244,15 +244,11 @@
 	}
 
 	/** Logo bottom layer and scannable code bars (white or black). */
-	function createBarColorMaterial(colorHex: string): THREE.Material {
-		const isWhite = colorHex.toLowerCase() === '#ffffff';
-		if (isWhite) {
-			return new THREE.MeshBasicMaterial({ color: colorHex });
-		}
+	function createBarColorMaterial(colorHex: string): THREE.MeshStandardMaterial {
 		return new THREE.MeshStandardMaterial({
 			color: colorHex,
-			roughness: 0.35,
-			metalness: 0
+			roughness: 0.75,
+			metalness: 0.1
 		});
 	}
 

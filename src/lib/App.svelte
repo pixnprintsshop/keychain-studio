@@ -1,49 +1,21 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { navigating, page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import { getSession, getUser, onAuthStateChange, signOut } from '$lib/auth';
-	import BasicNameDesigner from '$lib/components/BasicNameDesigner.svelte';
-	import BowKeychainDesigner from '$lib/components/BowKeychainDesigner.svelte';
-	import BumpyTextDesigner from '$lib/components/BumpyTextDesigner.svelte';
-	import CakeTopperDesigner from '$lib/components/CakeTopperDesigner.svelte';
-	import CanvasStudioDesigner from '$lib/components/CanvasStudioDesigner.svelte';
-	import PlateBadgeDesigner from '$lib/components/PlateBadgeDesigner.svelte';
-	import CharmDesigner from '$lib/components/CharmDesigner.svelte';
-	import CustomSVGDesigner from '$lib/components/CustomSVGDesigner.svelte';
-	import DesktopRequiredView from '$lib/components/DesktopRequiredView.svelte';
-	import DogTagDesigner from '$lib/components/DogTagDesigner.svelte';
-	import ContactPage from '$lib/components/ContactPage.svelte';
-	import FeedbackPage from '$lib/components/FeedbackPage.svelte';
-	import FlowerDesigner from '$lib/components/FlowerDesigner.svelte';
-	import SettingsPage from '$lib/components/SettingsPage.svelte';
-	import HomeScreen from '$lib/components/HomeScreen.svelte';
-	import IdNameTagDesigner from '$lib/components/IdNameTagDesigner.svelte';
-	import IdNameTagV2Designer from '$lib/components/IdNameTagV2Designer.svelte';
-	import InitialDesigner from '$lib/components/InitialDesigner.svelte';
-	import KeycapDesigner from '$lib/components/KeycapDesigner.svelte';
-	import KeycapSetMakerDesigner from '$lib/components/KeycapSetMakerDesigner.svelte';
-	import NamePuzzleDesigner from '$lib/components/NamePuzzleDesigner.svelte';
-	import EngraveNamePlateDesigner from '$lib/components/EngraveNamePlateDesigner.svelte';
 	import LicenseActivationModal from '$lib/components/LicenseActivationModal.svelte';
 	import LoginModal from '$lib/components/LoginModal.svelte';
 	import MaintenancePage from '$lib/components/MaintenancePage.svelte';
-	import PencilTopperDesigner from '$lib/components/PencilTopperDesigner.svelte';
 	import PromotionDialog from '$lib/components/PromotionDialog.svelte';
-	import StanleyTopperDesigner from '$lib/components/StanleyTopperDesigner.svelte';
-	import StrawTopperDesigner from '$lib/components/StrawTopperDesigner.svelte';
 	import RatingPromptModal from '$lib/components/RatingPromptModal.svelte';
 	import SupportShareDialog from '$lib/components/SupportShareDialog.svelte';
-	import TextOutlineDesigner from '$lib/components/TextOutlineDesigner.svelte';
 	import ThankYouDialog from '$lib/components/ThankYouDialog.svelte';
-	import WhistleDesigner from '$lib/components/WhistleDesigner.svelte';
-	import WhistleV2Designer from '$lib/components/WhistleV2Designer.svelte';
-	import WhistleBagTagDesigner from '$lib/components/WhistleBagTagDesigner.svelte';
-	import ArticulatedKeychainDesigner from '$lib/components/ArticulatedKeychainDesigner.svelte';
-	import SpotifyKeychainDesigner from '$lib/components/SpotifyKeychainDesigner.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Popover from '$lib/components/ui/popover/index.js';
-	import type { SubscriptionStatus } from '$lib/subscription';
+	import DesignerLoadingScreen from '$lib/components/DesignerLoadingScreen.svelte';
+	import { designerIdFromPathname, isDesignerId } from '$lib/designers/ids';
+	import { setStudioContext } from '$lib/studio/context.svelte';
 	import { preloadBrowserFingerprint } from '$lib/browserFingerprint';
 	import {
 		SHARE_PROMO_BONUS_CREDITS,
@@ -54,9 +26,9 @@
 	import {
 		clearLicenseCache,
 		getSubscriptionStatus,
-		hasPaidAccess,
-		isSubscriberOnlyDesigner
+		type SubscriptionStatus
 	} from '$lib/subscription';
+	import { loadExportStats } from '$lib/exportStats.svelte';
 	import { notifyVisit } from '$lib/visitNotify';
 	import {
 		fetchUserPalette,
@@ -65,8 +37,14 @@
 		type PaletteColor
 	} from '$lib/colorPalette';
 	import type { Session, User } from '@supabase/supabase-js';
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount, type Snippet } from 'svelte';
 	import posthog from 'posthog-js';
+
+	interface Props {
+		children: Snippet;
+	}
+
+	let { children }: Props = $props();
 
 	/** When true, only the maintenance page is shown. Set via VITE_MAINTENANCE_MODE (e.g. "true" or "1"). */
 	const MAINTENANCE_MODE =
@@ -75,7 +53,6 @@
 
 	// ── Storage keys ────────────────────────────────────────────────────────
 	const STORAGE_KEY_WELCOME = 'designer-has-seen-welcome';
-	const STORAGE_KEY_VIEW = 'designer-current-view';
 	const STORAGE_KEY_SHARE_SHOWN = 'designer-share-dialog-shown';
 	const STORAGE_KEY_BAMBU_ANNOUNCEMENT = 'designer-has-seen-bambu-studio-announcement';
 	/** One-time share-for-credits promo for signed-in users without a subscription. */
@@ -125,196 +102,8 @@
 		return !subscriptionStatus.isActive;
 	}
 
-	/** Designers under maintenance; not accessible from home and redirect to home if selected. */
-	const MAINTENANCE_VIEWS = new Set<ViewName>([]);
-	/** Designers announced as coming soon; visible on home but not route-accessible yet. */
-	const COMING_SOON_VIEWS = new Set<ViewName>([]);
-
-	// ── View / routing state ────────────────────────────────────────────────
-	type ViewName =
-		| 'home'
-		| 'textOutline'
-		| 'initial'
-		| 'flower'
-		| 'basicName'
-		| 'idNameTag'
-		| 'idNameTagV2'
-		| 'customSvg'
-		| 'charm'
-		| 'keycap'
-		| 'keycapSet'
-		| 'whistle'
-		| 'whistleV2'
-		| 'whistleBagTag'
-		| 'stanleyTopper'
-		| 'strawTopper'
-		| 'pencilTopper'
-		| 'dogtag'
-		| 'bumpyText'
-		| 'bowKeychain'
-		| 'namePuzzle'
-		| 'engraveNamePlate'
-		| 'cakeTopper'
-		| 'canvasStudio'
-		| 'plateBadge'
-		| 'articulatedKeychain'
-		| 'spotifyKeychain'
-		| 'feedback'
-		| 'contact'
-		| 'settings';
-
-	const VALID_VIEW_NAMES: ViewName[] = [
-		'home',
-		'textOutline',
-		'initial',
-		'flower',
-		'basicName',
-		'idNameTag',
-		'idNameTagV2',
-		'customSvg',
-		'charm',
-		'keycap',
-		'keycapSet',
-		'whistle',
-		'whistleV2',
-		'whistleBagTag',
-		'stanleyTopper',
-		'strawTopper',
-		'pencilTopper',
-		'dogtag',
-		'bumpyText',
-		'bowKeychain',
-		'namePuzzle',
-		'engraveNamePlate',
-		'cakeTopper',
-		'canvasStudio',
-		'plateBadge',
-		'articulatedKeychain',
-		'spotifyKeychain',
-		'feedback',
-		'contact',
-		'settings'
-	];
-
-	/** Designer views that require desktop; on mobile we show DesktopRequiredView instead. */
-	const DESIGNER_VIEWS = new Set<ViewName>([
-		'textOutline',
-		'initial',
-		'flower',
-		'basicName',
-		'idNameTag',
-		'idNameTagV2',
-		'customSvg',
-		'charm',
-		'keycap',
-		'keycapSet',
-		'whistle',
-		'whistleV2',
-		'whistleBagTag',
-		'stanleyTopper',
-		'strawTopper',
-		'pencilTopper',
-		'dogtag',
-		'bumpyText',
-		'bowKeychain',
-		'namePuzzle',
-		'engraveNamePlate',
-		'cakeTopper',
-		'canvasStudio',
-		'plateBadge',
-		'articulatedKeychain',
-		'spotifyKeychain'
-	]);
-
-	function isGuardedDesignerView(view: ViewName): boolean {
-		return MAINTENANCE_VIEWS.has(view) || COMING_SOON_VIEWS.has(view);
-	}
-
-	function isViewAccessible(view: ViewName): boolean {
-		if (isGuardedDesignerView(view)) return false;
-		if (isSubscriberOnlyDesigner(view) && !hasPaidAccess(user, subscriptionStatus)) return false;
-		return true;
-	}
-
-	/** True when the URL hash contains Supabase OAuth callback params (tokens or error). Do not overwrite hash until Supabase has processed it. */
-	function isSupabaseAuthHash(): boolean {
-		if (typeof window === 'undefined') return false;
-		const hash = (window.location.hash || '').replace(/^#/, '');
-		return (
-			hash.includes('access_token=') || hash.includes('refresh_token=') || hash.includes('error=')
-		);
-	}
-
-	function getViewFromUrl(): ViewName | null {
-		if (typeof window === 'undefined') return null;
-		const hash = (window.location.hash || '').replace(/^#/, '').trim();
-		if (hash === 'terms') {
-			goto(resolve('/terms'));
-			return 'home';
-		}
-		if (hash === 'privacy') {
-			goto(resolve('/privacy'));
-			return 'home';
-		}
-		if (hash === 'about') {
-			goto(resolve('/about'));
-			return 'home';
-		}
-		if (!hash || hash === 'home') return 'home';
-		if (VALID_VIEW_NAMES.includes(hash as ViewName)) {
-			const view = hash as ViewName;
-			return isViewAccessible(view) ? view : 'home';
-		}
-		return null;
-	}
-
-	let initialView: ViewName = 'home';
-	const urlView = getViewFromUrl();
-	if (urlView) {
-		initialView = urlView;
-	} else {
-		try {
-			const stored = localStorage.getItem(STORAGE_KEY_VIEW);
-			if (
-				stored === 'textOutline' ||
-				stored === 'initial' ||
-				stored === 'flower' ||
-				stored === 'basicName' ||
-				stored === 'idNameTag' ||
-				stored === 'idNameTagV2' ||
-				stored === 'customSvg' ||
-				stored === 'charm' ||
-				stored === 'keycap' ||
-				stored === 'keycapSet' ||
-				stored === 'whistle' ||
-				stored === 'whistleV2' ||
-				stored === 'whistleBagTag' ||
-				stored === 'stanleyTopper' ||
-				stored === 'strawTopper' ||
-				stored === 'pencilTopper' ||
-				stored === 'dogtag' ||
-				stored === 'bumpyText' ||
-				stored === 'bowKeychain' ||
-				stored === 'namePuzzle' ||
-				stored === 'engraveNamePlate' ||
-				stored === 'cakeTopper' ||
-				stored === 'canvasStudio' ||
-				stored === 'plateBadge' ||
-				stored === 'articulatedKeychain' ||
-				stored === 'spotifyKeychain' ||
-				stored === 'feedback' ||
-				stored === 'contact' ||
-				stored === 'settings' ||
-				stored === 'home'
-			) {
-				initialView = isViewAccessible(stored as ViewName) ? (stored as ViewName) : 'home';
-			}
-		} catch {
-			// localStorage can be unavailable in restricted browser contexts.
-		}
-	}
-	let currentView = $state<ViewName>(initialView);
-	const activeView = $derived(isViewAccessible(currentView) ? currentView : 'home');
+	let sessionBootstrapComplete = $state(false);
+	let subscriptionBootstrapComplete = $state(true);
 	let isMobile = $state(false);
 
 	// ── Welcome dialog state ────────────────────────────────────────────────
@@ -340,63 +129,105 @@
 	let menuOpen = $state(false);
 	let userPalette: PaletteColor[] | null = $state(null);
 	let authCleanup: (() => void) | null = null;
-	let hashCleanup: (() => void) | null = null;
 	let visibilityCleanup: (() => void) | null = null;
 	let visitNotifyTimer: number | null = null;
 
-	// ── Persist view on change ──────────────────────────────────────────────
-	$effect(() => {
-		try {
-			localStorage.setItem(STORAGE_KEY_VIEW, activeView);
-		} catch {
-			// localStorage can be unavailable in restricted browser contexts.
-		}
-	});
+	const effectivePalette = $derived(getEffectivePalette(user, userPalette));
 
-	// Sync view to URL hash (so e.g. /#textOutline is shareable and refreshable). Do not overwrite hash when it contains Supabase OAuth callback params.
-	$effect(() => {
-		if (typeof window === 'undefined') return;
-		if (isSupabaseAuthHash()) return;
-		const h = activeView === 'home' ? '' : activeView;
-		if (window.location.hash.replace(/^#/, '') !== h) {
-			window.location.hash = h;
-		}
-	});
+	const designerNavLoading = $derived(
+		navigating.to != null && designerIdFromPathname(navigating.to.url.pathname) != null
+	);
 
-	// Redirect away from guarded designer views
-	$effect(() => {
-		if (currentView !== activeView) {
-			currentView = activeView;
+	// ── Handlers ────────────────────────────────────────────────────────────
+	async function handleSavePalette(colors: PaletteColor[]) {
+		if (!user?.id) return { success: false, error: 'Not signed in' };
+		const result = await saveUserPalette(user.id, colors);
+		if (result.success) {
+			userPalette = colors;
 		}
-	});
+		return result;
+	}
+
+	function showPricing() {
+		goto(resolve('/pricing'));
+	}
 
 	async function refreshAccessStatus() {
 		if (!user?.id) {
 			subscriptionStatus = null;
 			return;
 		}
-		getSubscriptionStatus(user.id).then((s) => {
-			subscriptionStatus = s;
-		});
+		subscriptionStatus = await getSubscriptionStatus(user.id);
 	}
 
+	function openFeedback() {
+		goto(resolve('/feedback'));
+	}
+
+	function openSettings() {
+		goto(resolve('/settings'));
+	}
+
+	setStudioContext({
+		get user() {
+			return user;
+		},
+		get session() {
+			return session;
+		},
+		get subscriptionStatus() {
+			return subscriptionStatus;
+		},
+		get palette() {
+			return effectivePalette;
+		},
+		get isMobile() {
+			return isMobile;
+		},
+		get subscriptionBootstrapComplete() {
+			return subscriptionBootstrapComplete;
+		},
+		requestLogin: () => {
+			showLoginModal = true;
+		},
+		showPricing,
+		showThankYou: () => {
+			showThankYouDialog = true;
+		},
+		goHome: () => goto(resolve('/')),
+		savePalette: handleSavePalette
+	});
+
 	// Fetch subscription status when user changes
+	let subscriptionFetchUserId: string | null = null;
 	$effect(() => {
 		const u = user;
 		if (!u?.id) {
 			subscriptionStatus = null;
+			subscriptionBootstrapComplete = true;
+			subscriptionFetchUserId = null;
 			return;
 		}
+		if (u.id === subscriptionFetchUserId) return;
+		subscriptionFetchUserId = u.id;
+		subscriptionBootstrapComplete = false;
 		getSubscriptionStatus(u.id).then((s) => {
+			if (subscriptionFetchUserId !== u.id) return;
 			subscriptionStatus = s;
+			subscriptionBootstrapComplete = true;
 		});
 	});
 
-	// Sync free-trial state with the current account. Server-side ledger means
-	// signing out clears local credits and signing back in restores them.
+	// Sync free-trial state with the current account.
 	$effect(() => {
 		const u = user;
 		void loadFreeTrialForUser(u?.id ?? null);
+	});
+
+	// Platform + per-user export counters for home / stats UI.
+	$effect(() => {
+		const u = user;
+		void loadExportStats(u?.id ?? null);
 	});
 
 	// Fetch user palette when user changes
@@ -410,79 +241,6 @@
 			userPalette = p;
 		});
 	});
-
-	const effectivePalette = $derived(getEffectivePalette(user, userPalette));
-
-	// ── Handlers ────────────────────────────────────────────────────────────
-	function navigateTo(view: ViewName) {
-		if (!isViewAccessible(view)) return;
-		currentView = view;
-	}
-
-	function handleStyleSelect(
-		style:
-			| 'textOutline'
-			| 'initial'
-			| 'flower'
-			| 'basicName'
-			| 'idNameTag'
-			| 'idNameTagV2'
-			| 'customSvg'
-			| 'charm'
-			| 'keycap'
-			| 'keycapSet'
-			| 'whistle'
-			| 'whistleV2'
-			| 'whistleBagTag'
-			| 'stanleyTopper'
-			| 'strawTopper'
-			| 'pencilTopper'
-			| 'dogtag'
-			| 'bumpyText'
-			| 'bowKeychain'
-			| 'namePuzzle'
-			| 'engraveNamePlate'
-			| 'cakeTopper'
-			| 'canvasStudio'
-			| 'plateBadge'
-			| 'articulatedKeychain'
-			| 'spotifyKeychain'
-	) {
-		if (!isViewAccessible(style)) {
-			if (isSubscriberOnlyDesigner(style) && !hasPaidAccess(user, subscriptionStatus)) {
-				if (!user) showLoginModal = true;
-				else showPricing();
-			}
-			return;
-		}
-		posthog.capture('designer_selected', { designer: style });
-		navigateTo(style);
-	}
-
-	function handleBack() {
-		navigateTo('home');
-	}
-
-	function openFeedback() {
-		currentView = 'feedback';
-	}
-
-	function openSettings() {
-		currentView = 'settings';
-	}
-
-	async function handleSavePalette(colors: PaletteColor[]) {
-		if (!user?.id) return { success: false, error: 'Not signed in' };
-		const result = await saveUserPalette(user.id, colors);
-		if (result.success) {
-			userPalette = colors;
-		}
-		return result;
-	}
-
-	function showPricing() {
-		goto(resolve('/pricing'));
-	}
 
 	async function handleSignOut() {
 		const userId = user?.id ?? null;
@@ -606,9 +364,43 @@
 		return () => window.clearTimeout(id);
 	});
 
+	function isSupabaseAuthHash(): boolean {
+		if (typeof window === 'undefined') return false;
+		const hash = (window.location.hash || '').replace(/^#/, '');
+		return (
+			hash.includes('access_token=') || hash.includes('refresh_token=') || hash.includes('error=')
+		);
+	}
+
+	function redirectLegacyHashRoute() {
+		if (typeof window === 'undefined' || isSupabaseAuthHash()) return;
+		const hash = (window.location.hash || '').replace(/^#/, '').trim();
+		if (!hash || hash === 'home') return;
+		if (hash === 'feedback') {
+			goto(resolve('/feedback'), { replaceState: true });
+			window.history.replaceState({}, '', window.location.pathname);
+			return;
+		}
+		if (hash === 'settings') {
+			goto(resolve('/settings'), { replaceState: true });
+			window.history.replaceState({}, '', window.location.pathname);
+			return;
+		}
+		if (hash === 'contact') {
+			goto(resolve('/contact'), { replaceState: true });
+			window.history.replaceState({}, '', window.location.pathname);
+			return;
+		}
+		if (isDesignerId(hash)) {
+			goto(`/${hash}` as `/${typeof hash}`, { replaceState: true });
+			window.history.replaceState({}, '', window.location.pathname);
+		}
+	}
+
 	// ── Lifecycle ───────────────────────────────────────────────────────────
 	onMount(() => {
 		preloadBrowserFingerprint();
+		redirectLegacyHashRoute();
 
 		// Mobile detection: show DesktopRequiredView when opening a designer on small screens
 		const mq = window.matchMedia('(max-width: 768px)');
@@ -616,14 +408,6 @@
 		mq.addEventListener('change', (e) => {
 			isMobile = e.matches;
 		});
-
-		// URL hash -> view (back/forward or direct link)
-		function syncViewFromHash() {
-			const view = getViewFromUrl();
-			if (view != null) currentView = view;
-		}
-		window.addEventListener('hashchange', syncViewFromHash);
-		hashCleanup = () => window.removeEventListener('hashchange', syncViewFromHash);
 
 		// Refresh license status when tab becomes visible (ensures expired licenses are caught)
 		let lastKnownDayForRatingPrompt = getLocalDateString();
@@ -676,7 +460,7 @@
 				email: user?.email,
 				userId: user?.id,
 				subscriptionStatus,
-				view: currentView
+				view: page.url.pathname
 			});
 		}, 1500);
 
@@ -685,6 +469,7 @@
 			const initialSession = await getSession();
 			session = initialSession;
 			user = initialSession?.user ?? null;
+			sessionBootstrapComplete = true;
 			if (!user) {
 				// Guest users see the support dialog once ever (not while welcome is open)
 				const hasSeenSupport = localStorage.getItem(STORAGE_KEY_SHARE_SHOWN);
@@ -698,11 +483,9 @@
 				if (event === 'SIGNED_IN' && user) {
 					posthog.identify(user.id, { email: user.email });
 					showLoginModal = false;
-					// Clean OAuth callback hash from URL after Supabase has processed it
 					if (isSupabaseAuthHash()) {
-						const h = activeView === 'home' ? '' : activeView;
 						setTimeout(() => {
-							window.location.hash = h;
+							window.history.replaceState({}, '', window.location.pathname + window.location.search);
 						}, 0);
 					}
 				}
@@ -713,7 +496,6 @@
 
 	onDestroy(() => {
 		if (authCleanup) authCleanup();
-		if (hashCleanup) hashCleanup();
 		if (visibilityCleanup) visibilityCleanup();
 		if (visitNotifyTimer != null) window.clearTimeout(visitNotifyTimer);
 	});
@@ -1259,316 +1041,12 @@
 	</div>
 
 	<!-- Main content -->
-	<div>
-		<!-- Router -->
-		{#if activeView === 'home'}
-			<HomeScreen
-				onSelect={handleStyleSelect}
-				{user}
-				{subscriptionStatus}
-				onShowPricing={showPricing}
-				onRequestLogin={() => (showLoginModal = true)}
-			/>
-		{:else if isMobile && DESIGNER_VIEWS.has(activeView)}
-			<DesktopRequiredView onBack={handleBack} />
-		{:else if activeView === 'textOutline'}
-			<TextOutlineDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'initial'}
-			<InitialDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'flower'}
-			<FlowerDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'basicName'}
-			<BasicNameDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'idNameTag'}
-			<IdNameTagDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'idNameTagV2'}
-			<IdNameTagV2Designer
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'customSvg'}
-			<CustomSVGDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'charm'}
-			<CharmDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'keycap'}
-			<KeycapDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'keycapSet'}
-			<KeycapSetMakerDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'whistle'}
-			<WhistleDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'whistleV2'}
-			<WhistleV2Designer
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'whistleBagTag'}
-			<WhistleBagTagDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'articulatedKeychain'}
-			<ArticulatedKeychainDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'spotifyKeychain'}
-			<SpotifyKeychainDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'stanleyTopper'}
-			<StanleyTopperDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'strawTopper'}
-			<StrawTopperDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'pencilTopper'}
-			<PencilTopperDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'dogtag'}
-			<DogTagDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'bumpyText'}
-			<BumpyTextDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'bowKeychain'}
-			<BowKeychainDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'namePuzzle'}
-			<NamePuzzleDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'engraveNamePlate'}
-			<EngraveNamePlateDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'cakeTopper'}
-			<CakeTopperDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'canvasStudio'}
-			<CanvasStudioDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'plateBadge'}
-			<PlateBadgeDesigner
-				{user}
-				{session}
-				{subscriptionStatus}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onShowThankYou={() => (showThankYouDialog = true)}
-				onShowPricing={showPricing}
-			/>
-		{:else if activeView === 'feedback'}
-			<FeedbackPage {user} onBack={handleBack} onRequestLogin={() => (showLoginModal = true)} />
-		{:else if activeView === 'contact'}
-			<ContactPage {user} onBack={handleBack} />
-		{:else if activeView === 'settings'}
-			<SettingsPage
-				{user}
-				palette={effectivePalette}
-				onBack={handleBack}
-				onRequestLogin={() => (showLoginModal = true)}
-				onSavePalette={handleSavePalette}
-			/>
+	<div class="relative">
+		{#if designerNavLoading}
+			<div class="fixed inset-0 z-50">
+				<DesignerLoadingScreen />
+			</div>
 		{/if}
+		{@render children()}
 	</div>
 {/if}

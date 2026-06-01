@@ -1,4 +1,5 @@
 import type { SubscriptionStatus } from './subscription';
+import { formatSubscriptionStatusForNotify } from './notifyFormat';
 
 /**
  * Sentinel set in `sessionStorage` after a visit notification has fired so we
@@ -6,18 +7,6 @@ import type { SubscriptionStatus } from './subscription';
  * the same session).
  */
 const SESSION_KEY = 'pixnprints-visit-notified';
-
-function formatSubscriptionStatus(s: SubscriptionStatus | null | undefined): string | undefined {
-	if (!s) return undefined;
-	if (!s.isActive) return s.licenseExpired ? 'license expired' : 'inactive';
-	if (s.source === 'subscription') {
-		const trial = s.onTrial ? ' [on trial]' : '';
-		const pending = s.cancelledPendingEnd ? ' [cancelled, access until period end]' : '';
-		return `subscription (${s.plan ?? '—'})${trial}${pending}`;
-	}
-	if (s.source === 'license') return 'license';
-	return 'active';
-}
 
 export interface VisitNotifyPayload {
 	email?: string | null;
@@ -48,7 +37,7 @@ export function notifyVisit(payload: VisitNotifyPayload): void {
 	const body = {
 		email: payload.email ?? undefined,
 		userId: payload.userId ?? undefined,
-		subscriptionStatus: formatSubscriptionStatus(payload.subscriptionStatus),
+		subscriptionStatus: formatSubscriptionStatusForNotify(payload.subscriptionStatus),
 		referrer,
 		view: payload.view
 	};

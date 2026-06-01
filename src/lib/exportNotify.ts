@@ -1,11 +1,16 @@
+import { resolveDesignerIdForExport } from './designerExportNames';
+import { recordExport } from './exportStats.svelte';
 import { freeTrial } from './freeTrial.svelte';
 import type { SubscriptionStatus } from './subscription';
+import type { DesignerId } from './designers/ids';
 
 export interface ExportNotifyPayload {
 	email: string | undefined;
 	name: string | undefined;
 	subscriptionStatus: SubscriptionStatus | null;
 	designName: string;
+	/** Route designer id (e.g. `basicName`). Resolved from designName when omitted. */
+	designerId?: DesignerId | null;
 	format: 'stl' | '3mf' | 'bambu_studio';
 }
 
@@ -71,6 +76,8 @@ export function notifyExportEvent(payload: ExportNotifyPayload): void {
 		designName,
 		format
 	};
+
+	recordExport(resolveDesignerIdForExport(designName, payload.designerId));
 
 	fetch('/api/telegram/export-notify', {
 		method: 'POST',
