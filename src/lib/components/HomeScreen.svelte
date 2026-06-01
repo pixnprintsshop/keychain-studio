@@ -115,7 +115,7 @@
 	const UPDATE_NOTES: Partial<Record<StyleName, string>> = {
 		basicName: 'Now supports multi-line text — each line has its own font, size, and depth.',
 		textOutline:
-			'Optional text-outline layer — add a second colored outline between your letters and the base outline.'
+			'Color preset gallery — import starters or save your own combos (base, text outline, and text). Optional text-outline layer between letters and the base outline.'
 	};
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);

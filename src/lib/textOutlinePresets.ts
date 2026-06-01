@@ -1,0 +1,304 @@
+import { supabase } from './supabase';
+
+export interface TextOutlineColorPreset {
+	id: string;
+	label: string;
+	/** Base outline color */
+	outlineColor: string;
+	/** Main letter color */
+	textColor: string;
+	/** Optional middle text-outline layer */
+	textOutlineColor: string;
+	textOutlineEnabled?: boolean;
+}
+
+export const TEXT_OUTLINE_CUSTOM_PRESETS_LOCAL_KEY = 'keychain-text-outline-custom-presets';
+
+/** Starter templates (Base · Text outline · Text). */
+export const DEFAULT_TEXT_OUTLINE_COLOR_PRESETS: Omit<TextOutlineColorPreset, 'id'>[] = [
+	{
+		label: 'Classic Pink',
+		outlineColor: '#f0a8a8',
+		textOutlineColor: '#ffffff',
+		textColor: '#2d2d2d',
+		textOutlineEnabled: true
+	},
+	{
+		label: 'Ocean',
+		outlineColor: '#5eb3e4',
+		textOutlineColor: '#1e3a5f',
+		textColor: '#ffffff',
+		textOutlineEnabled: true
+	},
+	{
+		label: 'Forest',
+		outlineColor: '#1b4332',
+		textOutlineColor: '#95d44a',
+		textColor: '#ffffff',
+		textOutlineEnabled: true
+	},
+	{
+		label: 'Sunset',
+		outlineColor: '#f97316',
+		textOutlineColor: '#facc15',
+		textColor: '#7c2d12',
+		textOutlineEnabled: true
+	},
+	{
+		label: 'Lavender',
+		outlineColor: '#9b87c4',
+		textOutlineColor: '#ede9fe',
+		textColor: '#4c1d95',
+		textOutlineEnabled: true
+	},
+	{
+		label: 'Rose',
+		outlineColor: '#be123c',
+		textOutlineColor: '#fecdd3',
+		textColor: '#451a03',
+		textOutlineEnabled: true
+	},
+	{
+		label: 'Mint',
+		outlineColor: '#5eead4',
+		textOutlineColor: '#ffffff',
+		textColor: '#0f766e',
+		textOutlineEnabled: true
+	},
+	{
+		label: 'Berry',
+		outlineColor: '#c084fc',
+		textOutlineColor: '#f3e8ff',
+		textColor: '#6b21a8',
+		textOutlineEnabled: true
+	},
+	{
+		label: 'Citrus',
+		outlineColor: '#fbbf24',
+		textOutlineColor: '#fef9c3',
+		textColor: '#a16207',
+		textOutlineEnabled: true
+	},
+	{
+		label: 'Noir',
+		outlineColor: '#737373',
+		textOutlineColor: '#e5e5e5',
+		textColor: '#171717',
+		textOutlineEnabled: true
+	},
+	{
+		label: 'Gold',
+		outlineColor: '#f59e0b',
+		textOutlineColor: '#fde68a',
+		textColor: '#78350f',
+		textOutlineEnabled: true
+	},
+	{
+		label: 'Sky',
+		outlineColor: '#38bdf8',
+		textOutlineColor: '#e0f2fe',
+		textColor: '#075985',
+		textOutlineEnabled: true
+	},
+	{
+		label: 'Candy',
+		outlineColor: '#f472b6',
+		textOutlineColor: '#fce7f3',
+		textColor: '#9d174d',
+		textOutlineEnabled: true
+	},
+	{
+		label: 'Earth',
+		outlineColor: '#a16207',
+		textOutlineColor: '#d6d3d1',
+		textColor: '#44403c',
+		textOutlineEnabled: true
+	},
+	{
+		label: 'Neon',
+		outlineColor: '#22d3ee',
+		textOutlineColor: '#f0abfc',
+		textColor: '#18181b',
+		textOutlineEnabled: true
+	},
+	{
+		label: 'Patriotic',
+		outlineColor: '#dc2626',
+		textOutlineColor: '#ffffff',
+		textColor: '#1d4ed8',
+		textOutlineEnabled: true
+	},
+	{
+		label: 'Plum',
+		outlineColor: '#a855f7',
+		textOutlineColor: '#ede9fe',
+		textColor: '#581c87',
+		textOutlineEnabled: true
+	},
+	{
+		label: 'Coral',
+		outlineColor: '#fb7185',
+		textOutlineColor: '#fff1f2',
+		textColor: '#9f1239',
+		textOutlineEnabled: true
+	}
+];
+
+export function cloneDefaultTextOutlinePresetsAsCustom(
+	snapColor: (hex: string, fallback: string) => string
+): TextOutlineColorPreset[] {
+	return DEFAULT_TEXT_OUTLINE_COLOR_PRESETS.map((template) => ({
+		id: `custom-${crypto.randomUUID()}`,
+		label: template.label,
+		outlineColor: snapColor(template.outlineColor, template.outlineColor),
+		textOutlineColor: snapColor(template.textOutlineColor, template.textOutlineColor),
+		textColor: snapColor(template.textColor, template.textColor),
+		textOutlineEnabled: template.textOutlineEnabled ?? true
+	}));
+}
+
+export function normalizeTextOutlineHexColor(value: string, fallback: string): string {
+	const c = value.trim();
+	if (/^#[0-9a-fA-F]{6}$/.test(c)) return c.toLowerCase();
+	if (/^[0-9a-fA-F]{6}$/.test(c)) return `#${c.toLowerCase()}`;
+	return fallback;
+}
+
+export function parseTextOutlineColorPreset(raw: unknown): TextOutlineColorPreset | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const p = raw as Partial<TextOutlineColorPreset>;
+	if (typeof p.id !== 'string' || !p.id.startsWith('custom-')) return null;
+	if (typeof p.label !== 'string' || !p.label.trim()) return null;
+	if (
+		typeof p.outlineColor !== 'string' ||
+		typeof p.textColor !== 'string' ||
+		typeof p.textOutlineColor !== 'string'
+	) {
+		return null;
+	}
+	return {
+		id: p.id,
+		label: p.label.trim(),
+		outlineColor: normalizeTextOutlineHexColor(p.outlineColor, '#f0a8a8'),
+		textColor: normalizeTextOutlineHexColor(p.textColor, '#2d2d2d'),
+		textOutlineColor: normalizeTextOutlineHexColor(p.textOutlineColor, '#ffffff'),
+		textOutlineEnabled:
+			typeof p.textOutlineEnabled === 'boolean' ? p.textOutlineEnabled : undefined
+	};
+}
+
+export function isCustomTextOutlinePresetId(id: string): boolean {
+	return id.startsWith('custom-');
+}
+
+export function loadLocalTextOutlinePresets(): TextOutlineColorPreset[] {
+	try {
+		const stored = localStorage.getItem(TEXT_OUTLINE_CUSTOM_PRESETS_LOCAL_KEY);
+		if (!stored) return [];
+		const parsed = JSON.parse(stored) as unknown;
+		if (!Array.isArray(parsed)) return [];
+		return parsed
+			.map(parseTextOutlineColorPreset)
+			.filter((p): p is TextOutlineColorPreset => p !== null);
+	} catch {
+		return [];
+	}
+}
+
+export function saveLocalTextOutlinePresets(presets: TextOutlineColorPreset[]): void {
+	try {
+		localStorage.setItem(TEXT_OUTLINE_CUSTOM_PRESETS_LOCAL_KEY, JSON.stringify(presets));
+	} catch {
+		/* localStorage may be unavailable */
+	}
+}
+
+export function clearLocalTextOutlinePresets(): void {
+	try {
+		localStorage.removeItem(TEXT_OUTLINE_CUSTOM_PRESETS_LOCAL_KEY);
+	} catch {
+		/* ignore */
+	}
+}
+
+export async function fetchUserTextOutlinePresets(
+	userId: string
+): Promise<TextOutlineColorPreset[] | null> {
+	const { data, error } = await supabase
+		.from('user_text_outline_presets')
+		.select('presets')
+		.eq('user_id', userId)
+		.maybeSingle();
+
+	if (error) {
+		console.error('Failed to fetch text outline presets:', error);
+		return null;
+	}
+
+	if (!data?.presets || !Array.isArray(data.presets)) {
+		return [];
+	}
+
+	return data.presets
+		.map(parseTextOutlineColorPreset)
+		.filter((p): p is TextOutlineColorPreset => p !== null);
+}
+
+export async function saveUserTextOutlinePresets(
+	userId: string,
+	presets: TextOutlineColorPreset[]
+): Promise<{ success: true } | { success: false; error: string }> {
+	const { error } = await supabase.from('user_text_outline_presets').upsert(
+		{
+			user_id: userId,
+			presets,
+			updated_at: new Date().toISOString()
+		},
+		{ onConflict: 'user_id' }
+	);
+
+	if (error) {
+		console.error('Failed to save text outline presets:', error);
+		return { success: false, error: error.message };
+	}
+	return { success: true };
+}
+
+export async function loadUserTextOutlinePresets(userId: string): Promise<TextOutlineColorPreset[]> {
+	const remote = await fetchUserTextOutlinePresets(userId);
+	if (remote === null) {
+		return loadLocalTextOutlinePresets();
+	}
+
+	if (remote.length > 0) {
+		return remote;
+	}
+
+	const local = loadLocalTextOutlinePresets();
+	if (local.length === 0) {
+		return [];
+	}
+
+	const saved = await saveUserTextOutlinePresets(userId, local);
+	if (saved.success) {
+		clearLocalTextOutlinePresets();
+		return local;
+	}
+
+	return local;
+}
+
+export async function persistTextOutlineCustomPresets(
+	userId: string | null | undefined,
+	presets: TextOutlineColorPreset[]
+): Promise<{ success: true } | { success: false; error: string }> {
+	if (userId) {
+		const result = await saveUserTextOutlinePresets(userId, presets);
+		if (result.success) {
+			saveLocalTextOutlinePresets(presets);
+		}
+		return result;
+	}
+	saveLocalTextOutlinePresets(presets);
+	return { success: true };
+}

@@ -32,9 +32,18 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Slider } from '$lib/components/ui/slider';
 	import ColorPalettePicker from './ColorPalettePicker.svelte';
-	import type { PaletteColor } from '$lib/colorPalette';
+	import { snapColorToPalette, type PaletteColor } from '$lib/colorPalette';
 	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
 	import { tickThenYieldToPaint } from '$lib/yield-to-paint';
+	import * as Dialog from '$lib/components/ui/dialog';
+	import {
+		cloneDefaultTextOutlinePresetsAsCustom,
+		DEFAULT_TEXT_OUTLINE_COLOR_PRESETS,
+		isCustomTextOutlinePresetId,
+		loadUserTextOutlinePresets,
+		persistTextOutlineCustomPresets,
+		type TextOutlineColorPreset
+	} from '$lib/textOutlinePresets';
 
 	// ── Props ───────────────────────────────────────────────────────────────
 	interface Props {
@@ -519,6 +528,236 @@
 	let keychainItems = $state<KeychainItem[]>(loadKeychainItems());
 	let selectedItemId = $state<string | null>(null);
 	let activeFirstLineInput = $state<HTMLInputElement | null>(null);
+
+	let activePresetId = $state<string | null>(null);
+	let customPresets = $state<TextOutlineColorPreset[]>([]);
+	let presetSyncError = $state<string | null>(null);
+	let customPresetsLoading = $state(false);
+	let importPresetsLoading = $state(false);
+	const galleryPresets = $derived(customPresets);
+	const hasGalleryPresets = $derived(galleryPresets.length > 0);
+
+	type PresetEditorMode = 'create' | 'edit';
+	let presetEditorOpen = $state(false);
+	let presetEditorMode = $state<PresetEditorMode>('create');
+	let presetEditorId = $state<string | null>(null);
+	let presetEditorLabel = $state('');
+	let presetEditorOutline = $state('#f0a8a8');
+	let presetEditorTextOutline = $state('#ffffff');
+	let presetEditorText = $state('#2d2d2d');
+	let presetEditorTextOutlineEnabled = $state(true);
+
+	function snapPresetColors(outline: string, textOutline: string, text: string) {
+		return {
+			outline: snapColorToPalette(outline, palette, outlineColor),
+			textOutline: snapColorToPalette(textOutline, palette, '#ffffff'),
+			text: snapColorToPalette(text, palette, textColor)
+		};
+	}
+
+	function presetMatchSource() {
+		const s = editableSettings;
+		const lineText = activeEditableItem?.lines[0]?.textColor ?? s.textColor;
+		return {
+			outlineColor: s.outlineColor,
+			textColor: lineText,
+			textOutlineColor: s.textOutlineColor,
+			textOutlineEnabled: s.textOutlineEnabled
+		};
+	}
+
+	function findMatchingPresetId(presets: TextOutlineColorPreset[]): string | null {
+		const current = presetMatchSource();
+		for (const preset of presets) {
+			if (
+				preset.outlineColor === current.outlineColor &&
+				preset.textColor === current.textColor &&
+				preset.textOutlineColor === current.textOutlineColor &&
+				(preset.textOutlineEnabled ?? true) === current.textOutlineEnabled
+			) {
+				return preset.id;
+			}
+		}
+		return null;
+	}
+
+	function applyColorPreset(preset: TextOutlineColorPreset) {
+		const snapped = snapPresetColors(
+			preset.outlineColor,
+			preset.textOutlineColor,
+			preset.textColor
+		);
+		const enabled = preset.textOutlineEnabled ?? true;
+		const patch: KeychainItemOverrides = {
+			outlineColor: snapped.outline,
+			textColor: snapped.text,
+			textOutlineColor: snapped.textOutline,
+			textOutlineEnabled: enabled
+		};
+
+		keychainItems = keychainItems.map((item) => ({
+			...item,
+			settings: {
+				...item.settings,
+				...patch,
+				text: getItemText(item)
+			},
+			lines: item.lines.map((line) => ({ ...line, textColor: snapped.text }))
+		}));
+		outlineColor = snapped.outline;
+		textColor = snapped.text;
+		activePresetId = findMatchingPresetId(galleryPresets) ?? preset.id;
+		scheduleRebuildMeshes(true);
+	}
+
+	function setPresetEditorColors(outline: string, textOutline: string, text: string) {
+		const snapped = snapPresetColors(outline, textOutline, text);
+		presetEditorOutline = snapped.outline;
+		presetEditorTextOutline = snapped.textOutline;
+		presetEditorText = snapped.text;
+	}
+
+	function openCreatePresetEditor() {
+		const s = editableSettings;
+		const lineText = activeEditableItem?.lines[0]?.textColor ?? s.textColor;
+		presetEditorMode = 'create';
+		presetEditorId = null;
+		presetEditorLabel = 'My preset';
+		presetEditorTextOutlineEnabled = s.textOutlineEnabled;
+		setPresetEditorColors(s.outlineColor, s.textOutlineColor, lineText);
+		presetEditorOpen = true;
+	}
+
+	async function syncCustomPresetsFromAccount() {
+		const userId = user?.id;
+		if (!userId) {
+			customPresets = [];
+			activePresetId = null;
+			closePresetEditor();
+			presetSyncError = null;
+			return;
+		}
+		customPresetsLoading = true;
+		presetSyncError = null;
+		try {
+			customPresets = await loadUserTextOutlinePresets(userId);
+			activePresetId = findMatchingPresetId(galleryPresets);
+		} catch (e) {
+			presetSyncError = e instanceof Error ? e.message : 'Failed to load presets';
+		} finally {
+			customPresetsLoading = false;
+		}
+	}
+
+	async function persistCustomPresets(presets: TextOutlineColorPreset[]) {
+		if (!user?.id) return;
+		const result = await persistTextOutlineCustomPresets(user.id, presets);
+		if (!result.success) {
+			presetSyncError = result.error;
+			return;
+		}
+		presetSyncError = null;
+	}
+
+	function openEditPresetEditor(preset: TextOutlineColorPreset) {
+		presetEditorMode = 'edit';
+		presetEditorId = preset.id;
+		presetEditorLabel = preset.label;
+		presetEditorTextOutlineEnabled = preset.textOutlineEnabled ?? true;
+		setPresetEditorColors(preset.outlineColor, preset.textOutlineColor, preset.textColor);
+		presetEditorOpen = true;
+	}
+
+	function closePresetEditor() {
+		presetEditorOpen = false;
+		presetEditorId = null;
+	}
+
+	function onPresetEditorOpenChange(open: boolean) {
+		if (!open) closePresetEditor();
+	}
+
+	async function commitPresetEditor() {
+		const label = presetEditorLabel.trim() || 'My preset';
+		const snapped = snapPresetColors(
+			presetEditorOutline,
+			presetEditorTextOutline,
+			presetEditorText
+		);
+		const outline = snapped.outline;
+		const textOutline = snapped.textOutline;
+		const text = snapped.text;
+		const enabled = presetEditorTextOutlineEnabled;
+
+		if (presetEditorMode === 'edit' && presetEditorId) {
+			customPresets = customPresets.map((p) =>
+				p.id === presetEditorId
+					? {
+							id: p.id,
+							label,
+							outlineColor: outline,
+							textOutlineColor: textOutline,
+							textColor: text,
+							textOutlineEnabled: enabled
+						}
+					: p
+			);
+			activePresetId = presetEditorId;
+		} else {
+			const id = `custom-${crypto.randomUUID()}`;
+			customPresets = [
+				...customPresets,
+				{
+					id,
+					label,
+					outlineColor: outline,
+					textOutlineColor: textOutline,
+					textColor: text,
+					textOutlineEnabled: enabled
+				}
+			];
+			activePresetId = id;
+		}
+
+		applyColorPreset({
+			id: activePresetId!,
+			label,
+			outlineColor: outline,
+			textOutlineColor: textOutline,
+			textColor: text,
+			textOutlineEnabled: enabled
+		});
+		await persistCustomPresets(customPresets);
+		closePresetEditor();
+	}
+
+	async function deleteCustomPreset(id: string) {
+		if (!isCustomTextOutlinePresetId(id)) return;
+		customPresets = customPresets.filter((p) => p.id !== id);
+		await persistCustomPresets(customPresets);
+		if (activePresetId === id) activePresetId = findMatchingPresetId(galleryPresets);
+		closePresetEditor();
+	}
+
+	async function importDefaultPresets() {
+		if (!user?.id) {
+			onRequestLogin();
+			return;
+		}
+		importPresetsLoading = true;
+		presetSyncError = null;
+		try {
+			customPresets = cloneDefaultTextOutlinePresetsAsCustom((hex, fallback) =>
+				snapColorToPalette(hex, palette, fallback)
+			);
+			await persistCustomPresets(customPresets);
+			activePresetId = null;
+		} catch (e) {
+			presetSyncError = e instanceof Error ? e.message : 'Failed to import presets';
+		} finally {
+			importPresetsLoading = false;
+		}
+	}
 
 	const sharedKeychainSettings = $derived<KeychainResolvedSettings>({
 		text: DEFAULT_TEXT,
@@ -1806,6 +2045,20 @@
 		return () => clearScheduledMeshRebuild();
 	});
 
+	$effect(() => {
+		const userId = user?.id ?? null;
+		void syncCustomPresetsFromAccount();
+	});
+
+	$effect(() => {
+		void editableSettings.outlineColor;
+		void editableSettings.textColor;
+		void editableSettings.textOutlineColor;
+		void editableSettings.textOutlineEnabled;
+		void activeEditableItem?.lines;
+		activePresetId = findMatchingPresetId(galleryPresets);
+	});
+
 	onDestroy(() => {
 		clearScheduledMeshRebuild();
 		if (persistTimeout !== null) {
@@ -2340,6 +2593,166 @@
 							Select a keychain to edit its lines and object settings.
 						</div>
 					{/if}
+
+					<div class="grid gap-2 rounded-2xl border border-violet-200/80 bg-violet-50/50 p-3">
+						<p class="text-xs font-semibold tracking-tight text-slate-800">Preset gallery</p>
+
+						{#if user}
+							<p class="text-[11px] text-slate-500">
+								{#if hasGalleryPresets}
+									Click a preset to apply colors to all keychains. Edit or delete any preset. Saved
+									to your account.
+								{:else}
+									No presets yet. Import the starter set or create your own.
+								{/if}
+							</p>
+							{#if presetSyncError}
+								<p class="text-[11px] text-red-600">{presetSyncError}</p>
+							{/if}
+							{#if customPresetsLoading}
+								<p class="text-[11px] text-slate-500">Loading your presets…</p>
+							{/if}
+
+							<div class="flex items-start justify-between gap-2">
+								<div class="min-w-0 flex-1"></div>
+								<div class="flex shrink-0 flex-col gap-1">
+									{#if !hasGalleryPresets}
+										<Button
+											type="button"
+											size="sm"
+											class="h-7 px-2 text-[11px]"
+											disabled={importPresetsLoading}
+											onclick={() => void importDefaultPresets()}
+										>
+											{importPresetsLoading ? 'Importing…' : 'Import default presets'}
+										</Button>
+									{/if}
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										class="h-7 px-2 text-[11px]"
+										onclick={openCreatePresetEditor}
+									>
+										+ New
+									</Button>
+								</div>
+							</div>
+
+							{#if !hasGalleryPresets && !customPresetsLoading}
+								<p
+									class="rounded-lg border border-dashed border-violet-200 bg-white/60 px-3 py-4 text-center text-[11px] text-slate-600"
+								>
+									Import default presets to get {DEFAULT_TEXT_OUTLINE_COLOR_PRESETS.length} editable
+									color combos, or use + New to add one.
+								</p>
+							{/if}
+
+							<div class="grid grid-cols-3 gap-2">
+								{#each galleryPresets as preset (preset.id)}
+									<div class="relative">
+										<button
+											type="button"
+											class={[
+												'w-full overflow-hidden rounded-lg border bg-white pr-6 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60',
+												activePresetId === preset.id
+													? 'border-indigo-400 ring-2 ring-indigo-400/30'
+													: 'border-slate-200/90 hover:border-slate-300'
+											].join(' ')}
+											aria-pressed={activePresetId === preset.id}
+											aria-label={`Apply ${preset.label} colors`}
+											onclick={() => applyColorPreset(preset)}
+										>
+											<div class="flex h-11 w-full">
+												<span
+													class="min-w-0 flex-1"
+													style:background-color={preset.outlineColor}
+													aria-hidden="true"
+												></span>
+												<span
+													class="min-w-0 flex-1 border-x border-white/20"
+													style:background-color={preset.textOutlineColor}
+													aria-hidden="true"
+												></span>
+												<span
+													class="min-w-0 flex-1"
+													style:background-color={preset.textColor}
+													aria-hidden="true"
+												></span>
+											</div>
+											<span
+												class="block border-t border-slate-100 px-1 py-1.5 text-center text-[10px] font-medium leading-tight text-slate-700"
+											>
+												{preset.label}
+											</span>
+										</button>
+										<button
+											type="button"
+											class="absolute right-0.5 top-0.5 rounded bg-white/90 px-1 py-0.5 text-[9px] font-medium text-slate-600 shadow-sm hover:bg-white hover:text-indigo-700"
+											aria-label={`Edit ${preset.label}`}
+											onclick={(e) => {
+												e.stopPropagation();
+												openEditPresetEditor(preset);
+											}}
+										>
+											Edit
+										</button>
+									</div>
+								{/each}
+							</div>
+						{:else}
+							<p class="text-[11px] leading-relaxed text-slate-600">
+								Save and reuse color combinations. Import
+								{DEFAULT_TEXT_OUTLINE_COLOR_PRESETS.length} starter presets, create your own, and
+								sync them to your account.
+							</p>
+							<Button type="button" size="sm" class="w-full" onclick={onRequestLogin}>
+								Sign in to use presets
+							</Button>
+							<p class="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+								Starter presets (preview)
+							</p>
+							<div class="grid grid-cols-3 gap-2 opacity-90" aria-hidden="true">
+								{#each DEFAULT_TEXT_OUTLINE_COLOR_PRESETS as template (template.label)}
+									<div
+										class="overflow-hidden rounded-lg border border-slate-200/90 bg-white shadow-sm"
+									>
+										<div class="flex h-11 w-full">
+											<span
+												class="min-w-0 flex-1"
+												style:background-color={snapColorToPalette(
+													template.outlineColor,
+													palette,
+													template.outlineColor
+												)}
+											></span>
+											<span
+												class="min-w-0 flex-1 border-x border-white/20"
+												style:background-color={snapColorToPalette(
+													template.textOutlineColor,
+													palette,
+													template.textOutlineColor
+												)}
+											></span>
+											<span
+												class="min-w-0 flex-1"
+												style:background-color={snapColorToPalette(
+													template.textColor,
+													palette,
+													template.textColor
+												)}
+											></span>
+										</div>
+										<span
+											class="block border-t border-slate-100 px-1 py-1.5 text-center text-[10px] font-medium leading-tight text-slate-600"
+										>
+											{template.label}
+										</span>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
 				</div>
 			</div>
 		</aside>
@@ -2363,4 +2776,79 @@
 			</div>
 		</section>
 	</div>
+
+	{#if user}
+		<Dialog.Root bind:open={presetEditorOpen} onOpenChange={onPresetEditorOpenChange}>
+			<Dialog.Content class="max-w-md rounded-2xl border-slate-200 shadow-xl">
+				<Dialog.Header>
+					<Dialog.Title>
+						{presetEditorMode === 'edit' ? 'Edit preset' : 'New preset'}
+					</Dialog.Title>
+					<Dialog.Description class="text-sm text-slate-600">
+						{#if presetEditorMode === 'edit'}
+							Update this saved color combination.
+						{:else}
+							Save the current keychain colors as a reusable preset.
+						{/if}
+					</Dialog.Description>
+				</Dialog.Header>
+
+				<div class="grid gap-3 py-2">
+					<label class="grid gap-1.5">
+						<span class="text-xs font-medium text-slate-700">Name</span>
+						<input
+							type="text"
+							class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm outline-none ring-indigo-500/25 focus:border-indigo-400 focus:ring-2"
+							bind:value={presetEditorLabel}
+							maxlength={32}
+							placeholder="My preset"
+						/>
+					</label>
+					<label class="flex items-center gap-2 text-xs font-medium text-slate-700">
+						<input
+							type="checkbox"
+							class="h-4 w-4 accent-indigo-500"
+							bind:checked={presetEditorTextOutlineEnabled}
+						/>
+						Text outline layer enabled
+					</label>
+					<ColorPalettePicker
+						bind:value={presetEditorOutline}
+						{palette}
+						paletteOnly
+						label="Base outline"
+					/>
+					<ColorPalettePicker
+						bind:value={presetEditorTextOutline}
+						{palette}
+						paletteOnly
+						label="Text outline"
+					/>
+					<ColorPalettePicker
+						bind:value={presetEditorText}
+						{palette}
+						paletteOnly
+						label="Text"
+					/>
+				</div>
+
+				<Dialog.Footer class="flex flex-wrap items-center gap-2">
+					{#if presetEditorMode === 'edit' && presetEditorId}
+						<Button
+							type="button"
+							variant="outline"
+							class="text-red-600 hover:text-red-700"
+							onclick={() => void deleteCustomPreset(presetEditorId!)}
+						>
+							Delete
+						</Button>
+					{/if}
+					<div class="flex flex-wrap gap-2 sm:ml-auto">
+						<Button type="button" variant="outline" onclick={closePresetEditor}>Cancel</Button>
+						<Button type="button" onclick={() => void commitPresetEditor()}>Save preset</Button>
+					</div>
+				</Dialog.Footer>
+			</Dialog.Content>
+		</Dialog.Root>
+	{/if}
 </main>
