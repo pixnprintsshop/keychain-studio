@@ -171,7 +171,7 @@
 			? Math.min(
 					(segW * 0.72) / textH,
 					(segH * 0.72) / textW,
-					(LETTER_TARGET_HEIGHT_MM * textScale) / textW
+					(LETTER_TARGET_HEIGHT_MM * textScale) / textH
 				)
 			: Math.min(
 					(segW * 0.72) / textW,

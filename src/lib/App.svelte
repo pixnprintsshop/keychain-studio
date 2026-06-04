@@ -54,7 +54,6 @@
 	// ── Storage keys ────────────────────────────────────────────────────────
 	const STORAGE_KEY_WELCOME = 'designer-has-seen-welcome';
 	const STORAGE_KEY_SHARE_SHOWN = 'designer-share-dialog-shown';
-	const STORAGE_KEY_BAMBU_ANNOUNCEMENT = 'designer-has-seen-bambu-studio-announcement';
 	/** One-time share-for-credits promo for signed-in users without a subscription. */
 	const STORAGE_KEY_SHARE_CREDITS_PROMO_DISMISSED = 'designer-has-seen-share-credits-promo-dialog';
 	const SHARE_CREDITS_MESSENGER_URL = 'https://m.me/pixnprints.shop';
@@ -120,7 +119,6 @@
 	// ── Dialog state ────────────────────────────────────────────────────────
 	let showThankYouDialog = $state(false);
 	let showSupportShareDialog = $state(false);
-	let show3MFAnnouncementDialog = $state(false);
 	let showPromotionDialog = $state(false);
 	let canShowShareCreditsPromo = $state(false);
 	let showRatingPromptDialog = $state(false);
@@ -256,14 +254,6 @@
 	function closeWelcomeDialog() {
 		showWelcomeDialog = false;
 		localStorage.setItem(STORAGE_KEY_WELCOME, 'true');
-		if (!localStorage.getItem(STORAGE_KEY_BAMBU_ANNOUNCEMENT)) {
-			// show3MFAnnouncementDialog = true;
-		}
-	}
-
-	function close3MFAnnouncementDialog() {
-		show3MFAnnouncementDialog = false;
-		localStorage.setItem(STORAGE_KEY_BAMBU_ANNOUNCEMENT, 'true');
 	}
 
 	function closePromotionDialog() {
@@ -327,13 +317,13 @@
 		showRatingPromptDialog = false;
 	}
 
-	// Daily rating prompt until user submits (subscribed / licensed; after welcome & feature announcements)
+	// Daily rating prompt until user submits (subscribed / licensed; after welcome)
 	let ratingPromptFired = $state(false);
 	// Share-for-credits promo: free-trial users only (after subscription/license check resolves).
 	$effect(() => {
 		if (!canShowShareCreditsPromo) return;
 		if (!isFreeTrialOnlyUser()) return;
-		if (showWelcomeDialog || show3MFAnnouncementDialog || showPromotionDialog) return;
+		if (showWelcomeDialog || showPromotionDialog) return;
 		showPromotionDialog = true;
 		canShowShareCreditsPromo = false;
 		analytics.capture('share_credits_promo_shown', {
@@ -352,7 +342,7 @@
 		if (ratingPromptFired) return;
 		if (!user?.id) return;
 		if (!subscriptionStatus?.isActive || subscriptionStatus.licenseExpired) return;
-		if (showWelcomeDialog || show3MFAnnouncementDialog) return;
+		if (showWelcomeDialog) return;
 		if (showRatingPromptDialog) return;
 
 		const delayMs = 5000;
@@ -431,11 +421,6 @@
 		// Welcome dialog
 		const hasSeenWelcome = localStorage.getItem(STORAGE_KEY_WELCOME);
 		if (!hasSeenWelcome) showWelcomeDialog = true;
-
-		// 3MF announcement: show once for returning users (who've seen welcome)
-		if (hasSeenWelcome && !localStorage.getItem(STORAGE_KEY_BAMBU_ANNOUNCEMENT)) {
-			show3MFAnnouncementDialog = true;
-		}
 
 		// Share-for-credits promo: once per signed-in free user (new storage key vs old subscription promo).
 		canShowShareCreditsPromo = !localStorage.getItem(STORAGE_KEY_SHARE_CREDITS_PROMO_DISMISSED);
@@ -610,48 +595,6 @@
 							<img src="/pixnprints-logo.png" alt="PixnPrints" class="h-4 w-auto object-contain" />
 						</div>
 						<Button onclick={closeWelcomeDialog}>Get Started</Button>
-					</div>
-				</div>
-			</div>
-		</div>
-	{/if}
-
-	<!-- 3MF announcement dialog (show once) -->
-	{#if show3MFAnnouncementDialog}
-		<div
-			class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-			onclick={close3MFAnnouncementDialog}
-			onkeydown={(e) => {
-				if (e.key === 'Escape') close3MFAnnouncementDialog();
-			}}
-			role="dialog"
-			aria-modal="true"
-			aria-labelledby="3mf-announcement-title"
-			tabindex="-1"
-		>
-			<!-- svelte-ignore a11y_click_events_have_key_events -->
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div
-				class="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-xl"
-				onclick={(e) => e.stopPropagation()}
-			>
-				<div class="p-6">
-					<div class="mb-4 overflow-hidden rounded-xl">
-						<img
-							src="/bambustudio.png"
-							alt="Open with Bambu Studio feature"
-							class="w-full object-cover"
-						/>
-					</div>
-					<h2 id="3mf-announcement-title" class="text-center text-xl font-bold text-slate-900">
-						Open with Bambu Studio
-					</h2>
-					<p class="mt-3 text-center text-sm text-slate-600">
-						One-click to open it in Bambu Studio. Look for the green "Open with Bambu Studio" button
-						in any designer.
-					</p>
-					<div class="mt-6 flex justify-center">
-						<Button onclick={close3MFAnnouncementDialog}>Got it</Button>
 					</div>
 				</div>
 			</div>

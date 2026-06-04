@@ -117,10 +117,14 @@
 			'Color preset gallery plus optional text-outline layer with a matching border frame. Import starters or save your own combos; presets sync to your account when signed in.',
 		textOutline:
 			'Color preset gallery — import starters or save your own combos (base, text outline, and text). Optional text-outline layer between letters and the base outline; presets sync when signed in.',
-		whistleV2:
-			'Color preset gallery for Accent, Main, and Border — import starters or save your own. Presets sync to your account when signed in.',
+		// whistleBagTag:
+		// 	'Optional text-outline layer (middle) plus a color preset gallery (base, outline, and border/text). Presets sync when signed in.',
+		// whistleV2:
+		// 	'Color preset gallery for Accent, Main, and Border — import starters or save your own. Presets sync to your account when signed in.',
 		idNameTagV2:
-			'Optional text-outline layer with a matching border frame, plus a color preset gallery (base, outline, border, and text). Presets sync when signed in.'
+			'Optional text-outline layer with a matching border frame, plus a color preset gallery (base, outline, border, and text). Presets sync when signed in.',
+		dogtag:
+			'Optional text-outline layer with a matching border frame, plus a color preset gallery (base, outline, and text/border). Presets sync when signed in.'
 	};
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);
@@ -396,8 +400,9 @@
 
 	function designerListSortRank(id: StyleName): number {
 		if (isComingSoonDesigner(id)) return 0;
-		if (isUpdatedDesigner(id)) return 1;
-		return 2;
+		if (isNewDesigner(id)) return 1;
+		if (isUpdatedDesigner(id)) return 2;
+		return 3;
 	}
 
 	const designerDisplayOrder = new Map(DESIGNERS.map((designer, index) => [designer.id, index]));
