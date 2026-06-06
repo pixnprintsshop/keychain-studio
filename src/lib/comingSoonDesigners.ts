@@ -1,9 +1,7 @@
 import type { DesignerId } from '$lib/designers/ids';
 
 /** Designers shown as "Coming soon" on the home grid. */
-export const COMING_SOON_DESIGNER_IDS = [
-	'whistleBagTag'
-] as const satisfies readonly DesignerId[];
+export const COMING_SOON_DESIGNER_IDS = [] as const satisfies readonly DesignerId[];
 
 export type ComingSoonDesignerId = (typeof COMING_SOON_DESIGNER_IDS)[number];
 
