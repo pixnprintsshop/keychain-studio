@@ -30,7 +30,8 @@ const DESIGN_NAME_TO_ID: Record<string, DesignerId> = {
 	'Engrave Name Plate': 'engraveNamePlate',
 	'Cake Topper': 'cakeTopper',
 	'Canvas Studio': 'canvasStudio',
-	'Plate badge': 'plateBadge'
+	'Plate badge': 'plateBadge',
+	'House Number Plaque': 'houseNumberPlaque'
 };
 
 export function resolveDesignerIdForExport(

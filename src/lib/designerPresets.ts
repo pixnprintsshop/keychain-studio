@@ -4,7 +4,13 @@ import { supabase } from './supabase';
 /** Designers that store custom color presets in `user_designer_presets`. */
 export type DesignerPresetDesignerId = Extract<
 	DesignerId,
-	'whistleV2' | 'textOutline' | 'basicName' | 'idNameTagV2' | 'whistleBagTag' | 'dogtag'
+	| 'whistleV2'
+	| 'textOutline'
+	| 'basicName'
+	| 'idNameTagV2'
+	| 'whistleBagTag'
+	| 'dogtag'
+	| 'houseNumberPlaque'
 >;
 
 export const USER_DESIGNER_PRESETS_TABLE = 'user_designer_presets';

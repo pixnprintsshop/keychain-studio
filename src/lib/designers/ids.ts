@@ -26,7 +26,8 @@ export type DesignerId =
 	| 'canvasStudio'
 	| 'plateBadge'
 	| 'articulatedKeychain'
-	| 'spotifyKeychain';
+	| 'spotifyKeychain'
+	| 'houseNumberPlaque';
 
 export const DESIGNER_IDS: readonly DesignerId[] = [
 	'textOutline',
@@ -54,7 +55,8 @@ export const DESIGNER_IDS: readonly DesignerId[] = [
 	'canvasStudio',
 	'plateBadge',
 	'articulatedKeychain',
-	'spotifyKeychain'
+	'spotifyKeychain',
+	'houseNumberPlaque'
 ] as const;
 
 export function isDesignerId(value: string): value is DesignerId {

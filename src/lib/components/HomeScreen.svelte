@@ -57,7 +57,8 @@
 		| 'engraveNamePlate'
 		| 'cakeTopper'
 		| 'canvasStudio'
-		| 'plateBadge';
+		| 'plateBadge'
+		| 'houseNumberPlaque';
 
 	interface DesignerItem {
 		id: StyleName;
@@ -219,6 +220,14 @@
 			attribution:
 				'https://makerworld.com/en/models/219037-keytag-keychain-with-custom-name?from=search#profileId-251645',
 			previewImageSrc: '/images/nametag-preview.png'
+		},
+		{
+			id: 'houseNumberPlaque',
+			title: 'House Number Plaque',
+			description:
+				'Wall plaque with multiline raised text, optional border frame, and corner mounting holes.',
+			imageSrc: '/images/house-number-plaque.png',
+			imageAlt: 'House Number Plaque preview'
 		},
 		{
 			id: 'keycapSet',
