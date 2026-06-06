@@ -69,10 +69,6 @@
 	const FONT_SIZE_FOR_SHAPES = 12;
 	const TEXT_DEPTH_MM = 0.8;
 	const TEXT_MAX_WIDTH_RATIO = 0.85;
-	/** Match BasicName: sink text into the base in preview to avoid coplanar contact. */
-	const TEXT_BASE_EMBED = 0.2;
-	/** Match BasicName: sink border slightly so its bottom face is not coplanar with the base top. */
-	const BORDER_BASE_EMBED = 0.05;
 	const WELD_TOL_MM = 1e-3;
 	const TOP_LOOP_SNAP_MM = 1e-4;
 	/** Vertical gap between stacked layers so faces do not touch. */
@@ -1113,8 +1109,6 @@
 
 		const borderDepthSafe = Math.max(0.1, borderDepth);
 		const plateauZ = getTextPlateauZ();
-		const borderZ = plateauZ - BORDER_BASE_EMBED;
-		const textZ = plateauZ - TEXT_BASE_EMBED;
 		const baseMat = new THREE.MeshStandardMaterial({
 			color: baseColor,
 			roughness: 0.85,
@@ -1189,8 +1183,8 @@
 			}
 		}
 
-		const mainLayerZ = hasTextOutlineLayer ? stackTopZ + LAYER_GAP : borderZ;
-		const frontTextZ = hasTextOutlineLayer ? mainLayerZ : textZ;
+		const mainLayerZ = stackTopZ + LAYER_GAP;
+		const frontTextZ = mainLayerZ;
 
 		const borderMesh = new THREE.Mesh(
 			buildPreviewSolidGeometry(borderSourceGeometry, borderDepthSafe),
@@ -1247,7 +1241,7 @@
 		modelAabbMm = s ? { x: s.x, y: s.y, z: s.z } : null;
 	}
 
-	function buildExportGroup(options: { liftTextOutOfEmbed?: boolean } = {}): THREE.Group {
+	function buildExportGroup(): THREE.Group {
 		if (!baseSourceGeometry || !borderSourceGeometry) throw new Error('Model geometry not ready');
 		if (!group) throw new Error('Preview scene not ready');
 
@@ -1257,14 +1251,13 @@
 		const exportGroup = new THREE.Group();
 		const borderDepthSafe = Math.max(0.1, borderDepth);
 		const plateauZ = getTextPlateauZ();
-		const borderZ = plateauZ - BORDER_BASE_EMBED;
 
 		const baseGeo = cleanExportGeometry(baseSourceGeometry.clone());
 		const baseMesh = new THREE.Mesh(baseGeo, new THREE.MeshBasicMaterial({ color: baseColor }));
 		baseMesh.name = 'base';
 		exportGroup.add(baseMesh);
 
-		let exportBorderZ = borderZ;
+		let exportBorderZ = plateauZ + LAYER_GAP;
 		const borderPreview = group.children.find((child) => child.name === 'border');
 		if (borderPreview) {
 			exportBorderZ = borderPreview.position.z;
@@ -1285,10 +1278,7 @@
 				Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
 			) as THREE.Material & { color?: THREE.Color };
 			const color = sceneMat.color?.clone() ?? new THREE.Color(accentColor);
-			const textGeo = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
-			if (mesh.name === 'text' && options.liftTextOutOfEmbed) {
-				textGeo.translate(0, 0, TEXT_BASE_EMBED);
-			}
+			const textGeo = cleanExportGeometry(mesh.geometry.clone().applyMatrix4(mesh.matrixWorld));
 			const textMesh = new THREE.Mesh(textGeo, new THREE.MeshBasicMaterial({ color }));
 			textMesh.name = mesh.name;
 			exportGroup.add(textMesh);
@@ -1323,17 +1313,19 @@
 			}
 			const merged =
 				geometries.length === 1 ? geometries[0] : BufferGeometryUtils.mergeGeometries(geometries);
-			disposeObject3D(exportGroup);
 			if (!merged) {
 				geometries.forEach((g) => g.dispose());
+				disposeObject3D(exportGroup);
 				exportError = 'Failed to merge geometry';
 				return;
 			}
 			if (geometries.length > 1) geometries.forEach((g) => g.dispose());
+			const welded = BufferGeometryUtils.mergeVertices(merged, WELD_TOL_MM);
+			if (welded !== merged) merged.dispose();
 
 			const exporter = new STLExporter();
-			const result = exporter.parse(new THREE.Mesh(merged), { binary: true });
-			merged.dispose();
+			const result = exporter.parse(new THREE.Mesh(welded), { binary: true });
+			welded.dispose();
 			const buffer = result instanceof DataView ? result.buffer : result;
 			if (!buffer || (buffer as ArrayBuffer).byteLength < 84) {
 				exportError = 'Export produced empty geometry';
@@ -1364,7 +1356,7 @@
 		exportLoading = true;
 		await tickThenYieldToPaint();
 		try {
-			const exportGroup = buildExportGroup({ liftTextOutOfEmbed: true });
+			const exportGroup = buildExportGroup();
 			const blob = await exportTo3MF(exportGroup);
 			disposeObject3D(exportGroup);
 			if (!blob || blob.size === 0) {
@@ -1395,7 +1387,7 @@
 		openBambuStudioLoading = true;
 		await tickThenYieldToPaint();
 		try {
-			const exportGroup = buildExportGroup({ liftTextOutOfEmbed: true });
+			const exportGroup = buildExportGroup();
 			const blob = await exportTo3MF(exportGroup);
 			disposeObject3D(exportGroup);
 			if (!blob || blob.size === 0) return;

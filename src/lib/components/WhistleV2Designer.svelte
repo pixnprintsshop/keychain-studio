@@ -91,7 +91,9 @@
 	const FONT_SIZE_FOR_SHAPES = 12;
 	const TARGET_TEXT_HEIGHT_MM = 10;
 	const TEXT_DEPTH_MM = 1;
-	const TEXT_SURFACE_EMBED = 0.02;
+	/** Vertical gap between stacked layers so faces do not touch. */
+	const LAYER_GAP = 0.001;
+	const WELD_TOL_MM = 1e-3;
 	/** Modern assembly width — keeps letter scale consistent when switching styles. */
 	const TEXT_FIT_REFERENCE_WIDTH_MM = 60.89;
 
@@ -604,6 +606,16 @@
 		geo.computeBoundingBox();
 	}
 
+	function cleanExportGeometry(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+		if (geo.attributes.uv) geo.deleteAttribute('uv');
+		const welded = BufferGeometryUtils.mergeVertices(geo, WELD_TOL_MM);
+		if (welded !== geo) geo.dispose();
+		if (welded.attributes.uv) welded.deleteAttribute('uv');
+		welded.computeVertexNormals();
+		welded.computeBoundingBox();
+		return welded;
+	}
+
 	function rebuildMeshes() {
 		if (!group) return;
 		disposeObject3D(group);
@@ -618,6 +630,10 @@
 			main: swapMainAccentColors ? accentColor : mainColor,
 			border: borderColor
 		};
+
+		const accentGeo = partGeometries.accent;
+		accentGeo.computeBoundingBox();
+		const accentTopZ = accentGeo.boundingBox?.max.z ?? 0;
 
 		const visibleParts: WhistlePartKey[] = showBorder
 			? ['accent', 'main', 'border']
@@ -635,6 +651,13 @@
 			mesh.name = key;
 			mesh.castShadow = true;
 			mesh.receiveShadow = true;
+			if (key === 'border') {
+				geo.computeBoundingBox();
+				const borderBb = geo.boundingBox;
+				if (borderBb && borderBb.min.z < accentTopZ + LAYER_GAP) {
+					mesh.position.z = accentTopZ - borderBb.min.z + LAYER_GAP;
+				}
+			}
 			group.add(mesh);
 		}
 
@@ -682,7 +705,7 @@
 					textMesh.position.set(
 						centerX + textOffset.textOffsetX,
 						centerY + textOffset.textOffsetY,
-						topSurface.topZ + TEXT_SURFACE_EMBED
+						topSurface.topZ + LAYER_GAP
 					);
 					group.add(textMesh);
 				}
@@ -729,7 +752,7 @@
 			if (!(child as THREE.Mesh).isMesh) continue;
 			const mesh = child as THREE.Mesh;
 			if (mesh.name === KEYRING_MESH_NAME) continue;
-			const geo = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+			const geo = cleanExportGeometry(mesh.geometry.clone().applyMatrix4(mesh.matrixWorld));
 			const mat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
 			const color = mat?.color?.clone() ?? new THREE.Color(0xffffff);
 			const exportMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color }));
@@ -742,7 +765,7 @@
 
 	async function exportStl() {
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
-		if (!group || group.children.length === 0) {
+		if (!group) {
 			exportError = 'Nothing to export';
 			return;
 		}
@@ -750,39 +773,33 @@
 		exportLoading = true;
 		await tickThenYieldToPaint();
 		try {
+			const exportGroup = buildExportGroup();
 			const geometries: THREE.BufferGeometry[] = [];
-			for (const child of group.children) {
+			for (const child of exportGroup.children) {
 				if (!(child as THREE.Mesh).isMesh) continue;
 				const mesh = child as THREE.Mesh;
-				if (mesh.name === KEYRING_MESH_NAME) continue;
-				let g = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
-				if (g.attributes.uv) g.deleteAttribute('uv');
-				if (!g.attributes.normal) g.computeVertexNormals();
-				if (g.index) {
-					const nonIndexed = g.toNonIndexed();
-					g.dispose();
-					g = nonIndexed;
-				}
-				geometries.push(g);
+				geometries.push(mesh.geometry.clone().applyMatrix4(mesh.matrixWorld));
 			}
 			if (geometries.length === 0) {
+				disposeObject3D(exportGroup);
 				exportError = 'Nothing to export';
 				return;
 			}
 			const merged =
 				geometries.length === 1 ? geometries[0] : BufferGeometryUtils.mergeGeometries(geometries);
+			if (geometries.length > 1) geometries.forEach((g) => g.dispose());
 			if (!merged) {
-				geometries.forEach((g) => g.dispose());
+				disposeObject3D(exportGroup);
 				exportError = 'Failed to merge geometry';
 				return;
 			}
-			if (geometries.length > 1) geometries.forEach((g) => g.dispose());
-			const welded = BufferGeometryUtils.mergeVertices(merged, 1e-3);
+			const welded = BufferGeometryUtils.mergeVertices(merged, WELD_TOL_MM);
 			if (welded !== merged) merged.dispose();
 
 			const exporter = new STLExporter();
 			const result = exporter.parse(new THREE.Mesh(welded), { binary: true });
 			welded.dispose();
+			disposeObject3D(exportGroup);
 			const buffer = result instanceof DataView ? result.buffer : result;
 			if (!buffer || (buffer as ArrayBuffer).byteLength < 84) {
 				exportError = 'Export produced empty geometry';
