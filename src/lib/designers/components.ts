@@ -43,7 +43,8 @@ const LOADERS: Record<DesignerId, () => Promise<DesignerModule>> = {
 	plateBadge: () => import('$lib/components/PlateBadgeDesigner.svelte'),
 	articulatedKeychain: () => import('$lib/components/ArticulatedKeychainDesigner.svelte'),
 	spotifyKeychain: () => import('$lib/components/SpotifyKeychainDesigner.svelte'),
-	houseNumberPlaque: () => import('$lib/components/HouseNumberPlaqueDesigner.svelte')
+	houseNumberPlaque: () => import('$lib/components/HouseNumberPlaqueDesigner.svelte'),
+	roomSign: () => import('$lib/components/RoomSignDesigner.svelte')
 };
 
 export function loadDesignerComponent(id: DesignerId): Promise<DesignerComponent> {

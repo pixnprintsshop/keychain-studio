@@ -11,6 +11,7 @@ export type DesignerPresetDesignerId = Extract<
 	| 'whistleBagTag'
 	| 'dogtag'
 	| 'houseNumberPlaque'
+	| 'roomSign'
 >;
 
 export const USER_DESIGNER_PRESETS_TABLE = 'user_designer_presets';

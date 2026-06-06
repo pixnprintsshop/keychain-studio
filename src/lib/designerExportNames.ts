@@ -31,7 +31,8 @@ const DESIGN_NAME_TO_ID: Record<string, DesignerId> = {
 	'Cake Topper': 'cakeTopper',
 	'Canvas Studio': 'canvasStudio',
 	'Plate badge': 'plateBadge',
-	'House Number Plaque': 'houseNumberPlaque'
+	'House Number Plaque': 'houseNumberPlaque',
+	'Room Sign': 'roomSign'
 };
 
 export function resolveDesignerIdForExport(

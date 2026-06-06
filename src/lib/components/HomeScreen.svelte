@@ -58,7 +58,8 @@
 		| 'cakeTopper'
 		| 'canvasStudio'
 		| 'plateBadge'
-		| 'houseNumberPlaque';
+		| 'houseNumberPlaque'
+		| 'roomSign';
 
 	interface DesignerItem {
 		id: StyleName;
@@ -228,6 +229,14 @@
 				'Wall plaque with multiline raised text, optional border frame, and corner mounting holes.',
 			imageSrc: '/images/house-number-plaque.png',
 			imageAlt: 'House Number Plaque preview'
+		},
+		{
+			id: 'roomSign',
+			title: 'Room Sign',
+			description:
+				'Decorative plaque with ornate border flourishes and centered raised room name text.',
+			imageSrc: '/images/room-sign.png',
+			imageAlt: 'Room Sign preview'
 		},
 		{
 			id: 'keycapSet',
