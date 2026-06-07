@@ -8,7 +8,6 @@
 	import { exportTo3MF } from '$lib/export-to-3mf';
 	import FontSelect from '$lib/components/FontSelect.svelte';
 	import {
-		centerGeometryXY,
 		type CharSettings,
 		DEFAULT_CHAR_SETTINGS,
 		DEFAULT_FONT_KEY_OUTLINE,
@@ -29,6 +28,7 @@
 	import { upload3mfToSupabase } from '$lib/upload3mf';
 	import DesignerExportToolbar from './DesignerExportToolbar.svelte';
 	import DesignerModelDimensionsHud from './DesignerModelDimensionsHud.svelte';
+	import TextOutlineRimFeatureDialog from './TextOutlineRimFeatureDialog.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Slider } from '$lib/components/ui/slider';
 	import ColorPalettePicker from './ColorPalettePicker.svelte';
@@ -78,14 +78,17 @@
 	const STORAGE_KEY_SINGLE_LINES = 'keychain-outline-single-lines';
 	const STORAGE_KEY_SINGLE_LINE_SPACING = 'keychain-outline-single-line-spacing';
 	const STORAGE_KEY_KEYCHAIN_ITEMS = 'keychain-outline-keychain-items';
+	const STORAGE_KEY_RIM_FEATURE_DIALOG = 'text-outline-rim-feature-dialog-v1';
 
-	/** Z amount text is sunk into the base so they overlap (avoids non-manifold at contact). */
-	const TEXT_BASE_EMBED = 0.2;
-	/** Z amount the optional text-outline layer is sunk into the base outline. */
-	const TEXT_OUTLINE_BASE_EMBED = 0.2;
-	/** Debounce heavy Clipper/Three rebuilds while sliders are dragged. */
-	const MESH_REBUILD_DEBOUNCE_MS = 220;
+	/** Vertical gap between stacked layers so faces do not touch. */
+	const LAYER_GAP = 0.001;
+	/** Live preview tessellation — export uses higher quality in rebuildMeshes. */
+	const LIVE_MESH_DIVISIONS = 10;
+	const LIVE_MESH_CURVE_SEGMENTS = 7;
+	const EXPORT_MESH_DIVISIONS = 16;
+	const EXPORT_MESH_CURVE_SEGMENTS = 10;
 	const PERSIST_DEBOUNCE_MS = 450;
+	const FONT_SETTINGS_PERSIST_DEBOUNCE_MS = 400;
 	const BATCH_ITEM_SPACING = 12;
 	const MAX_SINGLE_LINES = 8;
 	// ── Persistence state ───────────────────────────────────────────────────
@@ -165,6 +168,10 @@
 		textOutlineThicknessMm: number;
 		textOutlineDepth: number;
 		textOutlineColor: string;
+		borderEnabled: boolean;
+		borderWidthMm: number;
+		borderDepth: number;
+		borderColor: string;
 		keyringEnabled: boolean;
 		keyringOuterSize: number;
 		keyringHoleSize: number;
@@ -327,6 +334,10 @@
 				textOutlineThicknessMm: 1,
 				textOutlineDepth: 1,
 				textOutlineColor: '#000000',
+				borderEnabled: false,
+				borderWidthMm: 1.5,
+				borderDepth: 1,
+				borderColor: '#2d2d2d',
 				keyringEnabled: fontSettings.keyringEnabled ?? true,
 				keyringOuterSize: charSettings.keyringOuterSize,
 				keyringHoleSize: charSettings.keyringHoleSize,
@@ -401,6 +412,12 @@
 				typeof candidate.textOutlineColor === 'string'
 					? candidate.textOutlineColor
 					: '#ffffff',
+			borderEnabled:
+				typeof candidate.borderEnabled === 'boolean' ? candidate.borderEnabled : false,
+			borderWidthMm: clampNumber(candidate.borderWidthMm, 1.5, 0.2, 12),
+			borderDepth: clampNumber(candidate.borderDepth, 1, 0.1, 20),
+			borderColor:
+				typeof candidate.borderColor === 'string' ? candidate.borderColor : '#2d2d2d',
 			keyringEnabled:
 				typeof candidate.keyringEnabled === 'boolean'
 					? candidate.keyringEnabled
@@ -543,13 +560,16 @@
 	let presetEditorId = $state<string | null>(null);
 	let presetEditorLabel = $state('');
 	let presetEditorOutline = $state('#f0a8a8');
+	let presetEditorBorder = $state('#2d2d2d');
 	let presetEditorTextOutline = $state('#ffffff');
 	let presetEditorText = $state('#2d2d2d');
 	let presetEditorTextOutlineEnabled = $state(true);
+	let rimFeatureDialogOpen = $state(false);
 
-	function snapPresetColors(outline: string, textOutline: string, text: string) {
+	function snapPresetColors(outline: string, border: string, textOutline: string, text: string) {
 		return {
 			outline: snapColorToPalette(outline, palette, outlineColor),
+			border: snapColorToPalette(border, palette, '#2d2d2d'),
 			textOutline: snapColorToPalette(textOutline, palette, '#ffffff'),
 			text: snapColorToPalette(text, palette, textColor)
 		};
@@ -560,6 +580,7 @@
 		const lineText = activeEditableItem?.lines[0]?.textColor ?? s.textColor;
 		return {
 			outlineColor: s.outlineColor,
+			borderColor: s.borderColor,
 			textColor: lineText,
 			textOutlineColor: s.textOutlineColor,
 			textOutlineEnabled: s.textOutlineEnabled
@@ -571,6 +592,7 @@
 		for (const preset of presets) {
 			if (
 				preset.outlineColor === current.outlineColor &&
+				preset.borderColor === current.borderColor &&
 				preset.textColor === current.textColor &&
 				preset.textOutlineColor === current.textOutlineColor &&
 				(preset.textOutlineEnabled ?? true) === current.textOutlineEnabled
@@ -584,12 +606,14 @@
 	function applyColorPreset(preset: TextOutlineColorPreset) {
 		const snapped = snapPresetColors(
 			preset.outlineColor,
+			preset.borderColor,
 			preset.textOutlineColor,
 			preset.textColor
 		);
 		const enabled = preset.textOutlineEnabled ?? true;
 		const patch: KeychainItemOverrides = {
 			outlineColor: snapped.outline,
+			borderColor: snapped.border,
 			textColor: snapped.text,
 			textOutlineColor: snapped.textOutline,
 			textOutlineEnabled: enabled
@@ -607,12 +631,12 @@
 		outlineColor = snapped.outline;
 		textColor = snapped.text;
 		activePresetId = findMatchingPresetId(galleryPresets) ?? preset.id;
-		scheduleRebuildMeshes(true);
 	}
 
-	function setPresetEditorColors(outline: string, textOutline: string, text: string) {
-		const snapped = snapPresetColors(outline, textOutline, text);
+	function setPresetEditorColors(outline: string, border: string, textOutline: string, text: string) {
+		const snapped = snapPresetColors(outline, border, textOutline, text);
 		presetEditorOutline = snapped.outline;
+		presetEditorBorder = snapped.border;
 		presetEditorTextOutline = snapped.textOutline;
 		presetEditorText = snapped.text;
 	}
@@ -624,7 +648,7 @@
 		presetEditorId = null;
 		presetEditorLabel = 'My preset';
 		presetEditorTextOutlineEnabled = s.textOutlineEnabled;
-		setPresetEditorColors(s.outlineColor, s.textOutlineColor, lineText);
+		setPresetEditorColors(s.outlineColor, s.borderColor, s.textOutlineColor, lineText);
 		presetEditorOpen = true;
 	}
 
@@ -664,7 +688,12 @@
 		presetEditorId = preset.id;
 		presetEditorLabel = preset.label;
 		presetEditorTextOutlineEnabled = preset.textOutlineEnabled ?? true;
-		setPresetEditorColors(preset.outlineColor, preset.textOutlineColor, preset.textColor);
+		setPresetEditorColors(
+			preset.outlineColor,
+			preset.borderColor,
+			preset.textOutlineColor,
+			preset.textColor
+		);
 		presetEditorOpen = true;
 	}
 
@@ -677,14 +706,49 @@
 		if (!open) closePresetEditor();
 	}
 
+	function markRimFeatureDialogSeen() {
+		try {
+			localStorage.setItem(STORAGE_KEY_RIM_FEATURE_DIALOG, '1');
+		} catch {
+			// Local storage can be unavailable in private browsing contexts.
+		}
+	}
+
+	function onRimFeatureDialogOpenChange(open: boolean) {
+		rimFeatureDialogOpen = open;
+		if (!open) markRimFeatureDialogSeen();
+	}
+
+	function tryRimFeatureFromDialog() {
+		if (hasSelectedItem) {
+			updateSelectedItemSettings({ borderEnabled: true });
+		}
+		void tick().then(() => {
+			document
+				.getElementById('text-outline-border-settings')
+				?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+		});
+	}
+
+	function maybeShowRimFeatureDialog() {
+		try {
+			if (localStorage.getItem(STORAGE_KEY_RIM_FEATURE_DIALOG) === '1') return;
+		} catch {
+			return;
+		}
+		rimFeatureDialogOpen = true;
+	}
+
 	async function commitPresetEditor() {
 		const label = presetEditorLabel.trim() || 'My preset';
 		const snapped = snapPresetColors(
 			presetEditorOutline,
+			presetEditorBorder,
 			presetEditorTextOutline,
 			presetEditorText
 		);
 		const outline = snapped.outline;
+		const border = snapped.border;
 		const textOutline = snapped.textOutline;
 		const text = snapped.text;
 		const enabled = presetEditorTextOutlineEnabled;
@@ -696,6 +760,7 @@
 							id: p.id,
 							label,
 							outlineColor: outline,
+							borderColor: border,
 							textOutlineColor: textOutline,
 							textColor: text,
 							textOutlineEnabled: enabled
@@ -711,6 +776,7 @@
 					id,
 					label,
 					outlineColor: outline,
+					borderColor: border,
 					textOutlineColor: textOutline,
 					textColor: text,
 					textOutlineEnabled: enabled
@@ -723,6 +789,7 @@
 			id: activePresetId!,
 			label,
 			outlineColor: outline,
+			borderColor: border,
 			textOutlineColor: textOutline,
 			textColor: text,
 			textOutlineEnabled: enabled
@@ -772,6 +839,10 @@
 		textOutlineThicknessMm: 1,
 		textOutlineDepth: 1.5,
 		textOutlineColor: '#ffffff',
+		borderEnabled: false,
+		borderWidthMm: 1.5,
+		borderDepth: 1,
+		borderColor: '#2d2d2d',
 		keyringEnabled,
 		keyringOuterSize,
 		keyringHoleSize,
@@ -799,6 +870,7 @@
 		(editableSettings.outlineOffsetPx * editableMaxTextSize) / 60
 	);
 	const editableMaxTextOutlineMm = $derived(Math.max(0.2, editableBaseOutlineMm - 0.2));
+	const editableMaxBorderWidthMm = $derived(Math.max(0.2, editableBaseOutlineMm - 0.2));
 	const modelItems = $derived.by<KeychainModelItem[]>(() =>
 		keychainItems.map((item, index) => {
 			const sourceText = getItemText(item);
@@ -812,6 +884,93 @@
 		})
 	);
 	const persistedText = $derived(modelItems.map((item) => item.sourceText).join('\n'));
+	/** Geometry-affecting state only — color changes skip Clipper rebuild. */
+	const meshGeometryKey = $derived.by(() =>
+		JSON.stringify(
+			keychainItems.map((item) => ({
+				id: item.id,
+				lineSpacing: item.lineSpacing,
+				lines: item.lines.map((line) => ({
+					id: line.id,
+					content: line.content,
+					fontKey: line.fontKey,
+					textSize: line.textSize,
+					textDepth: line.textDepth,
+					offsetX: line.offsetX,
+					offsetY: line.offsetY
+				})),
+				outlineOffsetPx: item.settings.outlineOffsetPx,
+				baseDepth: item.settings.baseDepth,
+				textOutlineEnabled: item.settings.textOutlineEnabled,
+				textOutlineThicknessMm: item.settings.textOutlineThicknessMm,
+				textOutlineDepth: item.settings.textOutlineDepth,
+				borderEnabled: item.settings.borderEnabled,
+				borderWidthMm: item.settings.borderWidthMm,
+				borderDepth: item.settings.borderDepth,
+				keyringEnabled: item.settings.keyringEnabled,
+				keyringOuterSize: item.settings.keyringOuterSize,
+				keyringHoleSize: item.settings.keyringHoleSize,
+				keyringOffsetX: item.settings.keyringOffsetX,
+				keyringOffsetY: item.settings.keyringOffsetY
+			}))
+		)
+	);
+	const meshColorKey = $derived.by(() =>
+		JSON.stringify(
+			keychainItems.map((item) => ({
+				id: item.id,
+				outlineColor: item.settings.outlineColor,
+				borderColor: item.settings.borderColor,
+				textOutlineColor: item.settings.textOutlineColor,
+				lines: item.lines.map((line) => ({ id: line.id, textColor: line.textColor }))
+			}))
+		)
+	);
+
+	type KeychainShapeCache = {
+		baseShapes: THREE.Shape[];
+		borderShapes: THREE.Shape[];
+		textOutlineShapes: THREE.Shape[];
+		textLineShapes: Array<{ lineId: string; lineIndex: number; shapes: THREE.Shape[] }>;
+		textCenter: { x: number; y: number };
+		outlineCenter: { x: number; y: number };
+		textOutlineCenter: { x: number; y: number };
+		borderWidthMm: number;
+		textOutlineWorld: number;
+	};
+
+	function getItemSilhouetteFingerprint(item: KeychainItem): string {
+		return JSON.stringify({
+			lineSpacing: item.lineSpacing,
+			lines: item.lines.map((line) => ({
+				id: line.id,
+				content: line.content,
+				fontKey: line.fontKey,
+				textSize: line.textSize,
+				offsetX: line.offsetX,
+				offsetY: line.offsetY
+			})),
+			outlineOffsetPx: item.settings.outlineOffsetPx,
+			textOutlineEnabled: item.settings.textOutlineEnabled,
+			textOutlineThicknessMm: item.settings.textOutlineThicknessMm,
+			borderEnabled: item.settings.borderEnabled,
+			borderWidthMm: item.settings.borderWidthMm,
+			keyringEnabled: item.settings.keyringEnabled,
+			keyringOuterSize: item.settings.keyringOuterSize,
+			keyringHoleSize: item.settings.keyringHoleSize,
+			keyringOffsetX: item.settings.keyringOffsetX,
+			keyringOffsetY: item.settings.keyringOffsetY
+		});
+	}
+
+	function getItemDepthFingerprint(item: KeychainItem): string {
+		return JSON.stringify({
+			baseDepth: item.settings.baseDepth,
+			borderDepth: item.settings.borderDepth,
+			textOutlineDepth: item.settings.textOutlineDepth,
+			lines: item.lines.map((line) => ({ id: line.id, textDepth: line.textDepth }))
+		});
+	}
 
 	lastFont = restoredFont;
 	lastChar = initialChar;
@@ -965,9 +1124,17 @@
 	let openBambuStudioLoading = $state(false);
 	let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
 	let selectionOutline: THREE.Box3Helper | null = null;
-	let meshRebuildTimeout: ReturnType<typeof setTimeout> | null = null;
 	let meshRebuildRaf = 0;
+	let meshRebuildDirty = false;
+	let lastMeshItemCount = 0;
+	const keychainShapeCaches = new Map<string, KeychainShapeCache>();
+	const lastItemSilhouetteKeys = new Map<string, string>();
+	const lastItemDepthKeys = new Map<string, string>();
+	let liveBuildKeychainGroup: ((item: KeychainModelItem) => THREE.Group | null) | null = null;
+	let liveCurveSegments = LIVE_MESH_CURVE_SEGMENTS;
 	let persistTimeout: ReturnType<typeof setTimeout> | null = null;
+	let fontSettingsPersistTimeout: ReturnType<typeof setTimeout> | null = null;
+	let keyringPersistTimeout: ReturnType<typeof setTimeout> | null = null;
 	const raycaster = new THREE.Raycaster();
 	const pointerNdc = new THREE.Vector2();
 	const pointerDown = new THREE.Vector2();
@@ -1145,7 +1312,7 @@
 		if (selectionOutline) selectionOutline.visible = wasVisible;
 	}
 
-	function cleanExportRoot(root: THREE.Object3D, liftText: boolean): boolean {
+	function cleanExportRoot(root: THREE.Object3D): boolean {
 		const nonModelObjects: THREE.Object3D[] = [];
 		root.traverse((obj: THREE.Object3D) => {
 			const materials = obj instanceof THREE.Mesh ? obj.material : null;
@@ -1162,13 +1329,6 @@
 			) {
 				nonModelObjects.push(obj);
 				return;
-			}
-			if (liftText && obj instanceof THREE.Mesh) {
-				if (obj.name === 'text') {
-					obj.position.z += TEXT_BASE_EMBED;
-				} else if (obj.name === 'text-outline') {
-					obj.position.z += TEXT_OUTLINE_BASE_EMBED;
-				}
 			}
 		});
 		nonModelObjects.forEach((obj) => obj.parent?.remove(obj));
@@ -1188,9 +1348,8 @@
 	}
 
 	function createModelExportRoot({
-		liftText = false,
 		separateTopLevelObjects = false
-	}: { liftText?: boolean; separateTopLevelObjects?: boolean } = {}): THREE.Object3D | null {
+	}: { separateTopLevelObjects?: boolean } = {}): THREE.Object3D | null {
 		if (!group) return null;
 		group.updateWorldMatrix(true, true);
 		const exportRoot = separateTopLevelObjects
@@ -1213,7 +1372,7 @@
 			}
 		}
 
-		if (!cleanExportRoot(exportRoot, liftText)) return null;
+		if (!cleanExportRoot(exportRoot)) return null;
 		exportRoot.updateWorldMatrix(true, true);
 		return exportRoot;
 	}
@@ -1222,7 +1381,7 @@
 		if (!group || !scene) return;
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin)))
 			return;
-		rebuildMeshes();
+		rebuildMeshes({ exportQuality: true });
 		const exportGroup = createModelExportRoot();
 		if (!exportGroup) return;
 		const exporter = new STLExporter();
@@ -1248,8 +1407,8 @@
 		if (!group || !scene) return;
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin)))
 			return;
-		rebuildMeshes();
-		const exportGroup = createModelExportRoot({ liftText: true, separateTopLevelObjects: true });
+		rebuildMeshes({ exportQuality: true });
+		const exportGroup = createModelExportRoot({ separateTopLevelObjects: true });
 		if (!exportGroup) return;
 		const blob = await exportTo3MF(exportGroup);
 		if (!blob || blob.size === 0) return;
@@ -1273,8 +1432,8 @@
 		openBambuStudioLoading = true;
 		await tickThenYieldToPaint();
 		try {
-			rebuildMeshes();
-			const exportGroup = createModelExportRoot({ liftText: true, separateTopLevelObjects: true });
+			rebuildMeshes({ exportQuality: true });
+			const exportGroup = createModelExportRoot({ separateTopLevelObjects: true });
 			if (!exportGroup) return;
 			const blob = await exportTo3MF(exportGroup);
 			if (!blob || blob.size === 0) return;
@@ -1295,42 +1454,436 @@
 	}
 
 	function clearScheduledMeshRebuild() {
-		if (meshRebuildTimeout !== null) {
-			clearTimeout(meshRebuildTimeout);
-			meshRebuildTimeout = null;
-		}
+		meshRebuildDirty = false;
 		if (meshRebuildRaf) {
 			cancelAnimationFrame(meshRebuildRaf);
 			meshRebuildRaf = 0;
 		}
 	}
 
-	/** Coalesce rapid setting changes so sliders stay responsive during drag. */
-	function scheduleRebuildMeshes(immediate = false) {
-		if (!scene || !group) return;
-		clearScheduledMeshRebuild();
-		if (immediate) {
-			rebuildMeshes();
-			return;
+	function syncItemGeometryFingerprints(items: KeychainModelItem[]) {
+		lastItemSilhouetteKeys.clear();
+		lastItemDepthKeys.clear();
+		for (const item of items) {
+			lastItemSilhouetteKeys.set(item.id, getItemSilhouetteFingerprint(item));
+			lastItemDepthKeys.set(item.id, getItemDepthFingerprint(item));
 		}
-		meshRebuildRaf = requestAnimationFrame(() => {
-			meshRebuildRaf = 0;
-			meshRebuildTimeout = setTimeout(() => {
-				meshRebuildTimeout = null;
-				rebuildMeshes();
-			}, MESH_REBUILD_DEBOUNCE_MS);
+		lastMeshItemCount = items.length;
+	}
+
+	function swapExtrudeGeometry(
+		mesh: THREE.Mesh,
+		shapes: THREE.Shape[],
+		depth: number,
+		curveSegments: number,
+		translateXY?: { x: number; y: number }
+	) {
+		const previous = mesh.geometry;
+		const geometry = new THREE.ExtrudeGeometry(shapes, {
+			depth: Math.max(0.1, depth),
+			bevelEnabled: false,
+			curveSegments
+		});
+		if (translateXY) geometry.translate(translateXY.x, translateXY.y, 0);
+		mesh.geometry = geometry;
+		previous.dispose();
+	}
+
+	function findKeychainPartMesh(
+		itemGroup: THREE.Group,
+		partName: string,
+		lineId?: string
+	): THREE.Mesh | undefined {
+		let match: THREE.Mesh | undefined;
+		itemGroup.traverse((obj: THREE.Object3D) => {
+			if (match || !(obj instanceof THREE.Mesh)) return;
+			const part = (obj.userData?.partName as string | undefined) ?? obj.name;
+			if (partName === 'text') {
+				if (lineId && obj.userData?.lineId === lineId) match = obj;
+				return;
+			}
+			if (part === partName || obj.name === partName) match = obj;
+		});
+		return match;
+	}
+
+	function updateSceneMetricsFromGroup() {
+		if (!group || !keyLight?.shadow?.camera) return;
+		group.updateWorldMatrix(true, true);
+		const box = new THREE.Box3().setFromObject(group);
+		const sizeVec = new THREE.Vector3();
+		const center = new THREE.Vector3();
+		box.getSize(sizeVec);
+		box.getCenter(center);
+		const radius = Math.max(sizeVec.x, sizeVec.y, sizeVec.z) * 0.75 + 10;
+		const cam = keyLight.shadow.camera;
+		cam.left = -radius;
+		cam.right = radius;
+		cam.top = radius;
+		cam.bottom = -radius;
+		cam.near = 0.1;
+		cam.far = Math.max(300, radius * 6);
+		cam.updateProjectionMatrix?.();
+		keyLight.target.position.copy(center);
+		keyLight.target.updateWorldMatrix?.(true, true);
+		const measured = measureWorldAabbSizeMm(group);
+		modelAabbMm = measured ? { x: measured.x, y: measured.y, z: measured.z } : null;
+		updateSelectionOutline();
+	}
+
+	function layoutKeychainItemModels(
+		itemModels: Array<{
+			item: KeychainModelItem;
+			itemGroup: THREE.Group;
+			sizeVec: THREE.Vector3;
+			center: THREE.Vector3;
+		}>
+	) {
+		if (!group) return;
+		const columns = Math.ceil(Math.sqrt(itemModels.length));
+		const rows: Array<Array<(typeof itemModels)[number]>> = [];
+		for (let i = 0; i < itemModels.length; i += columns) {
+			rows.push(itemModels.slice(i, i + columns));
+		}
+		const rowMetrics = rows.map((row) => ({
+			width: row.reduce(
+				(sum, entry, index) => sum + entry.sizeVec.x + (index > 0 ? BATCH_ITEM_SPACING : 0),
+				0
+			),
+			height: Math.max(...row.map((entry) => entry.sizeVec.y))
+		}));
+		const totalHeight = rowMetrics.reduce(
+			(sum, row, index) => sum + row.height + (index > 0 ? BATCH_ITEM_SPACING : 0),
+			0
+		);
+		let cursorY = totalHeight / 2;
+		rows.forEach((row, rowIndex) => {
+			const rowMetric = rowMetrics[rowIndex];
+			const rowY = cursorY - rowMetric.height / 2;
+			let cursorX = -rowMetric.width / 2;
+			row.forEach((entry) => {
+				const itemX = cursorX + entry.sizeVec.x / 2;
+				entry.itemGroup.position.set(itemX - entry.center.x, rowY - entry.center.y, 0);
+				group!.add(entry.itemGroup);
+				cursorX += entry.sizeVec.x + BATCH_ITEM_SPACING;
+			});
+			cursorY -= rowMetric.height + BATCH_ITEM_SPACING;
 		});
 	}
 
+	function measureKeychainItemModels(items: KeychainModelItem[]) {
+		const build = liveBuildKeychainGroup;
+		if (!build) return [];
+		return items
+			.map((item) => {
+				const itemGroup = build(item);
+				if (!itemGroup) return null;
+				itemGroup.updateWorldMatrix(true, true);
+				const itemBox = new THREE.Box3().setFromObject(itemGroup);
+				const sizeVec = new THREE.Vector3();
+				const center = new THREE.Vector3();
+				itemBox.getSize(sizeVec);
+				itemBox.getCenter(center);
+				return { item, itemGroup, sizeVec, center };
+			})
+			.filter(
+				(entry): entry is {
+					item: KeychainModelItem;
+					itemGroup: THREE.Group;
+					sizeVec: THREE.Vector3;
+					center: THREE.Vector3;
+				} => entry !== null
+			);
+	}
+
+	function patchKeychainItemDepths(item: KeychainModelItem) {
+		if (!group) return false;
+		const cache = keychainShapeCaches.get(item.id);
+		const itemGroup = group.children.find(
+			(child: THREE.Object3D) => child.userData?.itemId === item.id
+		) as THREE.Group | undefined;
+		if (!cache || !itemGroup) return false;
+
+		const { settings } = item;
+		const hasBorderLayer =
+			settings.borderEnabled && cache.borderShapes.length > 0 && cache.borderWidthMm > 0;
+		const hasTextOutlineLayer =
+			settings.textOutlineEnabled &&
+			cache.textOutlineShapes.length > 0 &&
+			cache.textOutlineWorld > 0;
+		const hasTextOutlineBorderLayer = hasBorderLayer && hasTextOutlineLayer;
+		if (hasBorderLayer !== Boolean(findKeychainPartMesh(itemGroup, 'border'))) return false;
+		if (hasTextOutlineLayer !== Boolean(findKeychainPartMesh(itemGroup, 'text-outline'))) {
+			return false;
+		}
+		if (
+			hasTextOutlineBorderLayer !==
+			Boolean(findKeychainPartMesh(itemGroup, 'text-outline-border'))
+		) {
+			return false;
+		}
+
+		const baseDepthMm = Math.max(0.1, settings.baseDepth);
+		const borderDepthMm = Math.max(0.1, settings.borderDepth);
+		const textOutlineDepthMm = Math.max(0.1, settings.textOutlineDepth);
+		const stackTopZ = baseDepthMm;
+		const align = {
+			x: cache.textCenter.x - cache.outlineCenter.x,
+			y: cache.textCenter.y - cache.outlineCenter.y
+		};
+		const textOutlineAlign = {
+			x: cache.textCenter.x - cache.textOutlineCenter.x,
+			y: cache.textCenter.y - cache.textOutlineCenter.y
+		};
+
+		const baseMesh = findKeychainPartMesh(itemGroup, 'base');
+		if (baseMesh) swapExtrudeGeometry(baseMesh, cache.baseShapes, baseDepthMm, liveCurveSegments, align);
+
+		let textStackZ = stackTopZ;
+		const textOutlineZ = stackTopZ + LAYER_GAP;
+		const textOutlineMesh = findKeychainPartMesh(itemGroup, 'text-outline');
+		const textOutlineBorderMesh = findKeychainPartMesh(itemGroup, 'text-outline-border');
+		if (textOutlineBorderMesh && hasTextOutlineBorderLayer) {
+			swapExtrudeGeometry(
+				textOutlineBorderMesh,
+				cache.borderShapes,
+				textOutlineDepthMm,
+				liveCurveSegments,
+				align
+			);
+			textOutlineBorderMesh.position.z = textOutlineZ;
+		}
+		if (textOutlineMesh && hasTextOutlineLayer) {
+			swapExtrudeGeometry(
+				textOutlineMesh,
+				cache.textOutlineShapes,
+				textOutlineDepthMm,
+				liveCurveSegments,
+				textOutlineAlign
+			);
+			textOutlineMesh.position.z = textOutlineZ;
+			textStackZ = textOutlineZ + textOutlineDepthMm;
+		}
+
+		const textLayerZ = textStackZ + LAYER_GAP;
+		const borderMesh = findKeychainPartMesh(itemGroup, 'border');
+		if (borderMesh && hasBorderLayer) {
+			swapExtrudeGeometry(borderMesh, cache.borderShapes, borderDepthMm, liveCurveSegments, align);
+			borderMesh.position.z = textLayerZ;
+		}
+
+		for (const lineShape of cache.textLineShapes) {
+			const line = item.lines.find((candidate) => candidate.id === lineShape.lineId);
+			if (!line) continue;
+			const textMesh = findKeychainPartMesh(itemGroup, 'text', line.id);
+			if (!textMesh) continue;
+			swapExtrudeGeometry(
+				textMesh,
+				lineShape.shapes,
+				line.textDepth,
+				liveCurveSegments
+			);
+			textMesh.position.z = textLayerZ;
+		}
+
+		return true;
+	}
+
+	function rebuildKeychainItems(itemIds: string[]) {
+		if (!group || !liveBuildKeychainGroup) return false;
+		const targets = new Set(itemIds);
+		const itemsToBuild = modelItems.filter((item) => targets.has(item.id));
+		const built = measureKeychainItemModels(itemsToBuild);
+		if (built.length !== itemsToBuild.length) return false;
+
+		const unchanged = group.children
+			.filter((child: THREE.Object3D) => !targets.has(child.userData?.itemId as string))
+			.map((child: THREE.Object3D) => {
+				child.updateWorldMatrix(true, true);
+				const itemBox = new THREE.Box3().setFromObject(child);
+				const sizeVec = new THREE.Vector3();
+				const center = new THREE.Vector3();
+				itemBox.getSize(sizeVec);
+				itemBox.getCenter(center);
+				const item = modelItems.find((candidate) => candidate.id === child.userData?.itemId);
+				if (!item) return null;
+				return { item, itemGroup: child as THREE.Group, sizeVec, center };
+			})
+			.filter(
+				(
+					entry: {
+						item: KeychainModelItem;
+						itemGroup: THREE.Group;
+						sizeVec: THREE.Vector3;
+						center: THREE.Vector3;
+					} | null
+				): entry is {
+					item: KeychainModelItem;
+					itemGroup: THREE.Group;
+					sizeVec: THREE.Vector3;
+					center: THREE.Vector3;
+				} => entry !== null
+			);
+
+		for (const itemId of targets) {
+			const existing = group.children.find(
+				(child: THREE.Object3D) => child.userData?.itemId === itemId
+			);
+			if (existing) {
+				disposeObject3D(existing);
+				group.remove(existing);
+			}
+		}
+
+		for (const child of [...group.children]) {
+			group.remove(child);
+		}
+
+		const itemModels = [...unchanged, ...built].sort((a, b) => a.item.index - b.item.index);
+		layoutKeychainItemModels(itemModels);
+		updateSceneMetricsFromGroup();
+		return true;
+	}
+
+	function applyIncrementalMeshUpdate() {
+		if (!scene || !group || !font) return;
+		const items = modelItems;
+		if (items.length === 0) {
+			disposeObject3D(group);
+			group.clear();
+			keychainShapeCaches.clear();
+			syncItemGeometryFingerprints([]);
+			modelAabbMm = null;
+			updateSelectionOutline();
+			return;
+		}
+
+		if (!liveBuildKeychainGroup || group.children.length === 0) {
+			rebuildMeshes();
+			return;
+		}
+
+		const currentIds = new Set(items.map((item) => item.id));
+		let needsFullRebuild = items.length !== lastMeshItemCount;
+		const silhouetteChanged: string[] = [];
+		const depthOnlyChanged: string[] = [];
+
+		if (!needsFullRebuild) {
+			for (const id of lastItemSilhouetteKeys.keys()) {
+				if (!currentIds.has(id)) {
+					needsFullRebuild = true;
+					break;
+				}
+			}
+		}
+
+		if (!needsFullRebuild) {
+			for (const item of items) {
+				const silhouetteKey = getItemSilhouetteFingerprint(item);
+				const depthKey = getItemDepthFingerprint(item);
+				const previousSilhouette = lastItemSilhouetteKeys.get(item.id);
+				if (previousSilhouette === undefined) {
+					needsFullRebuild = true;
+					break;
+				}
+				if (previousSilhouette !== silhouetteKey) silhouetteChanged.push(item.id);
+				else if (lastItemDepthKeys.get(item.id) !== depthKey) depthOnlyChanged.push(item.id);
+			}
+		}
+
+		if (needsFullRebuild || silhouetteChanged.length > 1) {
+			rebuildMeshes();
+			return;
+		}
+
+		if (silhouetteChanged.length === 1) {
+			if (!rebuildKeychainItems(silhouetteChanged)) rebuildMeshes();
+			syncItemGeometryFingerprints(items);
+			return;
+		}
+
+		if (depthOnlyChanged.length > 0) {
+			let patchedAll = true;
+			for (const itemId of depthOnlyChanged) {
+				const item = items.find((candidate) => candidate.id === itemId);
+				if (!item || !patchKeychainItemDepths(item)) {
+					patchedAll = false;
+					break;
+				}
+			}
+			if (!patchedAll) {
+				rebuildMeshes();
+				return;
+			}
+			syncItemGeometryFingerprints(items);
+			updateSceneMetricsFromGroup();
+			return;
+		}
+	}
+
+	/** Coalesce mesh updates to one rebuild per animation frame (no debounce). */
+	function scheduleRebuildMeshes(forceFull = false) {
+		if (!scene || !group) return;
+		if (forceFull) {
+			clearScheduledMeshRebuild();
+			rebuildMeshes();
+			return;
+		}
+		meshRebuildDirty = true;
+		if (meshRebuildRaf) return;
+		meshRebuildRaf = requestAnimationFrame(() => {
+			meshRebuildRaf = 0;
+			if (!meshRebuildDirty) return;
+			meshRebuildDirty = false;
+			applyIncrementalMeshUpdate();
+		});
+	}
+
+	function applyMeshColors() {
+		if (!group) return;
+		for (const itemGroup of group.children) {
+			const itemId = itemGroup.userData?.itemId as string | undefined;
+			if (!itemId) continue;
+			const item = keychainItems.find((candidate) => candidate.id === itemId);
+			if (!item) continue;
+			const { settings } = item;
+			itemGroup.traverse((obj: THREE.Object3D) => {
+				if (!(obj instanceof THREE.Mesh)) return;
+				const mat = obj.material as THREE.MeshStandardMaterial;
+				if (!mat?.color) return;
+				const partName = (obj.userData?.partName as string | undefined) ?? obj.name;
+				if (partName === 'base') {
+					mat.color.set(settings.outlineColor);
+				} else if (partName === 'border') {
+					mat.color.set(settings.borderColor);
+				} else if (partName === 'text-outline' || partName === 'text-outline-border') {
+					mat.color.set(settings.textOutlineColor);
+				} else if (partName === 'text' || partName.startsWith('text-line-')) {
+					const lineId = obj.userData?.lineId as string | undefined;
+					const line = lineId
+						? item.lines.find((candidate) => candidate.id === lineId)
+						: item.lines[0];
+					if (line) mat.color.set(line.textColor);
+				}
+			});
+		}
+	}
+
 	// ── Rebuild meshes (outline only) ───────────────────────────────────────
-	function rebuildMeshes() {
+	function rebuildMeshes(options: { exportQuality?: boolean } = {}) {
 		if (!scene || !group || !font) return;
 		disposeObject3D(group);
 		group.clear();
 		group.position.set(0, 0, 0);
 		modelAabbMm = null;
+		keychainShapeCaches.clear();
 
-		const divisions = 18;
+		const exportQuality = options.exportQuality === true;
+		const divisions = exportQuality ? EXPORT_MESH_DIVISIONS : LIVE_MESH_DIVISIONS;
+		const curveSegments = exportQuality ? EXPORT_MESH_CURVE_SEGMENTS : LIVE_MESH_CURVE_SEGMENTS;
+		if (!exportQuality) {
+			liveCurveSegments = curveSegments;
+		}
 		const SCALE = 1000;
 
 		const shapeToPaths = (shape: any) => {
@@ -1424,6 +1977,60 @@
 					);
 				}
 				return tree;
+			};
+			const treeToClipperPaths = (tree: any) => {
+				const paths: any[] = [];
+				const walk = (node: any) => {
+					const contour = node.Contour?.() ?? node.m_polygon ?? [];
+					if (contour.length >= 3) paths.push(contour);
+					const childs = node.Childs?.() ?? node.m_Childs ?? [];
+					childs.forEach(walk);
+				};
+				const roots = tree.Childs?.() ?? tree.m_Childs ?? [];
+				roots.forEach(walk);
+				return paths;
+			};
+			const buildInsetBorderRingTree = (tree: any, borderWidth: number) => {
+				if (borderWidth <= 0) return null;
+				const ringParts: any[] = [];
+				const addRingForOuter = (outerNode: any) => {
+					const contour = outerNode.Contour?.() ?? outerNode.m_polygon ?? [];
+					if (contour.length < 3) return;
+					const co = new ClipperLib.ClipperOffset(2, 2);
+					co.AddPath(contour, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+					const inset: any[] = [];
+					co.Execute(inset, -borderWidth * SCALE);
+					if (inset.length === 0) return;
+					const partTree = new ClipperLib.PolyTree();
+					const clipper = new ClipperLib.Clipper();
+					clipper.AddPath(contour, ClipperLib.PolyType.ptSubject, true);
+					clipper.AddPaths(inset, ClipperLib.PolyType.ptClip, true);
+					clipper.Execute(
+						ClipperLib.ClipType.ctDifference,
+						partTree,
+						ClipperLib.PolyFillType.pftNonZero,
+						ClipperLib.PolyFillType.pftNonZero
+					);
+					ringParts.push(...treeToClipperPaths(partTree));
+				};
+				const walkOuters = (node: any) => {
+					const isHole = node.IsHole?.() ?? node.m_IsHole;
+					if (!isHole) addRingForOuter(node);
+					const childs = node.Childs?.() ?? node.m_Childs ?? [];
+					for (const child of childs) {
+						const childIsHole = child.IsHole?.() ?? child.m_IsHole;
+						if (!childIsHole) continue;
+						const holeKids = child.Childs?.() ?? child.m_Childs ?? [];
+						for (const holeChild of holeKids) {
+							const holeChildIsHole = holeChild.IsHole?.() ?? holeChild.m_IsHole;
+							if (!holeChildIsHole) addRingForOuter(holeChild);
+						}
+					}
+				};
+				const roots = tree.Childs?.() ?? tree.m_Childs ?? [];
+				roots.forEach(walkOuters);
+				if (ringParts.length === 0) return null;
+				return buildFilledTree(ringParts);
 			};
 			const collectOuterPaths = (node: any, out: any[]) => {
 				const isHole = node.IsHole?.() ?? node.m_IsHole;
@@ -1525,7 +2132,13 @@
 				isFiniteNumber(textBounds.maxY);
 
 			const outlineWorld = Math.max(0, settings.outlineOffsetPx) * (maxLineSize / 60);
-			const outlineTree = buildUnionOffsetTree(inputPaths, outlineWorld);
+			const maxBorderWidthMm = Math.max(0.2, outlineWorld - 0.2);
+			const borderWidthMm = settings.borderEnabled
+				? Math.min(Math.max(0.2, settings.borderWidthMm), maxBorderWidthMm)
+				: 0;
+			/** When border is on, expand the base silhouette outward by the inset rim width. */
+			const effectiveOutlineWorld = outlineWorld + borderWidthMm;
+			const outlineTree = buildUnionOffsetTree(inputPaths, effectiveOutlineWorld);
 			const textCenter = hasTextBounds
 				? {
 						x: (textBounds.minX + textBounds.maxX) / 2,
@@ -1543,7 +2156,9 @@
 
 			let baseTree: any = outlineTree;
 			const outlineCenter = getTreeCenter(outlineTree);
-			let combinedCenter = outlineCenter;
+			const alignGeoToText = (geo: THREE.BufferGeometry) => {
+				geo.translate(textCenter.x - outlineCenter.x, textCenter.y - outlineCenter.y, 0);
+			};
 			if (settings.keyringEnabled) {
 				const circleToPath = (cx: number, cy: number, r: number, clockwise: boolean, segs = 64) => {
 					const path: { X: number; Y: number }[] = [];
@@ -1559,15 +2174,11 @@
 					if (isCW !== clockwise) path.reverse();
 					return path;
 				};
-				let textAnchorX = textBounds.minX - 4;
-				let textAnchorY = textBounds.maxY;
-				if (!hasTextBounds) {
-					const outlineBbox = getTreeBbox(outlineTree);
-					textAnchorX = outlineBbox.minX / SCALE;
-					textAnchorY = outlineBbox.maxY / SCALE;
-				}
-				const kx = textAnchorX + settings.keyringOffsetX;
-				const ky = textAnchorY + settings.keyringOffsetY;
+				const outlineBbox = getTreeBbox(outlineTree);
+				const baseAnchorX = outlineBbox.minX / SCALE;
+				const baseAnchorY = outlineBbox.maxY / SCALE;
+				const kx = baseAnchorX + settings.keyringOffsetX;
+				const ky = baseAnchorY + settings.keyringOffsetY;
 				const outerR = Math.max(0.1, settings.keyringOuterSize / 2);
 				const innerR = Math.min(Math.max(0.05, settings.keyringHoleSize / 2), outerR - 0.1);
 				const outerCircle = circleToPath(kx, ky, outerR, true);
@@ -1600,7 +2211,6 @@
 						ClipperLib.PolyFillType.pftNonZero
 					);
 					baseTree = diffTree;
-					combinedCenter = getTreeCenter(baseTree);
 				}
 			}
 
@@ -1643,6 +2253,10 @@
 			};
 
 			const baseShapes = polyTreeToThreeShapes(baseTree);
+			/** Inset frame follows the text outline base only — not the keyring union. */
+			const borderTree =
+				borderWidthMm > 0 ? buildInsetBorderRingTree(outlineTree, borderWidthMm) : null;
+			const borderShapes = borderTree ? polyTreeToThreeShapes(borderTree) : [];
 			const textOutlineShapes =
 				textOutlineTree !== null ? polyTreeToThreeShapes(textOutlineTree) : [];
 			const textLineShapes = lineEntries
@@ -1663,10 +2277,9 @@
 			const baseGeo = new THREE.ExtrudeGeometry(baseShapes, {
 				depth: Math.max(0.1, settings.baseDepth),
 				bevelEnabled: false,
-				curveSegments: 12
+				curveSegments
 			});
-			centerGeometryXY(baseGeo);
-			baseGeo.translate(combinedCenter.x - outlineCenter.x, combinedCenter.y - outlineCenter.y, 0);
+			alignGeoToText(baseGeo);
 
 			const baseMesh = new THREE.Mesh(baseGeo, baseMat);
 			baseMesh.name = 'base';
@@ -1693,12 +2306,44 @@
 			itemGroup.add(baseMesh);
 
 			const baseDepthMm = Math.max(0.1, settings.baseDepth);
+			const borderDepthMm = Math.max(0.1, settings.borderDepth);
+			const hasBorderLayer = settings.borderEnabled && borderShapes.length > 0 && borderWidthMm > 0;
 			const textOutlineDepthMm = Math.max(0.1, settings.textOutlineDepth);
 			const hasTextOutlineLayer =
 				settings.textOutlineEnabled && textOutlineShapes.length > 0 && textOutlineWorld > 0;
-			let textStackZ = baseDepthMm;
+			/** Text seats on the base top; optional layers stack upward from here. */
+			const stackTopZ = baseDepthMm;
+
+			let textStackZ = stackTopZ;
+			const textOutlineZ = stackTopZ + LAYER_GAP;
 
 			if (hasTextOutlineLayer) {
+				if (hasBorderLayer) {
+					const textOutlineBorderMat = new THREE.MeshStandardMaterial({
+						color: settings.textOutlineColor,
+						roughness: 0.85,
+						metalness: 0.05
+					});
+					const textOutlineBorderGeo = new THREE.ExtrudeGeometry(borderShapes, {
+						depth: textOutlineDepthMm,
+						bevelEnabled: false,
+						curveSegments
+					});
+					alignGeoToText(textOutlineBorderGeo);
+					const textOutlineBorderMesh = new THREE.Mesh(textOutlineBorderGeo, textOutlineBorderMat);
+					textOutlineBorderMesh.name = 'text-outline-border';
+					textOutlineBorderMesh.userData = {
+						partName: 'text-outline-border',
+						parentObjectName: exportName,
+						itemId: item.id,
+						itemIndex: item.index
+					};
+					textOutlineBorderMesh.castShadow = true;
+					textOutlineBorderMesh.receiveShadow = true;
+					textOutlineBorderMesh.position.z = textOutlineZ;
+					itemGroup.add(textOutlineBorderMesh);
+				}
+
 				const textOutlineMat = new THREE.MeshStandardMaterial({
 					color: settings.textOutlineColor,
 					roughness: 0.55,
@@ -1707,7 +2352,7 @@
 				const textOutlineGeo = new THREE.ExtrudeGeometry(textOutlineShapes, {
 					depth: textOutlineDepthMm,
 					bevelEnabled: false,
-					curveSegments: 12
+					curveSegments
 				});
 				textOutlineGeo.translate(
 					textCenter.x - textOutlineCenter.x,
@@ -1724,9 +2369,37 @@
 				};
 				textOutlineMesh.castShadow = true;
 				textOutlineMesh.receiveShadow = true;
-				textOutlineMesh.position.z = baseDepthMm - TEXT_OUTLINE_BASE_EMBED;
+				textOutlineMesh.position.z = textOutlineZ;
 				itemGroup.add(textOutlineMesh);
-				textStackZ = baseDepthMm - TEXT_OUTLINE_BASE_EMBED + textOutlineDepthMm;
+				textStackZ = textOutlineZ + textOutlineDepthMm;
+			}
+
+			const textLayerZ = textStackZ + LAYER_GAP;
+
+			if (hasBorderLayer) {
+				const borderMat = new THREE.MeshStandardMaterial({
+					color: settings.borderColor,
+					roughness: 0.85,
+					metalness: 0.05
+				});
+				const borderGeo = new THREE.ExtrudeGeometry(borderShapes, {
+					depth: borderDepthMm,
+					bevelEnabled: false,
+					curveSegments
+				});
+				alignGeoToText(borderGeo);
+				const borderMesh = new THREE.Mesh(borderGeo, borderMat);
+				borderMesh.name = 'border';
+				borderMesh.userData = {
+					partName: 'border',
+					parentObjectName: exportName,
+					itemId: item.id,
+					itemIndex: item.index
+				};
+				borderMesh.castShadow = true;
+				borderMesh.receiveShadow = true;
+				borderMesh.position.z = textLayerZ;
+				itemGroup.add(borderMesh);
 			}
 
 			textLineShapes.forEach((entry) => {
@@ -1737,9 +2410,9 @@
 				});
 				const textGeo = new THREE.ExtrudeGeometry(entry.shapes, {
 					depth: Math.max(0.1, entry.line.textDepth),
-					bevelEnabled: false
+					bevelEnabled: false,
+					curveSegments
 				});
-				textGeo.translate(-textCenter.x, -textCenter.y, 0);
 				const textMesh = new THREE.Mesh(textGeo, textMat);
 				textMesh.name = 'text';
 				textMesh.userData = {
@@ -1752,11 +2425,31 @@
 				};
 				textMesh.castShadow = true;
 				textMesh.receiveShadow = true;
-				textMesh.position.z = textStackZ - TEXT_BASE_EMBED;
+				textMesh.position.z = textLayerZ;
 				itemGroup.add(textMesh);
+			});
+
+			keychainShapeCaches.set(item.id, {
+				baseShapes,
+				borderShapes,
+				textOutlineShapes,
+				textLineShapes: textLineShapes.map((entry) => ({
+					lineId: entry.line.id,
+					lineIndex: entry.index,
+					shapes: entry.shapes
+				})),
+				textCenter,
+				outlineCenter,
+				textOutlineCenter,
+				borderWidthMm,
+				textOutlineWorld
 			});
 			return itemGroup;
 		};
+
+		if (!exportQuality) {
+			liveBuildKeychainGroup = buildKeychainGroup;
+		}
 
 		const itemModels = modelItems
 			.map((item) => ({ item, itemGroup: buildKeychainGroup(item) }))
@@ -1775,40 +2468,12 @@
 			});
 
 		if (itemModels.length === 0) {
+			syncItemGeometryFingerprints([]);
 			updateSelectionOutline();
 			return;
 		}
 
-		const columns = Math.ceil(Math.sqrt(itemModels.length));
-		const rows: Array<Array<(typeof itemModels)[number]>> = [];
-		for (let i = 0; i < itemModels.length; i += columns) {
-			rows.push(itemModels.slice(i, i + columns));
-		}
-
-		const rowMetrics = rows.map((row) => ({
-			width: row.reduce(
-				(sum, item, index) => sum + item.sizeVec.x + (index > 0 ? BATCH_ITEM_SPACING : 0),
-				0
-			),
-			height: Math.max(...row.map((item) => item.sizeVec.y))
-		}));
-		const totalHeight = rowMetrics.reduce(
-			(sum, row, index) => sum + row.height + (index > 0 ? BATCH_ITEM_SPACING : 0),
-			0
-		);
-		let cursorY = totalHeight / 2;
-		rows.forEach((row, rowIndex) => {
-			const rowMetric = rowMetrics[rowIndex];
-			const rowY = cursorY - rowMetric.height / 2;
-			let cursorX = -rowMetric.width / 2;
-			row.forEach((item) => {
-				const itemX = cursorX + item.sizeVec.x / 2;
-				item.itemGroup.position.set(itemX - item.center.x, rowY - item.center.y, 0);
-				group.add(item.itemGroup);
-				cursorX += item.sizeVec.x + BATCH_ITEM_SPACING;
-			});
-			cursorY -= rowMetric.height + BATCH_ITEM_SPACING;
-		});
+		layoutKeychainItemModels(itemModels);
 
 		// Shadow camera
 		group.updateWorldMatrix(true, true);
@@ -1838,6 +2503,7 @@
 			const s = measureWorldAabbSizeMm(group);
 			modelAabbMm = s ? { x: s.x, y: s.y, z: s.z } : null;
 		}
+		syncItemGeometryFingerprints(modelItems);
 		updateSelectionOutline();
 	}
 
@@ -1911,6 +2577,7 @@
 		rebuildMeshes();
 		setTimeout(() => {
 			isUpdatingFromStorage = false;
+			maybeShowRimFeatureDialog();
 		}, 0);
 		const tick = () => {
 			rafId = requestAnimationFrame(tick);
@@ -2024,7 +2691,17 @@
 		void textColor;
 		void outlineColor;
 		void keyringEnabled;
-		saveSettingsForFont(fontKey);
+		if (fontSettingsPersistTimeout !== null) clearTimeout(fontSettingsPersistTimeout);
+		fontSettingsPersistTimeout = setTimeout(() => {
+			fontSettingsPersistTimeout = null;
+			saveSettingsForFont(fontKey);
+		}, FONT_SETTINGS_PERSIST_DEBOUNCE_MS);
+		return () => {
+			if (fontSettingsPersistTimeout !== null) {
+				clearTimeout(fontSettingsPersistTimeout);
+				fontSettingsPersistTimeout = null;
+			}
+		};
 	});
 
 	$effect(() => {
@@ -2035,14 +2712,31 @@
 		void keyringOffsetY;
 		void keyringOuterSize;
 		void keyringHoleSize;
-		if (currentChar && currentFont) saveKeyringForChar(currentFont, currentChar);
+		if (!currentChar || !currentFont) return;
+		if (keyringPersistTimeout !== null) clearTimeout(keyringPersistTimeout);
+		keyringPersistTimeout = setTimeout(() => {
+			keyringPersistTimeout = null;
+			saveKeyringForChar(currentFont, currentChar);
+		}, FONT_SETTINGS_PERSIST_DEBOUNCE_MS);
+		return () => {
+			if (keyringPersistTimeout !== null) {
+				clearTimeout(keyringPersistTimeout);
+				keyringPersistTimeout = null;
+			}
+		};
 	});
 
 	$effect(() => {
-		void keychainItems;
+		void meshGeometryKey;
 		if (!scene) return;
 		scheduleRebuildMeshes();
 		return () => clearScheduledMeshRebuild();
+	});
+
+	$effect(() => {
+		void meshColorKey;
+		if (!group) return;
+		applyMeshColors();
 	});
 
 	$effect(() => {
@@ -2052,6 +2746,7 @@
 
 	$effect(() => {
 		void editableSettings.outlineColor;
+		void editableSettings.borderColor;
 		void editableSettings.textColor;
 		void editableSettings.textOutlineColor;
 		void editableSettings.textOutlineEnabled;
@@ -2064,6 +2759,14 @@
 		if (persistTimeout !== null) {
 			clearTimeout(persistTimeout);
 			persistTimeout = null;
+		}
+		if (fontSettingsPersistTimeout !== null) {
+			clearTimeout(fontSettingsPersistTimeout);
+			fontSettingsPersistTimeout = null;
+		}
+		if (keyringPersistTimeout !== null) {
+			clearTimeout(keyringPersistTimeout);
+			keyringPersistTimeout = null;
 		}
 		cancelAnimationFrame(rafId);
 		rafId = 0;
@@ -2385,6 +3088,79 @@
 							/>
 						</div>
 
+						<div
+							id="text-outline-border-settings"
+							class="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white/70 p-3"
+						>
+							<div class="flex items-center justify-between gap-2">
+								<div class="text-xs font-semibold tracking-tight text-slate-700">Border</div>
+								<label class="flex items-center gap-2 text-xs font-medium text-slate-700">
+									<input
+										class="h-4 w-4 accent-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+										type="checkbox"
+										checked={editableSettings.borderEnabled}
+										onchange={(event) =>
+											updateSelectedItemSettings({
+												borderEnabled: (event.currentTarget as HTMLInputElement).checked
+											})}
+										disabled={!hasSelectedItem}
+									/>
+									Enabled
+								</label>
+							</div>
+							{#if editableSettings.borderEnabled}
+								<label class="grid gap-1.5">
+									<div class="flex items-center justify-between gap-2">
+										<span class="text-xs font-medium text-slate-700">Border width (inset)</span>
+										<span class="text-xs text-slate-600 tabular-nums"
+											>{Math.min(
+												editableSettings.borderWidthMm,
+												editableMaxBorderWidthMm
+											).toFixed(1)} mm</span
+										>
+									</div>
+									<Slider
+										type="single"
+										value={Math.min(editableSettings.borderWidthMm, editableMaxBorderWidthMm)}
+										onValueChange={(value: number) =>
+											updateSelectedItemSettings({ borderWidthMm: value })}
+										min={0.2}
+										max={editableMaxBorderWidthMm}
+										step={0.1}
+										disabled={!hasSelectedItem}
+										class="w-full"
+									/>
+								</label>
+								<label class="grid gap-1.5">
+									<div class="flex items-center justify-between gap-2">
+										<span class="text-xs font-medium text-slate-700">Border depth</span>
+										<span class="text-xs text-slate-600 tabular-nums"
+											>{editableSettings.borderDepth}</span
+										>
+									</div>
+									<Slider
+										type="single"
+										value={editableSettings.borderDepth}
+										onValueChange={(value: number) =>
+											updateSelectedItemSettings({ borderDepth: value })}
+										min={0.1}
+										max={12}
+										step={0.1}
+										disabled={!hasSelectedItem}
+										class="w-full"
+									/>
+								</label>
+								<ColorPalettePicker
+									value={editableSettings.borderColor}
+									onValueChange={(value: string) =>
+										updateSelectedItemSettings({ borderColor: value })}
+									{palette}
+									label="Border color"
+									disabled={!hasSelectedItem}
+								/>
+							{/if}
+						</div>
+
 						<div class="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white/70 p-3">
 							<div class="flex items-center justify-between gap-2">
 								<div class="text-xs font-semibold tracking-tight text-slate-700">Text outline</div>
@@ -2403,7 +3179,8 @@
 								</label>
 							</div>
 							<p class="text-[11px] leading-snug text-slate-500">
-								Optional middle layer between the letters and the base outline.
+								Optional middle layer between the letters and the base outline. When base border is
+								on, a matching border frame is added at this layer in the text outline color.
 							</p>
 
 							{#if editableSettings.textOutlineEnabled}
@@ -2671,6 +3448,11 @@
 												></span>
 												<span
 													class="min-w-0 flex-1 border-x border-white/20"
+													style:background-color={preset.borderColor}
+													aria-hidden="true"
+												></span>
+												<span
+													class="min-w-0 flex-1 border-r border-white/20"
 													style:background-color={preset.textOutlineColor}
 													aria-hidden="true"
 												></span>
@@ -2728,6 +3510,14 @@
 											></span>
 											<span
 												class="min-w-0 flex-1 border-x border-white/20"
+												style:background-color={snapColorToPalette(
+													template.borderColor,
+													palette,
+													template.borderColor
+												)}
+											></span>
+											<span
+												class="min-w-0 flex-1 border-r border-white/20"
 												style:background-color={snapColorToPalette(
 													template.textOutlineColor,
 													palette,
@@ -2819,6 +3609,12 @@
 						label="Base outline"
 					/>
 					<ColorPalettePicker
+						bind:value={presetEditorBorder}
+						{palette}
+						paletteOnly
+						label="Border"
+					/>
+					<ColorPalettePicker
 						bind:value={presetEditorTextOutline}
 						{palette}
 						paletteOnly
@@ -2851,4 +3647,10 @@
 			</Dialog.Content>
 		</Dialog.Root>
 	{/if}
+
+	<TextOutlineRimFeatureDialog
+		open={rimFeatureDialogOpen}
+		onOpenChange={onRimFeatureDialogOpenChange}
+		onTryIt={tryRimFeatureFromDialog}
+	/>
 </main>

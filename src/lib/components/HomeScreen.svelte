@@ -118,7 +118,7 @@
 		basicName:
 			'Color preset gallery plus optional text-outline layer with a matching border frame. Import starters or save your own combos; presets sync to your account when signed in.',
 		textOutline:
-			'Color preset gallery — import starters or save your own combos (base, text outline, and text). Optional text-outline layer between letters and the base outline; presets sync when signed in.',
+			'Optional inset border rim on the base outline, optional text-outline layer with a matching border frame when both are on, color presets, and keyring anchored to the base corner; presets sync when signed in.',
 		// whistleBagTag:
 		// 	'Optional text-outline layer (middle) plus a color preset gallery (base, outline, and border/text). Presets sync when signed in.',
 		// whistleV2:
