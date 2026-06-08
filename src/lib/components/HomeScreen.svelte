@@ -24,13 +24,17 @@
 		loadFavoriteDesigners,
 		toggleFavoriteDesigner
 	} from '$lib/favoriteDesigners.svelte';
+	import { MESSENGER_COMMUNITY_URL } from '$lib/messengerCommunity';
 	import { getFont } from '$lib/utils-3d';
 
 	const STORAGE_KEY_FAVORITE_FEATURE_DIALOG = 'favorite-designers-feature-dialog-v1';
+	const STORAGE_KEY_COMMUNITY_INVITE_DISMISSED = 'messenger-community-invite-dismissed-v1';
+	const STORAGE_KEY_COMMUNITY_INVITE_DIALOG = 'messenger-community-invite-dialog-v1';
 
 	let comingSoonInterestSent = $state<Set<StyleName>>(new Set());
 	let comingSoonInterestSending = $state<StyleName | null>(null);
 	let favoriteFeatureDialogOpen = $state(false);
+	let showCommunityInviteAlert = $state(false);
 
 	function markFavoriteFeatureDialogSeen() {
 		try {
@@ -43,6 +47,26 @@
 	function onFavoriteFeatureDialogOpenChange(open: boolean) {
 		favoriteFeatureDialogOpen = open;
 		if (!open) markFavoriteFeatureDialogSeen();
+	}
+
+	function isCommunityInviteDismissed(): boolean {
+		try {
+			return (
+				localStorage.getItem(STORAGE_KEY_COMMUNITY_INVITE_DISMISSED) === '1' ||
+				localStorage.getItem(STORAGE_KEY_COMMUNITY_INVITE_DIALOG) === '1'
+			);
+		} catch {
+			return false;
+		}
+	}
+
+	function dismissCommunityInviteAlert() {
+		showCommunityInviteAlert = false;
+		try {
+			localStorage.setItem(STORAGE_KEY_COMMUNITY_INVITE_DISMISSED, '1');
+		} catch {
+			// Local storage can be unavailable in private browsing contexts.
+		}
 	}
 
 	function maybeShowFavoriteFeatureDialog() {
@@ -67,6 +91,7 @@
 		}
 		comingSoonInterestSent = sent;
 		maybeShowFavoriteFeatureDialog();
+		showCommunityInviteAlert = !isCommunityInviteDismissed();
 	});
 
 	type StyleName =
@@ -669,6 +694,68 @@
 					>
 					if you prefer.
 				</p>
+			</div>
+		{/if}
+
+		{#if showCommunityInviteAlert}
+			<div
+				class="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2.5 sm:mb-6 sm:px-4 sm:py-3"
+				role="status"
+			>
+				<div class="flex items-start gap-3">
+					<div
+						class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-600"
+						aria-hidden="true"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="size-4"
+							viewBox="0 0 24 24"
+							fill="currentColor"
+						>
+							<path
+								d="M12 2C6.48 2 2 6.13 2 11.06c0 2.86 1.44 5.41 3.7 7.09L5 22l3.79-1.98c1.08.3 2.22.46 3.41.46 5.52 0 10-4.13 10-9.06S17.52 2 12 2zm.55 11.96l-2.6-2.77-5.05 2.77L10.4 8.5l2.67 2.77 4.98-2.72-5.5 5.41z"
+							/>
+						</svg>
+					</div>
+					<div class="min-w-0 flex-1">
+						<p class="font-medium text-sky-950">Join the Print Studio community</p>
+						<p class="mt-1 text-sm leading-relaxed text-sky-900/90">
+							Get updates, printing tips, and support in our official Messenger group.
+						</p>
+						<Button
+							href={MESSENGER_COMMUNITY_URL}
+							target="_blank"
+							rel="noopener noreferrer"
+							size="sm"
+							class="mt-2.5 bg-sky-600 hover:bg-sky-700"
+						>
+							Join on Messenger
+						</Button>
+					</div>
+					<Button
+						variant="ghost"
+						size="icon"
+						class="size-8 shrink-0 text-sky-700/70 hover:bg-sky-100 hover:text-sky-900"
+						aria-label="Dismiss community invite"
+						onclick={dismissCommunityInviteAlert}
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="size-4"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							aria-hidden="true"
+						>
+							<path d="M18 6 6 18" />
+							<path d="m6 6 12 12" />
+						</svg>
+					</Button>
+				</div>
 			</div>
 		{/if}
 
