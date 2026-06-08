@@ -5,6 +5,8 @@ export type RecentExportEvent = {
 	designerId: string | null;
 	format: 'stl' | '3mf' | 'bambu_studio';
 	createdAt: string;
+	emailObscured: string;
+	avatarUrl: string | null;
 };
 
 const MAX_EVENTS = 12;
@@ -78,13 +80,25 @@ function parseRow(row: unknown): RecentExportEvent | null {
 		designer_id?: string | null;
 		export_format?: string;
 		created_at?: string;
+		user_email_obscured?: string | null;
+		user_avatar_url?: string | null;
 	};
 	if (!r.id || !r.created_at) return null;
+	const emailObscured =
+		typeof r.user_email_obscured === 'string' && r.user_email_obscured.trim()
+			? r.user_email_obscured.trim()
+			: 'Maker';
+	const avatarUrl =
+		typeof r.user_avatar_url === 'string' && r.user_avatar_url.trim()
+			? r.user_avatar_url.trim()
+			: null;
 	return {
 		id: r.id,
 		designerId: r.designer_id ?? null,
 		format: normalizeFormat(r.export_format),
-		createdAt: r.created_at
+		createdAt: r.created_at,
+		emailObscured,
+		avatarUrl
 	};
 }
 
