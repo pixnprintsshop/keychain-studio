@@ -78,7 +78,7 @@ export function notifyExportEvent(payload: ExportNotifyPayload): void {
 		format
 	};
 
-	recordExport(resolveDesignerIdForExport(designName, payload.designerId));
+	recordExport(resolveDesignerIdForExport(designName, payload.designerId), format);
 
 	if (!isTelegramNotifyEnabled()) return;
 

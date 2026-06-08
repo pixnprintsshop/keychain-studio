@@ -14,12 +14,49 @@
 		isSubscriberOnlyDesigner,
 		type SubscriptionStatus
 	} from '$lib/subscription';
+	import FavoriteDesignersFeatureDialog from '$lib/components/FavoriteDesignersFeatureDialog.svelte';
 	import FloatingGlobalExportCounter from '$lib/components/FloatingGlobalExportCounter.svelte';
+	import FloatingRecentExportsFeed from '$lib/components/FloatingRecentExportsFeed.svelte';
 	import { exportStats, formatExportCount, getDesignerExportCount } from '$lib/exportStats.svelte';
+	import {
+		favoriteSortIndex,
+		isFavoriteDesigner,
+		loadFavoriteDesigners,
+		toggleFavoriteDesigner
+	} from '$lib/favoriteDesigners.svelte';
 	import { getFont } from '$lib/utils-3d';
+
+	const STORAGE_KEY_FAVORITE_FEATURE_DIALOG = 'favorite-designers-feature-dialog-v1';
 
 	let comingSoonInterestSent = $state<Set<StyleName>>(new Set());
 	let comingSoonInterestSending = $state<StyleName | null>(null);
+	let favoriteFeatureDialogOpen = $state(false);
+
+	function markFavoriteFeatureDialogSeen() {
+		try {
+			localStorage.setItem(STORAGE_KEY_FAVORITE_FEATURE_DIALOG, '1');
+		} catch {
+			// Local storage can be unavailable in private browsing contexts.
+		}
+	}
+
+	function onFavoriteFeatureDialogOpenChange(open: boolean) {
+		favoriteFeatureDialogOpen = open;
+		if (!open) markFavoriteFeatureDialogSeen();
+	}
+
+	function maybeShowFavoriteFeatureDialog() {
+		try {
+			if (localStorage.getItem(STORAGE_KEY_FAVORITE_FEATURE_DIALOG) === '1') return;
+		} catch {
+			return;
+		}
+		favoriteFeatureDialogOpen = true;
+	}
+
+	function tryFavoriteFeatureFromDialog() {
+		document.getElementById('designer-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}
 
 	// Preload font so Name Puzzle designer opens faster; restore interest flags from session.
 	onMount(() => {
@@ -29,6 +66,7 @@
 			if (isComingSoonInterestRecorded(id)) sent.add(id as StyleName);
 		}
 		comingSoonInterestSent = sent;
+		maybeShowFavoriteFeatureDialog();
 	});
 
 	type StyleName =
@@ -382,6 +420,10 @@
 
 	const hasAccess = $derived(hasPaidAccess(user, subscriptionStatus));
 
+	$effect(() => {
+		void loadFavoriteDesigners(user?.id ?? null);
+	});
+
 	function isUnderMaintenance(style: StyleName): boolean {
 		return DESIGNERS_UNDER_MAINTENANCE.has(style);
 	}
@@ -427,6 +469,12 @@
 
 	const sortedDesigners = $derived(
 		[...DESIGNERS].sort((a, b) => {
+			const aFavorite = favoriteSortIndex(a.id);
+			const bFavorite = favoriteSortIndex(b.id);
+			if (aFavorite >= 0 && bFavorite >= 0) return aFavorite - bFavorite;
+			if (aFavorite >= 0) return -1;
+			if (bFavorite >= 0) return 1;
+
 			const byRank = designerListSortRank(a.id) - designerListSortRank(b.id);
 			if (byRank !== 0) return byRank;
 			return (designerDisplayOrder.get(a.id) ?? 0) - (designerDisplayOrder.get(b.id) ?? 0);
@@ -497,6 +545,7 @@
 </script>
 
 <FloatingGlobalExportCounter />
+<FloatingRecentExportsFeed />
 
 <div
 	class="flex min-h-dvh w-dvw items-center justify-center bg-slate-50 px-4 py-6 pt-20 sm:p-6 sm:pt-25"
@@ -623,7 +672,7 @@
 			</div>
 		{/if}
 
-		<div class="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-5">
+		<div id="designer-grid" class="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-5">
 			{#each sortedDesigners as designer (designer.id)}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -765,6 +814,42 @@
 									: 'group-hover:scale-105'}"
 							/>
 						</div>
+						<Button
+							variant="ghost"
+							size="icon"
+							class="pointer-events-auto absolute right-2 bottom-2 z-30 size-8 rounded-full border bg-white shadow-md ring-2 ring-white/90 sm:right-3 sm:bottom-3 sm:size-9 {isFavoriteDesigner(
+								designer.id
+							)
+								? 'border-amber-300 text-amber-500 hover:bg-amber-50 hover:text-amber-600'
+								: 'border-slate-200/90 text-slate-400 hover:bg-white hover:text-amber-500'}"
+							title={isFavoriteDesigner(designer.id)
+								? 'Remove from favorites'
+								: 'Favorite — pin to top of list'}
+							aria-label={isFavoriteDesigner(designer.id)
+								? 'Remove from favorites'
+								: 'Favorite designer'}
+							aria-pressed={isFavoriteDesigner(designer.id)}
+							onclick={(e) => {
+								e.stopPropagation();
+								void toggleFavoriteDesigner(designer.id);
+							}}
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="size-4"
+								viewBox="0 0 24 24"
+								fill={isFavoriteDesigner(designer.id) ? 'currentColor' : 'none'}
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								aria-hidden="true"
+							>
+								<polygon
+									points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+								/>
+							</svg>
+						</Button>
 						{#if isComingSoonDesigner(designer.id)}
 							<Button
 								variant="ghost"
@@ -957,3 +1042,9 @@
 		</div>
 	</div>
 </div>
+
+<FavoriteDesignersFeatureDialog
+	open={favoriteFeatureDialogOpen}
+	onOpenChange={onFavoriteFeatureDialogOpenChange}
+	onTryIt={tryFavoriteFeatureFromDialog}
+/>

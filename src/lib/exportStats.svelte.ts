@@ -136,13 +136,17 @@ export function formatExportCount(n: number): string {
 /**
  * Increment global, per-user, and per-designer counters after a successful export.
  */
-export function recordExport(designerId: DesignerId | null): void {
+export function recordExport(
+	designerId: DesignerId | null,
+	format: 'stl' | '3mf' | 'bambu_studio' = 'stl'
+): void {
 	if (!userId) return;
 
 	void (async () => {
 		try {
 			const { data, error } = await supabase.rpc('record_platform_export', {
-				p_designer_id: designerId ?? undefined
+				p_designer_id: designerId ?? undefined,
+				p_format: format
 			});
 			if (error) {
 				console.warn('[exportStats] record failed:', error.message);
