@@ -28,6 +28,7 @@
 		getSubscriptionStatus,
 		type SubscriptionStatus
 	} from '$lib/subscription';
+	import { favoriteDesigners, loadFavoriteDesigners } from '$lib/favoriteDesigners.svelte';
 	import { loadExportStats } from '$lib/exportStats.svelte';
 	import { notifyVisit } from '$lib/visitNotify';
 	import {
@@ -130,6 +131,14 @@
 	let visibilityCleanup: (() => void) | null = null;
 	let visitNotifyTimer: number | null = null;
 
+	const authBootstrapComplete = $derived.by(() => {
+		if (!sessionBootstrapComplete) return false;
+		if (!favoriteDesigners.loaded) return false;
+		const uid = user?.id;
+		if (!uid) return true;
+		return subscriptionBootstrapComplete && freeTrial.loaded;
+	});
+
 	const effectivePalette = $derived(getEffectivePalette(user, userPalette));
 
 	const designerNavLoading = $derived(
@@ -185,6 +194,9 @@
 		get subscriptionBootstrapComplete() {
 			return subscriptionBootstrapComplete;
 		},
+		get authBootstrapComplete() {
+			return authBootstrapComplete;
+		},
 		requestLogin: () => {
 			showLoginModal = true;
 		},
@@ -220,6 +232,12 @@
 	$effect(() => {
 		const u = user;
 		void loadFreeTrialForUser(u?.id ?? null);
+	});
+
+	// Favorite designers (home grid sort order).
+	$effect(() => {
+		const u = user;
+		void loadFavoriteDesigners(u?.id ?? null);
 	});
 
 	// Platform + per-user export counters for home / stats UI.
@@ -488,6 +506,8 @@
 
 {#if MAINTENANCE_MODE}
 	<MaintenancePage />
+{:else if !authBootstrapComplete}
+	<DesignerLoadingScreen message="Loading Print Studio…" />
 {:else}
 	<!-- Welcome Dialog -->
 	{#if showWelcomeDialog}

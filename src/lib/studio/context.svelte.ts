@@ -12,6 +12,7 @@ export type StudioContext = {
 	readonly palette: PaletteColor[];
 	readonly isMobile: boolean;
 	readonly subscriptionBootstrapComplete: boolean;
+	readonly authBootstrapComplete: boolean;
 	requestLogin: () => void;
 	showPricing: () => void;
 	showThankYou: () => void;

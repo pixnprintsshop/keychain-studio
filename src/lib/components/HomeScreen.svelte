@@ -21,7 +21,6 @@
 	import {
 		favoriteSortIndex,
 		isFavoriteDesigner,
-		loadFavoriteDesigners,
 		toggleFavoriteDesigner
 	} from '$lib/favoriteDesigners.svelte';
 	import { MESSENGER_COMMUNITY_URL } from '$lib/messengerCommunity';
@@ -444,10 +443,6 @@
 	}: Props = $props();
 
 	const hasAccess = $derived(hasPaidAccess(user, subscriptionStatus));
-
-	$effect(() => {
-		void loadFavoriteDesigners(user?.id ?? null);
-	});
 
 	function isUnderMaintenance(style: StyleName): boolean {
 		return DESIGNERS_UNDER_MAINTENANCE.has(style);
