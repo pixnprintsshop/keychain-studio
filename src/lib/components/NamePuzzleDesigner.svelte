@@ -1,14 +1,17 @@
 <script lang="ts">
-	import type { Session, User } from '@supabase/supabase-js';
-	import ClipperLib from 'clipper-lib';
-	import { onDestroy, onMount, tick } from 'svelte';
-	import * as THREE from 'three';
-	import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
-	import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-	import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
-	import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+	import type { PaletteColor } from '$lib/colorPalette';
+	import { Button } from '$lib/components/ui/button';
+	import { Slider } from '$lib/components/ui/slider';
 	import { exportTo3MF } from '$lib/export-to-3mf';
+	import { notifyExportEvent } from '$lib/exportNotify';
+	import {
+		flushNamePuzzleSettingsSave,
+		loadNamePuzzleSettings,
+		scheduleSaveNamePuzzleSettings
+	} from '$lib/namePuzzleSettings';
 	import { runOpenScad } from '$lib/openscad';
+	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
+	import { upload3mfToSupabase } from '$lib/upload3mf';
 	import {
 		centerGeometryXY,
 		createRoundedRectShape,
@@ -20,21 +23,18 @@
 		measureWorldAabbSizeMm,
 		stlToBufferGeometry
 	} from '$lib/utils-3d';
-	import { notifyExportEvent } from '$lib/exportNotify';
-	import { upload3mfToSupabase } from '$lib/upload3mf';
+	import { tickThenYieldToPaint } from '$lib/yield-to-paint';
+	import type { Session, User } from '@supabase/supabase-js';
+	import ClipperLib, { type PolyTree } from 'clipper-lib';
+	import { onDestroy, onMount, tick } from 'svelte';
+	import * as THREE from 'three';
+	import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
+	import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+	import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
+	import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+	import ColorPalettePicker from './ColorPalettePicker.svelte';
 	import DesignerExportToolbar from './DesignerExportToolbar.svelte';
 	import DesignerModelDimensionsHud from './DesignerModelDimensionsHud.svelte';
-	import { Button } from '$lib/components/ui/button';
-	import { Slider } from '$lib/components/ui/slider';
-	import ColorPalettePicker from './ColorPalettePicker.svelte';
-	import type { PaletteColor } from '$lib/colorPalette';
-	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
-	import { tickThenYieldToPaint } from '$lib/yield-to-paint';
-	import {
-		flushNamePuzzleSettingsSave,
-		loadNamePuzzleSettings,
-		scheduleSaveNamePuzzleSettings
-	} from '$lib/namePuzzleSettings';
 
 	interface Props {
 		user: User | null;
@@ -136,6 +136,59 @@
 		if (ClipperLib.Clipper.Orientation(path) !== clockwise) path.reverse();
 	}
 
+	function pathsBbox(paths: { X: number; Y: number }[][]) {
+		let minX = Infinity;
+		let maxX = -Infinity;
+		let minY = Infinity;
+		let maxY = -Infinity;
+		for (const path of paths) {
+			for (const p of path) {
+				minX = Math.min(minX, p.X);
+				maxX = Math.max(maxX, p.X);
+				minY = Math.min(minY, p.Y);
+				maxY = Math.max(maxY, p.Y);
+			}
+		}
+		return { minX, maxX, minY, maxY };
+	}
+
+	function translatePaths(
+		paths: { X: number; Y: number }[][],
+		dx: number,
+		dy: number
+	): { X: number; Y: number }[][] {
+		return paths.map((path) =>
+			path.map((p) => ({
+				X: Math.round(p.X + dx),
+				Y: Math.round(p.Y + dy)
+			}))
+		);
+	}
+
+	/**
+	 * Pin cap height so letters like A/R/I stay the same size and vertical position when
+	 * a descender (Q, J, G, Y) is present — only the base grows downward for the tail.
+	 */
+	function layoutPathsForCapAlignment(paths: { X: number; Y: number }[][]) {
+		const bbox = pathsBbox(paths);
+		if (
+			!Number.isFinite(bbox.minX) ||
+			!Number.isFinite(bbox.maxX) ||
+			!Number.isFinite(bbox.minY) ||
+			!Number.isFinite(bbox.maxY)
+		) {
+			return null;
+		}
+		const translateX = -((bbox.minX + bbox.maxX) / 2);
+		const capTopY = bbox.maxY;
+		const translateY = capTopY / 2 - capTopY;
+		return {
+			paths: translatePaths(paths, translateX, translateY),
+			textWidth: (bbox.maxX - bbox.minX) / CLIPPER_SCALE,
+			textHeight: (bbox.maxY - bbox.minY) / CLIPPER_SCALE
+		};
+	}
+
 	type PuzzleLayout = {
 		textWidth: number;
 		textHeight: number;
@@ -145,10 +198,10 @@
 		baseDepth: number;
 		cutoutDepth: number;
 		cutoutShapes: THREE.Shape[];
-		cutoutTree: ClipperLib.PolyTree;
+		cutoutTree: PolyTree;
 	};
 
-	function clipperTreeToBbox(tree: ClipperLib.PolyTree | { Childs?: () => unknown[]; m_Childs?: unknown[] }) {
+	function clipperTreeToBbox(tree: PolyTree | { Childs?: () => unknown[]; m_Childs?: unknown[] }) {
 		let minX = Infinity;
 		let maxX = -Infinity;
 		let minY = Infinity;
@@ -174,7 +227,7 @@
 		return { minX, maxX, minY, maxY };
 	}
 
-	function clipperTreeToShapes(tree: ClipperLib.PolyTree | { Childs?: () => unknown[]; m_Childs?: unknown[] }) {
+	function clipperTreeToShapes(tree: PolyTree | { Childs?: () => unknown[]; m_Childs?: unknown[] }) {
 		const out: THREE.Shape[] = [];
 		const roots = tree.Childs?.() ?? (tree as { m_Childs?: unknown[] }).m_Childs ?? [];
 		const toVec2 = (pt: { X: number; Y: number }) =>
@@ -203,7 +256,7 @@
 		return out;
 	}
 
-	function buildCutoutTree(inputPaths: { X: number; Y: number }[][]): ClipperLib.PolyTree {
+	function buildCutoutTree(inputPaths: { X: number; Y: number }[][]): PolyTree {
 		const toleranceInClipper = Math.max(0, tolerance) * CLIPPER_SCALE;
 		const cutoutTree = new ClipperLib.PolyTree();
 		if (toleranceInClipper > 0) {
@@ -255,18 +308,12 @@
 		}
 		if (!inputPaths.length) return null;
 
-		const cutoutTree = buildCutoutTree(inputPaths);
-		const cutoutBbox = clipperTreeToBbox(cutoutTree);
-		const textWidth = (cutoutBbox.maxX - cutoutBbox.minX) / CLIPPER_SCALE;
-		const textHeight = (cutoutBbox.maxY - cutoutBbox.minY) / CLIPPER_SCALE;
-		if (
-			!Number.isFinite(textWidth) ||
-			!Number.isFinite(textHeight) ||
-			textWidth <= 0 ||
-			textHeight <= 0
-		) {
-			return null;
-		}
+		const aligned = layoutPathsForCapAlignment(inputPaths);
+		if (!aligned) return null;
+		const { paths: alignedPaths, textWidth, textHeight } = aligned;
+		if (textWidth <= 0 || textHeight <= 0) return null;
+
+		const cutoutTree = buildCutoutTree(alignedPaths);
 
 		const cutoutShapes = clipperTreeToShapes(cutoutTree);
 		if (!cutoutShapes.length) return null;
@@ -319,7 +366,6 @@
 			curveSegments: PREVIEW_CURVE_SEGMENTS,
 			steps: 1
 		});
-		centerGeometryXY(cutoutGeo);
 		baseGeo.computeBoundingBox();
 		const baseBb = baseGeo.boundingBox;
 		if (baseBb) {
@@ -531,12 +577,8 @@
 
 		const { textWidth, textHeight, cutoutTree, baseCornerRadius, baseDepth } = layout;
 		const cutoutBbox = clipperTreeToBbox(cutoutTree);
-		const cx = (cutoutBbox.minX + cutoutBbox.maxX) / 2 / CLIPPER_SCALE;
-		const cy = (cutoutBbox.minY + cutoutBbox.maxY) / 2 / CLIPPER_SCALE;
-		const halfW = textWidth / 2;
-		const halfH = textHeight / 2;
 		const toPt = (p: { X: number; Y: number }) =>
-			`${(p.X / CLIPPER_SCALE - cx + halfW).toFixed(4)},${(-(p.Y / CLIPPER_SCALE) + cy + halfH).toFixed(4)}`;
+			`${((p.X - cutoutBbox.minX) / CLIPPER_SCALE).toFixed(4)},${((cutoutBbox.maxY - p.Y) / CLIPPER_SCALE).toFixed(4)}`;
 
 		const pathParts: string[] = [];
 		const roots = cutoutTree.Childs?.() ?? (cutoutTree as { m_Childs?: unknown[] }).m_Childs ?? [];

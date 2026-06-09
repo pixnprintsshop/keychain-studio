@@ -15,6 +15,7 @@
 		type SubscriptionStatus
 	} from '$lib/subscription';
 	import FavoriteDesignersFeatureDialog from '$lib/components/FavoriteDesignersFeatureDialog.svelte';
+	import NewFontsFeatureDialog from '$lib/components/NewFontsFeatureDialog.svelte';
 	import FloatingGlobalExportCounter from '$lib/components/FloatingGlobalExportCounter.svelte';
 	import FloatingRecentExportsFeed from '$lib/components/FloatingRecentExportsFeed.svelte';
 	import { exportStats, formatExportCount, getDesignerExportCount } from '$lib/exportStats.svelte';
@@ -23,16 +24,32 @@
 		isFavoriteDesigner,
 		toggleFavoriteDesigner
 	} from '$lib/favoriteDesigners.svelte';
+	import { notifyFavoriteAction } from '$lib/favoriteNotify';
 	import { MESSENGER_COMMUNITY_URL } from '$lib/messengerCommunity';
+	import {
+		getDialogBlockingRevision,
+		isAnyDialogBlocking,
+		setDialogBlocking
+	} from '$lib/dialogCoordinator.svelte';
+	import {
+		clearPendingHomeFeatureDialog,
+		getPendingHomeFeatureDialog,
+		resolveNextHomeFeatureDialog,
+		setPendingHomeFeatureDialog,
+		type HomeFeatureDialogId
+	} from '$lib/homeFeatureDialogQueue';
+	import { getNewFontsDialogFingerprint } from '$lib/newFonts';
 	import { getFont } from '$lib/utils-3d';
 
 	const STORAGE_KEY_FAVORITE_FEATURE_DIALOG = 'favorite-designers-feature-dialog-v1';
+	const STORAGE_KEY_NEW_FONTS_FEATURE_DIALOG = 'new-fonts-feature-dialog-v1';
 	const STORAGE_KEY_COMMUNITY_INVITE_DISMISSED = 'messenger-community-invite-dismissed-v1';
 	const STORAGE_KEY_COMMUNITY_INVITE_DIALOG = 'messenger-community-invite-dialog-v1';
 
 	let comingSoonInterestSent = $state<Set<StyleName>>(new Set());
 	let comingSoonInterestSending = $state<StyleName | null>(null);
 	let favoriteFeatureDialogOpen = $state(false);
+	let newFontsFeatureDialogOpen = $state(false);
 	let showCommunityInviteAlert = $state(false);
 
 	function markFavoriteFeatureDialogSeen() {
@@ -68,17 +85,99 @@
 		}
 	}
 
-	function maybeShowFavoriteFeatureDialog() {
+	function markNewFontsFeatureDialogSeen() {
 		try {
-			if (localStorage.getItem(STORAGE_KEY_FAVORITE_FEATURE_DIALOG) === '1') return;
+			localStorage.setItem(
+				STORAGE_KEY_NEW_FONTS_FEATURE_DIALOG,
+				getNewFontsDialogFingerprint()
+			);
 		} catch {
+			// Local storage can be unavailable in private browsing contexts.
+		}
+	}
+
+	function onNewFontsFeatureDialogOpenChange(open: boolean) {
+		newFontsFeatureDialogOpen = open;
+		if (!open) markNewFontsFeatureDialogSeen();
+	}
+
+	function isNewFontsFeatureDialogSeen(): boolean {
+		try {
+			const seen = localStorage.getItem(STORAGE_KEY_NEW_FONTS_FEATURE_DIALOG);
+			if (!seen) return false;
+			// Legacy dismiss flag — re-show when the new-font list has changed.
+			if (seen === '1') return getNewFontsDialogFingerprint() === '';
+			return seen === getNewFontsDialogFingerprint();
+		} catch {
+			return true;
+		}
+	}
+
+	function isFavoriteFeatureDialogSeen(): boolean {
+		try {
+			return localStorage.getItem(STORAGE_KEY_FAVORITE_FEATURE_DIALOG) === '1';
+		} catch {
+			return true;
+		}
+	}
+
+	function isAnyHomeDialogVisible(): boolean {
+		return (
+			newFontsFeatureDialogOpen ||
+			favoriteFeatureDialogOpen ||
+			pendingBetaDesigner !== null ||
+			pendingSubscriberDesigner !== null
+		);
+	}
+
+	function openHomeFeatureDialog(id: HomeFeatureDialogId) {
+		if (id === 'newFonts') newFontsFeatureDialogOpen = true;
+		else favoriteFeatureDialogOpen = true;
+	}
+
+	/** Show at most one welcome/feature dialog per home visit; postpone if another modal is open. */
+	function showHomeFeatureDialogs() {
+		const shouldShowNewFonts =
+			getNewFontsDialogFingerprint().length > 0 && !isNewFontsFeatureDialogSeen();
+		const shouldShowFavorite = !isFavoriteFeatureDialogSeen();
+		const pending = getPendingHomeFeatureDialog();
+		const next = resolveNextHomeFeatureDialog({
+			pending,
+			shouldShowNewFonts,
+			shouldShowFavorite
+		});
+
+		if (!next) {
+			clearPendingHomeFeatureDialog();
 			return;
 		}
-		favoriteFeatureDialogOpen = true;
+
+		if (isAnyHomeDialogVisible() || isAnyDialogBlocking()) {
+			setPendingHomeFeatureDialog(next);
+			return;
+		}
+
+		clearPendingHomeFeatureDialog();
+		openHomeFeatureDialog(next);
 	}
+
+	$effect(() => {
+		setDialogBlocking('home', isAnyHomeDialogVisible());
+	});
+
+	$effect(() => {
+		getDialogBlockingRevision();
+		if (!getPendingHomeFeatureDialog()) return;
+		if (isAnyDialogBlocking()) return;
+		showHomeFeatureDialogs();
+	});
 
 	function tryFavoriteFeatureFromDialog() {
 		document.getElementById('designer-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}
+
+	function tryNewFontsFromDialog() {
+		onSelect('textOutline');
 	}
 
 	// Preload font so Name Puzzle designer opens faster; restore interest flags from session.
@@ -89,7 +188,7 @@
 			if (isComingSoonInterestRecorded(id)) sent.add(id as StyleName);
 		}
 		comingSoonInterestSent = sent;
-		maybeShowFavoriteFeatureDialog();
+		showHomeFeatureDialogs();
 		showCommunityInviteAlert = !isCommunityInviteDismissed();
 	});
 
@@ -180,7 +279,7 @@
 		basicName:
 			'Color preset gallery plus optional text-outline layer with a matching border frame. Import starters or save your own combos; presets sync to your account when signed in.',
 		textOutline:
-			'Optional inset border rim on the base outline, optional text-outline layer with a matching border frame when both are on, color presets, and keyring anchored to the base corner; presets sync when signed in.',
+			'Nine new display fonts in the picker — plus suggest a font by name or link from the home welcome dialog. Inset border rim, text-outline layer, color presets, and keyring on the base corner.',
 		// whistleBagTag:
 		// 	'Optional text-outline layer (middle) plus a color preset gallery (base, outline, and border/text). Presets sync when signed in.',
 		// whistleV2:
@@ -188,7 +287,9 @@
 		idNameTagV2:
 			'Choose a single center lace loop or dual side loops on any model shape. Optional text-outline layer with a matching border frame, plus color presets that sync when signed in.',
 		dogtag:
-			'Optional text-outline layer with a matching border frame, plus a color preset gallery (base, outline, and text/border). Presets sync when signed in.'
+			'Optional text-outline layer with a matching border frame, plus a color preset gallery (base, outline, and text/border). Presets sync when signed in.',
+		namePuzzle:
+			'Letters with descenders (like Q) no longer shrink or shift the rest of the name — only the base grows to fit the tail.'
 	};
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);
@@ -528,6 +629,7 @@
 	function handleCardClick(designer: DesignerItem) {
 		if (isComingSoonDesigner(designer.id)) return;
 		if (isUnderMaintenance(designer.id)) return;
+		if (isAnyDialogBlocking()) return;
 		if (isSubscriberLocked(designer.id)) {
 			if (!user) {
 				onRequestLogin?.();
@@ -913,7 +1015,16 @@
 							aria-pressed={isFavoriteDesigner(designer.id)}
 							onclick={(e) => {
 								e.stopPropagation();
+								const wasFavorite = isFavoriteDesigner(designer.id);
 								void toggleFavoriteDesigner(designer.id);
+								notifyFavoriteAction({
+									designerId: designer.id,
+									designerTitle: designer.title,
+									action: wasFavorite ? 'removed' : 'added',
+									email: user?.email,
+									userId: user?.id,
+									subscriptionStatus
+								});
 							}}
 						>
 							<svg
@@ -1124,6 +1235,13 @@
 		</div>
 	</div>
 </div>
+
+<NewFontsFeatureDialog
+	open={newFontsFeatureDialogOpen}
+	onOpenChange={onNewFontsFeatureDialogOpenChange}
+	onTryIt={tryNewFontsFromDialog}
+	{subscriptionStatus}
+/>
 
 <FavoriteDesignersFeatureDialog
 	open={favoriteFeatureDialogOpen}

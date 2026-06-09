@@ -30,6 +30,15 @@
 	} from '$lib/subscription';
 	import { favoriteDesigners, loadFavoriteDesigners } from '$lib/favoriteDesigners.svelte';
 	import { loadExportStats } from '$lib/exportStats.svelte';
+	import {
+		clearPendingRatingPrompt,
+		getDialogBlockingRevision,
+		hasPendingRatingPrompt,
+		isAnyDialogBlocking,
+		isHomePath,
+		setDialogBlocking,
+		setPendingRatingPrompt
+	} from '$lib/dialogCoordinator.svelte';
 	import { notifyVisit } from '$lib/visitNotify';
 	import {
 		fetchUserPalette,
@@ -337,11 +346,38 @@
 
 	// Daily rating prompt until user submits (subscribed / licensed; after welcome)
 	let ratingPromptFired = $state(false);
+	$effect(() => {
+		setDialogBlocking('welcome', showWelcomeDialog);
+	});
+	$effect(() => {
+		setDialogBlocking('promotion', showPromotionDialog);
+	});
+	$effect(() => {
+		setDialogBlocking('rating', showRatingPromptDialog);
+	});
+	$effect(() => {
+		setDialogBlocking('login', showLoginModal);
+	});
+	$effect(() => {
+		setDialogBlocking('license', showLicenseModal);
+	});
+	$effect(() => {
+		setDialogBlocking('logout', showLogoutConfirm);
+	});
+	$effect(() => {
+		setDialogBlocking('thankYou', showThankYouDialog);
+	});
+	$effect(() => {
+		setDialogBlocking('supportShare', showSupportShareDialog);
+	});
+
 	// Share-for-credits promo: free-trial users only (after subscription/license check resolves).
 	$effect(() => {
+		getDialogBlockingRevision();
 		if (!canShowShareCreditsPromo) return;
 		if (!isFreeTrialOnlyUser()) return;
 		if (showWelcomeDialog || showPromotionDialog) return;
+		if (isAnyDialogBlocking()) return;
 		showPromotionDialog = true;
 		canShowShareCreditsPromo = false;
 		analytics.capture('share_credits_promo_shown', {
@@ -353,18 +389,39 @@
 	$effect(() => {
 		if (typeof window === 'undefined') return;
 		void ratingPromptDayKey;
+		getDialogBlockingRevision();
+		const pathname = page.url.pathname;
+		const onHome = isHomePath(pathname);
+		const pending = hasPendingRatingPrompt();
+
 		if (!isRatingPromptEligible()) {
 			ratingPromptFired = false;
 			return;
 		}
-		if (ratingPromptFired) return;
 		if (!user?.id) return;
 		if (!subscriptionStatus?.isActive || subscriptionStatus.licenseExpired) return;
-		if (showWelcomeDialog) return;
-		if (showRatingPromptDialog) return;
+		if (showWelcomeDialog || showRatingPromptDialog) return;
 
-		const delayMs = 5000;
+		if (pending && onHome) ratingPromptFired = false;
+		if (pending && !onHome) return;
+		if (!pending && !onHome) return;
+		if (ratingPromptFired && !pending) return;
+
+		if (isAnyDialogBlocking()) {
+			setPendingRatingPrompt();
+			return;
+		}
+
+		const delayMs = pending ? 800 : 5000;
 		const id = window.setTimeout(() => {
+			if (!isRatingPromptEligible() || !user?.id) return;
+			if (!subscriptionStatus?.isActive || subscriptionStatus.licenseExpired) return;
+			if (showWelcomeDialog || showRatingPromptDialog) return;
+			if (isAnyDialogBlocking()) {
+				setPendingRatingPrompt();
+				return;
+			}
+			clearPendingRatingPrompt();
 			ratingPromptFired = true;
 			showRatingPromptDialog = true;
 			analytics.capture('rating_prompt_shown');

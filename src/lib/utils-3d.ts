@@ -4,14 +4,26 @@ import titanOneJson from './assets/fonts/Titan One_Regular.json';
 import showpopJson from './assets/fonts/Showpop_Regular.json';
 import retroDollyJson from './assets/fonts/Retro Dolly_Book.json';
 import kindergoJson from './assets/fonts/Kindergo_Regular.json';
+import kablammoJson from './assets/fonts/Kablammo_Regular.json';
 import beautifulHarmonyJson from './assets/fonts/Beautiful Harmony_Regular.json';
 import milkywayJson from './assets/fonts/Milkyway_Regular.json';
+import milkshakeJson from './assets/fonts/Milkshake_Regular.json';
+import ngacoJson from './assets/fonts/Ngaco_Regular.json';
+import miltonianJson from './assets/fonts/Miltonian_Regular.json';
+import monotonJson from './assets/fonts/Monoton_Regular.json';
 import bebasNeueJson from './assets/fonts/Bebas Neue_Regular.json';
+import berkshireSwashJson from './assets/fonts/Berkshire Swash_Regular.json';
+import blackOpsOneJson from './assets/fonts/Black Ops One_Regular.json';
+import cherryBombOneJson from './assets/fonts/Cherry Bomb One_Regular.json';
+import cherrySwashJson from './assets/fonts/Cherry Swash_Bold.json';
 import dynaPuffJson from './assets/fonts/DynaPuff_Bold.json';
+import fascinateInlineJson from './assets/fonts/Fascinate Inline_Regular.json';
+import getllesJson from './assets/fonts/Getlles_Regular.json';
 import coinyJson from './assets/fonts/Coiny_Regular.json';
 import pacificoJson from './assets/fonts/Pacifico_Regular.json';
 import lobsterTwoJson from './assets/fonts/Lobster Two_Regular.json';
 import roadsideSansJson from './assets/fonts/Roadside Sans_Regular.json';
+import trainOneJson from './assets/fonts/Train One_Regular.json';
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -43,6 +55,8 @@ export interface FontOption {
 	label: string;
 	json: any;
 	fontFamily: string;
+	/** Shown in the home “New fonts” feature dialog. Set when adding a font. */
+	isNew?: boolean;
 }
 
 export const FONT_OPTIONS: FontOption[] = [
@@ -66,6 +80,13 @@ export const FONT_OPTIONS: FontOption[] = [
 		fontFamily: 'Kindergo'
 	},
 	{
+		key: 'Kablammo_Regular',
+		label: 'Kablammo (Regular)',
+		json: kablammoJson,
+		fontFamily: 'Kablammo',
+		isNew: true
+	},
+	{
 		key: 'Beautiful Harmony_Regular',
 		label: 'Beautiful Harmony (Regular)',
 		json: beautifulHarmonyJson,
@@ -78,12 +99,82 @@ export const FONT_OPTIONS: FontOption[] = [
 		fontFamily: 'Milkyway'
 	},
 	{
+		key: 'Milkshake_Regular',
+		label: 'Milkshake (Regular)',
+		json: milkshakeJson,
+		fontFamily: 'Milkshake',
+		isNew: true
+	},
+	{
+		key: 'Ngaco_Regular',
+		label: 'Ngaco (Regular)',
+		json: ngacoJson,
+		fontFamily: 'Ngaco',
+		isNew: true
+	},
+	{
+		key: 'Miltonian_Regular',
+		label: 'Miltonian (Regular)',
+		json: miltonianJson,
+		fontFamily: 'Miltonian',
+		isNew: true
+	},
+	{
+		key: 'Monoton_Regular',
+		label: 'Monoton (Regular)',
+		json: monotonJson,
+		fontFamily: 'Monoton',
+		isNew: true
+	},
+	{
 		key: 'Bebas Neue_Regular',
 		label: 'Bebas Neue (Regular)',
 		json: bebasNeueJson,
 		fontFamily: 'Bebas Neue'
 	},
+	{
+		key: 'Black Ops One_Regular',
+		label: 'Black Ops One (Regular)',
+		json: blackOpsOneJson,
+		fontFamily: 'Black Ops One',
+		isNew: true
+	},
+	{
+		key: 'Berkshire Swash_Regular',
+		label: 'Berkshire Swash (Regular)',
+		json: berkshireSwashJson,
+		fontFamily: 'Berkshire Swash',
+		isNew: true
+	},
+	{
+		key: 'Cherry Bomb One_Regular',
+		label: 'Cherry Bomb One (Regular)',
+		json: cherryBombOneJson,
+		fontFamily: 'Cherry Bomb One',
+		isNew: true
+	},
+	{
+		key: 'Cherry Swash_Bold',
+		label: 'Cherry Swash (Bold)',
+		json: cherrySwashJson,
+		fontFamily: 'Cherry Swash',
+		isNew: true
+	},
 	{ key: 'DynaPuff_Bold', label: 'DynaPuff (Bold)', json: dynaPuffJson, fontFamily: 'DynaPuff' },
+	{
+		key: 'Fascinate Inline_Regular',
+		label: 'Fascinate Inline (Regular)',
+		json: fascinateInlineJson,
+		fontFamily: 'Fascinate Inline',
+		isNew: true
+	},
+	{
+		key: 'Getlles_Regular',
+		label: 'Getlles (Regular)',
+		json: getllesJson,
+		fontFamily: 'Getlles',
+		isNew: true
+	},
 	{ key: 'Coiny_Regular', label: 'Coiny (Regular)', json: coinyJson, fontFamily: 'Coiny' },
 	{
 		key: 'Pacifico_Regular',
@@ -102,8 +193,19 @@ export const FONT_OPTIONS: FontOption[] = [
 		label: 'Roadside Sans (Regular)',
 		json: roadsideSansJson,
 		fontFamily: 'Roadside Sans'
+	},
+	{
+		key: 'Train One_Regular',
+		label: 'Train One (Regular)',
+		json: trainOneJson,
+		fontFamily: 'Train One',
+		isNew: true
 	}
 ];
+
+export function getNewFontOptions(): FontOption[] {
+	return FONT_OPTIONS.filter((font) => font.isNew);
+}
 
 export const DEFAULT_FONT_SETTINGS_OUTLINE: FontSettings = {
 	textSize: 13,

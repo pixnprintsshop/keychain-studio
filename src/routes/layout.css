@@ -143,6 +143,13 @@
 }
 
 @font-face {
+	font-family: 'Kablammo';
+	src: url('/fonts/Kablammo-Regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+}
+
+@font-face {
 	font-family: 'Beautiful Harmony';
 	src: url('/fonts/Beautiful Harmony.ttf') format('truetype');
 	font-weight: 400;
@@ -157,8 +164,85 @@
 }
 
 @font-face {
+	font-family: 'Black Ops One';
+	src: url('/fonts/BlackOpsOne-Regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+}
+
+@font-face {
+	font-family: 'Berkshire Swash';
+	src: url('/fonts/BerkshireSwash-Regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+}
+
+@font-face {
+	font-family: 'Cherry Bomb One';
+	src: url('/fonts/CherryBombOne-Regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+}
+
+@font-face {
+	font-family: 'Cherry Swash';
+	src: url('/fonts/CherrySwash-Bold.ttf') format('truetype');
+	font-weight: 700;
+	font-style: normal;
+}
+
+@font-face {
+	font-family: 'Getlles';
+	src: url('/fonts/Getlles-Regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+}
+
+@font-face {
+	font-family: 'Fascinate Inline';
+	src: url('/fonts/FascinateInline-Regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+}
+
+@font-face {
 	font-family: 'Milkyway';
 	src: url('/fonts/milkyway_regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+}
+
+@font-face {
+	font-family: 'Milkshake';
+	src: url('/fonts/Milkshake-Regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+}
+
+@font-face {
+	font-family: 'Miltonian';
+	src: url('/fonts/Miltonian-Regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+}
+
+@font-face {
+	font-family: 'Ngaco';
+	src: url('/fonts/Ngaco-Regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+}
+
+@font-face {
+	font-family: 'Monoton';
+	src: url('/fonts/Monoton-Regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+}
+
+@font-face {
+	font-family: 'Train One';
+	src: url('/fonts/TrainOne-Regular.ttf') format('truetype');
 	font-weight: 400;
 	font-style: normal;
 }
