@@ -30,6 +30,7 @@
 	import type { PaletteColor } from '$lib/colorPalette';
 	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
 	import { tickThenYieldToPaint } from '$lib/yield-to-paint';
+	import { loadNamePuzzleSettings, saveNamePuzzleSettings } from '$lib/namePuzzleSettings';
 
 	interface Props {
 		user: User | null;
@@ -69,21 +70,23 @@
 	const DIVISIONS = 12;
 	const PUZZLE_POCKET_FLOOR_MM = 1;
 
-	let textContent = $state('Name');
+	const initial = loadNamePuzzleSettings();
+
+	let textContent = $state(initial.textContent);
 	const fontKey = 'Roadside Sans_Regular';
-	let textSize = $state(24);
-	let thickness = $state(10);
-	let padding = $state(8);
-	let tolerance = $state(0.3);
-	let cornerRadius = $state(5);
-	let baseColor = $state('#ffffff');
-	let pieceColor = $state('#f472b6');
+	let textSize = $state(initial.textSize);
+	let thickness = $state(initial.thickness);
+	let padding = $state(initial.padding);
+	let tolerance = $state(initial.tolerance);
+	let cornerRadius = $state(initial.cornerRadius);
+	let baseColor = $state(initial.baseColor);
+	let pieceColor = $state(initial.pieceColor);
 	let exportError = $state<string | null>(null);
 	let exportLoading = $state(false);
 	let openBambuStudioLoading = $state(false);
 	let isReady = $state(false);
 	let sceneLoading = $state(false);
-	let previewMode = $state<'base' | 'pieces'>('base');
+	let previewMode = $state<'base' | 'pieces'>(initial.previewMode);
 
 	/** Create solid shapes from font output: outer boundary only, no holes (A, O, B become filled). */
 	function shapesToSolid(shapes: THREE.Shape[]): THREE.Shape[] {
@@ -845,6 +848,29 @@ difference() {
 	$effect(() => {
 		void previewMode;
 		applyPreviewModeVisibility();
+	});
+
+	$effect(() => {
+		void textContent;
+		void textSize;
+		void thickness;
+		void padding;
+		void tolerance;
+		void cornerRadius;
+		void baseColor;
+		void pieceColor;
+		void previewMode;
+		saveNamePuzzleSettings({
+			textContent,
+			textSize,
+			thickness,
+			padding,
+			tolerance,
+			cornerRadius,
+			baseColor,
+			pieceColor,
+			previewMode
+		});
 	});
 
 	onMount(() => {
