@@ -13,13 +13,17 @@
 	} from '$lib/idNameTagV2Presets';
 	import { notifyExportEvent } from '$lib/exportNotify';
 	import base1StlUrl from '$lib/assets/stl/idnametag/base1.stl?url';
+	import base1bStlUrl from '$lib/assets/stl/idnametag/base1b.stl?url';
 	import base2StlUrl from '$lib/assets/stl/idnametag/base2.stl?url';
+	import base2bStlUrl from '$lib/assets/stl/idnametag/base2b.stl?url';
 	import base3StlUrl from '$lib/assets/stl/idnametag/base3.stl?url';
-	import base5StlUrl from '$lib/assets/stl/idnametag/base5.stl?url';
+	import base3bStlUrl from '$lib/assets/stl/idnametag/base3b.stl?url';
+	import base4StlUrl from '$lib/assets/stl/idnametag/base4.stl?url';
+	import base4bStlUrl from '$lib/assets/stl/idnametag/base4b.stl?url';
 	import border1StlUrl from '$lib/assets/stl/idnametag/border1.stl?url';
 	import border2StlUrl from '$lib/assets/stl/idnametag/border2.stl?url';
 	import border3StlUrl from '$lib/assets/stl/idnametag/border3.stl?url';
-	import border5StlUrl from '$lib/assets/stl/idnametag/border5.stl?url';
+	import border4StlUrl from '$lib/assets/stl/idnametag/border4.stl?url';
 	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
 	import { upload3mfToSupabase } from '$lib/upload3mf';
 	import {
@@ -34,7 +38,7 @@
 	} from '$lib/utils-3d';
 	import { tickThenYieldToPaint } from '$lib/yield-to-paint';
 	import type { Session, User } from '@supabase/supabase-js';
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 	import * as THREE from 'three';
 	import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 	import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
@@ -44,6 +48,7 @@
 	import DesignerExportToolbar from './DesignerExportToolbar.svelte';
 	import DesignerModelDimensionsHud from './DesignerModelDimensionsHud.svelte';
 	import FontSelect from './FontSelect.svelte';
+	import IdNameTagV2DualLaceFeatureDialog from './IdNameTagV2DualLaceFeatureDialog.svelte';
 	import { Button } from './ui/button';
 	import { Slider } from './ui/slider';
 
@@ -70,6 +75,7 @@
 	}: Props = $props();
 
 	const STORAGE_KEY = 'keychain-idnametag-v2-settings';
+	const STORAGE_KEY_DUAL_LACE_FEATURE_DIALOG = 'idnametag-v2-dual-lace-feature-dialog-v1';
 	const DESIGN_NAME = 'ID Name Tag v2';
 	const SLUG = 'id-name-tag-v2';
 	const TEXT_MAX_WIDTH_RATIO = 0.9;
@@ -91,11 +97,13 @@
 	const DEFAULT_DETAIL_COLOR = '#1f2937';
 
 	type ModelPairId = 1 | 2 | 3 | 4;
+	type LaceHolderStyle = 'single' | 'dual';
 
 	type ModelPair = {
 		id: ModelPairId;
 		label: string;
 		baseUrl: string;
+		dualBaseUrl: string;
 		borderUrl: string;
 	};
 
@@ -123,6 +131,7 @@
 
 	interface Settings {
 		modelPairId: ModelPairId;
+		laceHolderStyle: LaceHolderStyle;
 		baseDepth: number;
 		borderDepth: number;
 		baseColor: string;
@@ -139,11 +148,52 @@
 	}
 
 	const MODEL_PAIRS: ModelPair[] = [
-		{ id: 1, label: 'Bubble', baseUrl: base1StlUrl, borderUrl: border1StlUrl },
-		{ id: 2, label: 'Ribbon', baseUrl: base2StlUrl, borderUrl: border2StlUrl },
-		{ id: 3, label: 'Soft', baseUrl: base3StlUrl, borderUrl: border3StlUrl },
-		{ id: 4, label: 'Classic', baseUrl: base5StlUrl, borderUrl: border5StlUrl },
+		{
+			id: 1,
+			label: 'Bubble',
+			baseUrl: base1StlUrl,
+			dualBaseUrl: base1bStlUrl,
+			borderUrl: border1StlUrl
+		},
+		{
+			id: 2,
+			label: 'Ribbon',
+			baseUrl: base2StlUrl,
+			dualBaseUrl: base2bStlUrl,
+			borderUrl: border2StlUrl
+		},
+		{
+			id: 3,
+			label: 'Soft',
+			baseUrl: base3StlUrl,
+			dualBaseUrl: base3bStlUrl,
+			borderUrl: border3StlUrl
+		},
+		{
+			id: 4,
+			label: 'Classic',
+			baseUrl: base4StlUrl,
+			dualBaseUrl: base4bStlUrl,
+			borderUrl: border4StlUrl
+		}
 	];
+
+	const LACE_HOLDER_OPTIONS: { id: LaceHolderStyle; label: string; hint: string }[] = [
+		{ id: 'single', label: 'Single', hint: 'One center loop' },
+		{ id: 'dual', label: 'Dual', hint: 'Left and right loops' }
+	];
+
+	function isLaceHolderStyle(v: unknown): v is LaceHolderStyle {
+		return v === 'single' || v === 'dual';
+	}
+
+	function getBaseUrl(pair: ModelPair, laceHolder: LaceHolderStyle): string {
+		return laceHolder === 'dual' ? pair.dualBaseUrl : pair.baseUrl;
+	}
+
+	function modelLoadKey(pairId: ModelPairId, laceHolder: LaceHolderStyle): string {
+		return `${pairId}-${laceHolder}`;
+	}
 
 	const DEFAULT_FONT_KEY = FONT_OPTIONS[0]?.key ?? 'Titan One_Regular';
 	let nextLineId = 1;
@@ -161,6 +211,7 @@
 
 	const defaults: Settings = {
 		modelPairId: 1,
+		laceHolderStyle: 'single',
 		baseDepth: 2,
 		borderDepth: 1,
 		baseColor: '#ffffff',
@@ -266,6 +317,9 @@
 				: cloneDefaultLines(lineFallbackColor);
 			return {
 				modelPairId: isModelPairId(parsed.modelPairId) ? parsed.modelPairId : defaults.modelPairId,
+				laceHolderStyle: isLaceHolderStyle(parsed.laceHolderStyle)
+					? parsed.laceHolderStyle
+					: defaults.laceHolderStyle,
 				baseDepth: isFiniteNumber(parsed.baseDepth)
 					? clamp(parsed.baseDepth, 0.4, 10)
 					: defaults.baseDepth,
@@ -310,6 +364,7 @@
 	const initial = loadSettings();
 
 	let selectedPairId = $state<ModelPairId>(initial.modelPairId);
+	let laceHolderStyle = $state<LaceHolderStyle>(initial.laceHolderStyle);
 	let baseDepth = $state(initial.baseDepth);
 	let borderDepth = $state(initial.borderDepth);
 	let baseColor = $state(initial.baseColor);
@@ -324,6 +379,7 @@
 	let textOutlineDepth = $state(initial.textOutlineDepth);
 	let textOutlineColor = $state(initial.textOutlineColor);
 	let activeTextSide = $state<'front' | 'back'>('front');
+	let dualLaceFeatureDialogOpen = $state(false);
 
 	let activePresetId = $state<string | null>(null);
 	let customPresets = $state<IdNameTagV2ColorPreset[]>([]);
@@ -570,7 +626,38 @@
 	let borderSourceGeometry = $state<THREE.BufferGeometry | null>(null);
 	let loadToken = 0;
 	let mountGeneration = 0;
-	let loadedPairId: ModelPairId | null = null;
+	let loadedBaseKey: string | null = null;
+
+	function markDualLaceFeatureDialogSeen() {
+		try {
+			localStorage.setItem(STORAGE_KEY_DUAL_LACE_FEATURE_DIALOG, '1');
+		} catch {
+			// Local storage can be unavailable in private browsing contexts.
+		}
+	}
+
+	function onDualLaceFeatureDialogOpenChange(open: boolean) {
+		dualLaceFeatureDialogOpen = open;
+		if (!open) markDualLaceFeatureDialogSeen();
+	}
+
+	function tryDualLaceFeatureFromDialog() {
+		laceHolderStyle = 'dual';
+		void tick().then(() => {
+			document
+				.getElementById('idnametag-v2-lace-holder')
+				?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+		});
+	}
+
+	function maybeShowDualLaceFeatureDialog() {
+		try {
+			if (localStorage.getItem(STORAGE_KEY_DUAL_LACE_FEATURE_DIALOG) === '1') return;
+		} catch {
+			return;
+		}
+		dualLaceFeatureDialogOpen = true;
+	}
 
 	function resize() {
 		if (!renderer || !camera || !hostEl) return;
@@ -586,6 +673,7 @@
 		try {
 			const payload: Settings = {
 				modelPairId: selectedPairId,
+				laceHolderStyle,
 				baseDepth,
 				borderDepth,
 				baseColor,
@@ -1247,14 +1335,15 @@
 		});
 	}
 
-	async function loadSelectedModelPair(pair: ModelPair) {
+	async function loadSelectedModelPair(pair: ModelPair, laceHolder: LaceHolderStyle) {
 		const generation = mountGeneration;
 		const token = ++loadToken;
 		loadError = null;
 		const loader = new STLLoader();
+		const baseUrl = getBaseUrl(pair, laceHolder);
 		try {
 			const [baseGeo, borderGeo] = await Promise.all([
-				loadStlGeometry(loader, pair.baseUrl),
+				loadStlGeometry(loader, baseUrl),
 				loadStlGeometry(loader, pair.borderUrl)
 			]);
 			normalizeImportedGeometry(baseGeo);
@@ -1770,8 +1859,8 @@
 		resize();
 
 		const pair = MODEL_PAIRS.find((p) => p.id === selectedPairId) ?? MODEL_PAIRS[0];
-		loadedPairId = pair.id;
-		void loadSelectedModelPair(pair);
+		loadedBaseKey = modelLoadKey(pair.id, laceHolderStyle);
+		void loadSelectedModelPair(pair, laceHolderStyle);
 
 		const renderFrame = () => {
 			rafId = requestAnimationFrame(renderFrame);
@@ -1779,6 +1868,10 @@
 			if (renderer && scene && camera) renderer.render(scene, camera);
 		};
 		renderFrame();
+
+		setTimeout(() => {
+			maybeShowDualLaceFeatureDialog();
+		}, 0);
 
 		return () => {
 			ro?.disconnect();
@@ -1788,15 +1881,18 @@
 
 	$effect(() => {
 		const pairId = selectedPairId;
+		const laceHolder = laceHolderStyle;
 		if (!scene || !group || !sceneReady) return;
-		if (loadedPairId === pairId) return;
-		loadedPairId = pairId;
+		const nextKey = modelLoadKey(pairId, laceHolder);
+		if (loadedBaseKey === nextKey) return;
+		loadedBaseKey = nextKey;
 		const pair = MODEL_PAIRS.find((p) => p.id === pairId) ?? MODEL_PAIRS[0];
-		void loadSelectedModelPair(pair);
+		void loadSelectedModelPair(pair, laceHolder);
 	});
 
 	$effect(() => {
 		void selectedPairId;
+		void laceHolderStyle;
 		void baseDepth;
 		void borderDepth;
 		void baseColor;
@@ -1915,6 +2011,27 @@
 								{pair.label}
 							</Button>
 						{/each}
+					</div>
+
+					<div id="idnametag-v2-lace-holder">
+						<div class="text-xs font-semibold tracking-tight text-slate-700">Lace holder</div>
+						<p class="mt-1 text-xs text-slate-500">
+							Swap the base STL for a single center loop or dual side loops.
+						</p>
+						<div class="mt-2 grid grid-cols-2 gap-2">
+							{#each LACE_HOLDER_OPTIONS as option (option.id)}
+								<Button
+									type="button"
+									variant={laceHolderStyle === option.id ? 'default' : 'outline'}
+									size="sm"
+									class="h-auto flex-col gap-0.5 py-2"
+									onclick={() => (laceHolderStyle = option.id)}
+								>
+									<span>{option.label}</span>
+									<span class="text-[10px] font-normal opacity-80">{option.hint}</span>
+								</Button>
+							{/each}
+						</div>
 					</div>
 
 					{#if loadError}
@@ -2572,4 +2689,10 @@
 			</Dialog.Content>
 		</Dialog.Root>
 	{/if}
+
+	<IdNameTagV2DualLaceFeatureDialog
+		open={dualLaceFeatureDialogOpen}
+		onOpenChange={onDualLaceFeatureDialogOpenChange}
+		onTryIt={tryDualLaceFeatureFromDialog}
+	/>
 </main>

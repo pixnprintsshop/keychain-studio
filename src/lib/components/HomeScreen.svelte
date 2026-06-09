@@ -186,7 +186,7 @@
 		// whistleV2:
 		// 	'Color preset gallery for Accent, Main, and Border — import starters or save your own. Presets sync to your account when signed in.',
 		idNameTagV2:
-			'Optional text-outline layer with a matching border frame, plus a color preset gallery (base, outline, border, and text). Presets sync when signed in.',
+			'Choose a single center lace loop or dual side loops on any model shape. Optional text-outline layer with a matching border frame, plus color presets that sync when signed in.',
 		dogtag:
 			'Optional text-outline layer with a matching border frame, plus a color preset gallery (base, outline, and text/border). Presets sync when signed in.'
 	};
