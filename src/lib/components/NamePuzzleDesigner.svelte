@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Session, User } from '@supabase/supabase-js';
 	import ClipperLib from 'clipper-lib';
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 	import * as THREE from 'three';
 	import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
 	import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
@@ -30,7 +30,11 @@
 	import type { PaletteColor } from '$lib/colorPalette';
 	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
 	import { tickThenYieldToPaint } from '$lib/yield-to-paint';
-	import { loadNamePuzzleSettings, saveNamePuzzleSettings } from '$lib/namePuzzleSettings';
+	import {
+		flushNamePuzzleSettingsSave,
+		loadNamePuzzleSettings,
+		scheduleSaveNamePuzzleSettings
+	} from '$lib/namePuzzleSettings';
 
 	interface Props {
 		user: User | null;
@@ -67,7 +71,12 @@
 	let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
 
 	const CLIPPER_SCALE = 1000;
-	const DIVISIONS = 12;
+	/** Export / OpenSCAD path — full curve detail. */
+	const EXPORT_DIVISIONS = 12;
+	/** Interactive preview — fewer segments for faster rebuilds. */
+	const PREVIEW_DIVISIONS = 8;
+	const PREVIEW_CURVE_SEGMENTS = 6;
+	const EXPORT_CURVE_SEGMENTS = 8;
 	const PUZZLE_POCKET_FLOOR_MM = 1;
 
 	const initial = loadNamePuzzleSettings();
@@ -89,10 +98,10 @@
 	let previewMode = $state<'base' | 'pieces'>(initial.previewMode);
 
 	/** Create solid shapes from font output: outer boundary only, no holes (A, O, B become filled). */
-	function shapesToSolid(shapes: THREE.Shape[]): THREE.Shape[] {
+	function shapesToSolid(shapes: THREE.Shape[], divisions = EXPORT_DIVISIONS): THREE.Shape[] {
 		const solid: THREE.Shape[] = [];
 		for (const shape of shapes) {
-			const pts = shape.getPoints(DIVISIONS);
+			const pts = shape.getPoints(divisions);
 			if (pts.length < 3) continue;
 			const s = new THREE.Shape();
 			s.moveTo(pts[0].x, pts[0].y);
@@ -104,8 +113,11 @@
 		return solid;
 	}
 
-	function shapeToClipperPath(shape: THREE.Shape): { X: number; Y: number }[] {
-		const pts = shape.getPoints(DIVISIONS);
+	function shapeToClipperPath(
+		shape: THREE.Shape,
+		divisions = EXPORT_DIVISIONS
+	): { X: number; Y: number }[] {
+		const pts = shape.getPoints(divisions);
 		const out: { X: number; Y: number }[] = [];
 		for (const p of pts) {
 			out.push({ X: Math.round(p.x * CLIPPER_SCALE), Y: Math.round(p.y * CLIPPER_SCALE) });
@@ -122,6 +134,241 @@
 
 	function ensureCW(path: { X: number; Y: number }[], clockwise: boolean) {
 		if (ClipperLib.Clipper.Orientation(path) !== clockwise) path.reverse();
+	}
+
+	type PuzzleLayout = {
+		textWidth: number;
+		textHeight: number;
+		halfW: number;
+		halfH: number;
+		baseCornerRadius: number;
+		baseDepth: number;
+		cutoutDepth: number;
+		cutoutShapes: THREE.Shape[];
+		cutoutTree: ClipperLib.PolyTree;
+	};
+
+	function clipperTreeToBbox(tree: ClipperLib.PolyTree | { Childs?: () => unknown[]; m_Childs?: unknown[] }) {
+		let minX = Infinity;
+		let maxX = -Infinity;
+		let minY = Infinity;
+		let maxY = -Infinity;
+		const collect = (node: {
+			Contour?: () => { X: number; Y: number }[];
+			m_polygon?: { X: number; Y: number }[];
+			Childs?: () => unknown[];
+			m_Childs?: unknown[];
+		}) => {
+			const contour = node.Contour?.() ?? node.m_polygon ?? [];
+			for (const p of contour) {
+				minX = Math.min(minX, p.X);
+				maxX = Math.max(maxX, p.X);
+				minY = Math.min(minY, p.Y);
+				maxY = Math.max(maxY, p.Y);
+			}
+			const children = node.Childs?.() ?? node.m_Childs ?? [];
+			for (const child of children) collect(child as typeof node);
+		};
+		const roots = tree.Childs?.() ?? (tree as { m_Childs?: unknown[] }).m_Childs ?? [];
+		for (const root of roots) collect(root as Parameters<typeof collect>[0]);
+		return { minX, maxX, minY, maxY };
+	}
+
+	function clipperTreeToShapes(tree: ClipperLib.PolyTree | { Childs?: () => unknown[]; m_Childs?: unknown[] }) {
+		const out: THREE.Shape[] = [];
+		const roots = tree.Childs?.() ?? (tree as { m_Childs?: unknown[] }).m_Childs ?? [];
+		const toVec2 = (pt: { X: number; Y: number }) =>
+			new THREE.Vector2(pt.X / CLIPPER_SCALE, pt.Y / CLIPPER_SCALE);
+		const build = (node: {
+			Contour?: () => { X: number; Y: number }[];
+			m_polygon?: { X: number; Y: number }[];
+			IsHole?: () => boolean;
+			m_IsHole?: boolean;
+		}): THREE.Shape | null => {
+			const contour = node.Contour?.() ?? node.m_polygon ?? [];
+			if (contour.length < 3) return null;
+			const isHole = node.IsHole?.() ?? node.m_IsHole;
+			if (isHole) return null;
+			const pts = contour.map(toVec2);
+			if (THREE.ShapeUtils.isClockWise(pts)) pts.reverse();
+			const s = new THREE.Shape();
+			s.moveTo(pts[0].x, pts[0].y);
+			for (let i = 1; i < pts.length; i++) s.lineTo(pts[i].x, pts[i].y);
+			return s;
+		};
+		for (const n of roots) {
+			const s = build(n as Parameters<typeof build>[0]);
+			if (s) out.push(s);
+		}
+		return out;
+	}
+
+	function buildCutoutTree(inputPaths: { X: number; Y: number }[][]): ClipperLib.PolyTree {
+		const toleranceInClipper = Math.max(0, tolerance) * CLIPPER_SCALE;
+		const cutoutTree = new ClipperLib.PolyTree();
+		if (toleranceInClipper > 0) {
+			const co = new ClipperLib.ClipperOffset(2, 2);
+			co.AddPaths(inputPaths, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+			const offsetPaths: { X: number; Y: number }[][] = [];
+			co.Execute(offsetPaths, toleranceInClipper);
+			const c = new ClipperLib.Clipper();
+			c.AddPaths(offsetPaths, ClipperLib.PolyType.ptSubject, true);
+			c.Execute(
+				ClipperLib.ClipType.ctUnion,
+				cutoutTree,
+				ClipperLib.PolyFillType.pftNonZero,
+				ClipperLib.PolyFillType.pftNonZero
+			);
+		} else {
+			const c = new ClipperLib.Clipper();
+			c.AddPaths(inputPaths, ClipperLib.PolyType.ptSubject, true);
+			c.Execute(
+				ClipperLib.ClipType.ctUnion,
+				cutoutTree,
+				ClipperLib.PolyFillType.pftNonZero,
+				ClipperLib.PolyFillType.pftNonZero
+			);
+		}
+		return cutoutTree;
+	}
+
+	function computePuzzleLayout(content: string, divisions: number): PuzzleLayout | null {
+		const font = getFont(fontKey);
+		if (!font) return null;
+		let rawShapes: THREE.Shape[];
+		try {
+			rawShapes = font.generateShapes(content, Math.max(1, textSize));
+		} catch {
+			return null;
+		}
+		if (!rawShapes?.length) return null;
+
+		const solidShapes = shapesToSolid(rawShapes, divisions);
+		if (!solidShapes.length) return null;
+
+		const inputPaths: { X: number; Y: number }[][] = [];
+		for (const s of solidShapes) {
+			const path = shapeToClipperPath(s, divisions);
+			if (path.length < 3) continue;
+			ensureCW(path, true);
+			inputPaths.push(path);
+		}
+		if (!inputPaths.length) return null;
+
+		const cutoutTree = buildCutoutTree(inputPaths);
+		const cutoutBbox = clipperTreeToBbox(cutoutTree);
+		const textWidth = (cutoutBbox.maxX - cutoutBbox.minX) / CLIPPER_SCALE;
+		const textHeight = (cutoutBbox.maxY - cutoutBbox.minY) / CLIPPER_SCALE;
+		if (
+			!Number.isFinite(textWidth) ||
+			!Number.isFinite(textHeight) ||
+			textWidth <= 0 ||
+			textHeight <= 0
+		) {
+			return null;
+		}
+
+		const cutoutShapes = clipperTreeToShapes(cutoutTree);
+		if (!cutoutShapes.length) return null;
+
+		const halfW = textWidth / 2 + padding;
+		const halfH = textHeight / 2 + padding;
+		const baseWidth = textWidth + padding * 2;
+		const baseHeight = textHeight + padding * 2;
+		const maxRadius = Math.max(0, Math.min(baseWidth / 2, baseHeight / 2));
+		const baseDepth = Math.max(0.5, thickness);
+
+		return {
+			textWidth,
+			textHeight,
+			halfW,
+			halfH,
+			baseCornerRadius: Math.max(0, Math.min(cornerRadius, maxRadius)),
+			baseDepth,
+			cutoutDepth: Math.max(0.2, baseDepth - PUZZLE_POCKET_FLOOR_MM),
+			cutoutShapes,
+			cutoutTree
+		};
+	}
+
+	/** Preview mesh with real letter cutouts (CSG). Export still uses OpenSCAD for full quality. */
+	function addPreviewBase(target: THREE.Group, layout: PuzzleLayout) {
+		const { halfW, halfH, baseCornerRadius, baseDepth, cutoutDepth, cutoutShapes } = layout;
+
+		const baseMat = new THREE.MeshStandardMaterial({
+			color: baseColor,
+			roughness: 0.6,
+			metalness: 0.1
+		});
+		const baseShape = createRoundedRectShape(
+			halfW,
+			halfH,
+			Math.min(baseCornerRadius, halfW * 0.4, halfH * 0.4)
+		);
+		const baseGeo = new THREE.ExtrudeGeometry([baseShape], {
+			depth: baseDepth,
+			bevelEnabled: false,
+			curveSegments: PREVIEW_CURVE_SEGMENTS,
+			steps: 1
+		});
+		centerGeometryXY(baseGeo);
+
+		const cutoutGeo = new THREE.ExtrudeGeometry(cutoutShapes, {
+			depth: cutoutDepth + 0.01,
+			bevelEnabled: false,
+			curveSegments: PREVIEW_CURVE_SEGMENTS,
+			steps: 1
+		});
+		centerGeometryXY(cutoutGeo);
+		baseGeo.computeBoundingBox();
+		const baseBb = baseGeo.boundingBox;
+		if (baseBb) {
+			cutoutGeo.translate(0, 0, -baseBb.min.z + baseDepth - cutoutDepth);
+		}
+
+		const dummyMat = new THREE.MeshBasicMaterial({ color: 0x808080 });
+		const cutoutBrush = new Brush(cutoutGeo, dummyMat);
+		const baseBrush = new Brush(baseGeo.clone(), baseMat);
+		baseBrush.updateMatrixWorld(true);
+		cutoutBrush.updateMatrixWorld(true);
+		const resultBase = new Brush(new THREE.BufferGeometry(), baseMat);
+		const evaluator = new Evaluator();
+		try {
+			evaluator.evaluate(baseBrush, cutoutBrush, SUBTRACTION, resultBase);
+		} catch (err) {
+			baseBrush.geometry.dispose();
+			cutoutBrush.geometry.dispose();
+			cutoutGeo.dispose();
+			baseGeo.dispose();
+			dummyMat.dispose();
+			console.error('CSG subtract failed:', err);
+			throw err;
+		}
+
+		baseBrush.geometry.dispose();
+		cutoutBrush.geometry.dispose();
+		cutoutGeo.dispose();
+		dummyMat.dispose();
+
+		const baseWelded = BufferGeometryUtils.mergeVertices(resultBase.geometry.clone(), 1e-3);
+		resultBase.geometry.dispose();
+
+		const baseMesh = new THREE.Mesh(baseWelded, baseMat);
+		baseMesh.name = 'base';
+		baseMesh.castShadow = true;
+		baseMesh.receiveShadow = true;
+		target.add(baseMesh);
+	}
+
+	function applyMaterialColors() {
+		if (!group) return;
+		group.traverse((child) => {
+			if (!(child as THREE.Mesh).isMesh) return;
+			const mesh = child as THREE.Mesh;
+			const mat = mesh.material as THREE.MeshStandardMaterial;
+			if (mesh.name === 'base') mat.color.set(baseColor);
+			else if (mesh.name.startsWith('letter-')) mat.color.set(pieceColor);
+		});
 	}
 
 	function resize() {
@@ -150,200 +397,30 @@
 			return;
 		}
 		modelAabbMm = null;
-		const font = getFont(fontKey);
-		if (!font) return;
-		let rawShapes: THREE.Shape[];
+
+		const layout = computePuzzleLayout(content, PREVIEW_DIVISIONS);
+		if (!layout) return;
+
 		try {
-			rawShapes = font.generateShapes(content, Math.max(1, textSize));
+			addPreviewBase(group, layout);
 		} catch (e) {
-			console.error('NamePuzzle generateShapes failed:', e);
+			console.error('NamePuzzle preview build failed:', e);
 			return;
 		}
-		if (!rawShapes || rawShapes.length === 0) return;
-		const solidShapes = shapesToSolid(rawShapes);
-		if (solidShapes.length === 0) return;
 
-		const inputPaths: { X: number; Y: number }[][] = [];
-		for (const s of solidShapes) {
-			const path = shapeToClipperPath(s);
-			if (path.length < 3) continue;
-			ensureCW(path, true);
-			inputPaths.push(path);
-		}
-		if (inputPaths.length === 0) return;
-
-		const unionTree = new ClipperLib.PolyTree();
-		const c = new ClipperLib.Clipper();
-		c.AddPaths(inputPaths, ClipperLib.PolyType.ptSubject, true);
-		c.Execute(
-			ClipperLib.ClipType.ctUnion,
-			unionTree,
-			ClipperLib.PolyFillType.pftNonZero,
-			ClipperLib.PolyFillType.pftNonZero
-		);
-
-		const getTreeBbox = (tree: any) => {
-			let minX = Infinity,
-				maxX = -Infinity,
-				minY = Infinity,
-				maxY = -Infinity;
-			const collect = (node: any) => {
-				const contour = node.Contour?.() ?? node.m_polygon ?? [];
-				for (const p of contour) {
-					minX = Math.min(minX, p.X);
-					maxX = Math.max(maxX, p.X);
-					minY = Math.min(minY, p.Y);
-					maxY = Math.max(maxY, p.Y);
+		if (previewMode === 'pieces') {
+			const piecesPreviewGroup = buildPuzzlePiecesGroup();
+			piecesPreviewGroup.name = 'pieces-preview-group';
+			piecesPreviewGroup.position.z = 0;
+			piecesPreviewGroup.traverse((child) => {
+				if ((child as THREE.Mesh).isMesh) {
+					const m = child as THREE.Mesh;
+					m.castShadow = true;
+					m.receiveShadow = true;
 				}
-				const childs = node.Childs?.() ?? node.m_Childs ?? [];
-				childs.forEach(collect);
-			};
-			const roots = tree.Childs?.() ?? tree.m_Childs ?? [];
-			roots.forEach(collect);
-			return { minX, maxX, minY, maxY };
-		};
-
-		const textBbox = getTreeBbox(unionTree);
-		const spanX = (textBbox.maxX - textBbox.minX) / CLIPPER_SCALE;
-		const spanY = (textBbox.maxY - textBbox.minY) / CLIPPER_SCALE;
-		if (!Number.isFinite(spanX) || !Number.isFinite(spanY) || spanX <= 0 || spanY <= 0) return;
-		const halfW = spanX / 2 + padding;
-		const halfH = spanY / 2 + padding;
-		const baseDepth = Math.max(0.5, thickness);
-		const cutoutDepth = Math.max(0.2, baseDepth - PUZZLE_POCKET_FLOOR_MM);
-		let baseGeo: THREE.ExtrudeGeometry;
-		let cutoutGeo: THREE.ExtrudeGeometry;
-		try {
-			const baseShape = createRoundedRectShape(
-				halfW,
-				halfH,
-				Math.min(cornerRadius, halfW * 0.4, halfH * 0.4)
-			);
-			baseGeo = new THREE.ExtrudeGeometry([baseShape], {
-				depth: Math.max(0.5, thickness),
-				bevelEnabled: false,
-				curveSegments: 8,
-				steps: 1
 			});
-			centerGeometryXY(baseGeo);
-
-			const toleranceInClipper = Math.max(0, tolerance) * CLIPPER_SCALE;
-			const cutoutTree = new ClipperLib.PolyTree();
-			if (toleranceInClipper > 0) {
-				const co = new ClipperLib.ClipperOffset(2, 2);
-				co.AddPaths(inputPaths, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
-				const offsetPaths: { X: number; Y: number }[][] = [];
-				co.Execute(offsetPaths, toleranceInClipper);
-				const c2 = new ClipperLib.Clipper();
-				c2.AddPaths(offsetPaths, ClipperLib.PolyType.ptSubject, true);
-				c2.Execute(
-					ClipperLib.ClipType.ctUnion,
-					cutoutTree,
-					ClipperLib.PolyFillType.pftNonZero,
-					ClipperLib.PolyFillType.pftNonZero
-				);
-			} else {
-				const c2 = new ClipperLib.Clipper();
-				c2.AddPaths(inputPaths, ClipperLib.PolyType.ptSubject, true);
-				c2.Execute(
-					ClipperLib.ClipType.ctUnion,
-					cutoutTree,
-					ClipperLib.PolyFillType.pftNonZero,
-					ClipperLib.PolyFillType.pftNonZero
-				);
-			}
-
-			const treeToShapes = (tree: any): THREE.Shape[] => {
-				const out: THREE.Shape[] = [];
-				const roots = tree.Childs?.() ?? tree.m_Childs ?? [];
-				const toVec2 = (pt: { X: number; Y: number }) =>
-					new THREE.Vector2(pt.X / CLIPPER_SCALE, pt.Y / CLIPPER_SCALE);
-				const build = (node: any): THREE.Shape | null => {
-					const contour = node.Contour?.() ?? node.m_polygon ?? [];
-					if (contour.length < 3) return null;
-					const isHole = node.IsHole?.() ?? node.m_IsHole;
-					if (isHole) return null;
-					const pts = contour.map(toVec2);
-					if (THREE.ShapeUtils.isClockWise(pts)) pts.reverse();
-					const s = new THREE.Shape();
-					s.moveTo(pts[0].x, pts[0].y);
-					for (let i = 1; i < pts.length; i++) s.lineTo(pts[i].x, pts[i].y);
-					return s;
-				};
-				for (const n of roots) {
-					const s = build(n);
-					if (s) out.push(s);
-				}
-				return out;
-			};
-
-			const cutoutShapes = treeToShapes(cutoutTree);
-			if (cutoutShapes.length === 0) {
-				baseGeo.dispose();
-				return;
-			}
-			cutoutGeo = new THREE.ExtrudeGeometry(cutoutShapes, {
-				depth: cutoutDepth + 0.01,
-				bevelEnabled: false,
-				curveSegments: 8,
-				steps: 1
-			});
-			centerGeometryXY(cutoutGeo);
-			baseGeo.computeBoundingBox();
-			cutoutGeo.computeBoundingBox();
-			const baseBb = baseGeo.boundingBox!;
-			cutoutGeo.translate(0, 0, -baseBb.min.z + baseDepth - cutoutDepth);
-		} catch (e) {
-			console.error('NamePuzzle geometry build failed:', e);
-			return;
+			group.add(piecesPreviewGroup);
 		}
-
-		const baseMat = new THREE.MeshStandardMaterial({
-			color: baseColor,
-			roughness: 0.6,
-			metalness: 0.1
-		});
-		const dummyMat = new THREE.MeshBasicMaterial({ color: 0x808080 });
-		const cutoutBrush = new Brush(cutoutGeo, dummyMat);
-		const baseBrush = new Brush(baseGeo.clone(), baseMat);
-		baseBrush.updateMatrixWorld(true);
-		cutoutBrush.updateMatrixWorld(true);
-		const resultBase = new Brush(new THREE.BufferGeometry(), baseMat);
-		const evaluator = new Evaluator();
-		try {
-			evaluator.evaluate(baseBrush, cutoutBrush, SUBTRACTION, resultBase);
-		} catch (err) {
-			console.error('CSG subtract failed:', err);
-			baseBrush.geometry.dispose();
-			cutoutBrush.geometry.dispose();
-			cutoutGeo.dispose();
-			dummyMat.dispose();
-			return;
-		}
-		baseBrush.geometry.dispose();
-		cutoutBrush.geometry.dispose();
-		cutoutGeo.dispose();
-		dummyMat.dispose();
-
-		const baseWelded = BufferGeometryUtils.mergeVertices(resultBase.geometry.clone(), 1e-3);
-		resultBase.geometry.dispose();
-		const baseMesh = new THREE.Mesh(baseWelded, baseMat);
-		baseMesh.name = 'base';
-		baseMesh.castShadow = true;
-		baseMesh.receiveShadow = true;
-		group.add(baseMesh);
-
-		const piecesPreviewGroup = buildPuzzlePiecesGroup();
-		piecesPreviewGroup.name = 'pieces-preview-group';
-		piecesPreviewGroup.position.z = 0;
-		piecesPreviewGroup.traverse((child) => {
-			if ((child as any).isMesh) {
-				const m = child as THREE.Mesh;
-				m.castShadow = true;
-				m.receiveShadow = true;
-			}
-		});
-		group.add(piecesPreviewGroup);
 
 		group.updateWorldMatrix(true, true);
 		const box = new THREE.Box3().setFromObject(group);
@@ -379,7 +456,7 @@
 		if (!group) return;
 		const showBase = previewMode === 'base';
 		group.traverse((child) => {
-			if (!(child as any).isMesh) return;
+			if (!(child as THREE.Mesh).isMesh) return;
 			const mesh = child as THREE.Mesh;
 			if (mesh.name === 'base') {
 				mesh.visible = showBase;
@@ -392,7 +469,7 @@
 	}
 
 	/** Build a group of A–Z puzzle pieces laid out in a grid. */
-	function buildPuzzlePiecesGroup(): THREE.Group {
+	function buildPuzzlePiecesGroup(curveSegments = PREVIEW_CURVE_SEGMENTS): THREE.Group {
 		const font = getFont(fontKey);
 		if (!font) return new THREE.Group();
 		const pieceMat = new THREE.MeshStandardMaterial({
@@ -416,7 +493,7 @@
 				geo = new THREE.ExtrudeGeometry(shapes, {
 					depth,
 					bevelEnabled: false,
-					curveSegments: 8,
+					curveSegments,
 					steps: 1
 				});
 			} catch {
@@ -449,81 +526,11 @@
 	} | null {
 		const content = (textContent ?? '').trim();
 		if (!content) return null;
-		const font = getFont(fontKey);
-		if (!font) return null;
-		const rawShapes = font.generateShapes(content, Math.max(1, textSize));
-		if (!rawShapes?.length) return null;
-		const solidShapes = shapesToSolid(rawShapes);
-		if (!solidShapes.length) return null;
+		const layout = computePuzzleLayout(content, EXPORT_DIVISIONS);
+		if (!layout) return null;
 
-		const inputPaths: { X: number; Y: number }[][] = [];
-		for (const s of solidShapes) {
-			const path = shapeToClipperPath(s);
-			if (path.length < 3) continue;
-			ensureCW(path, true);
-			inputPaths.push(path);
-		}
-		if (!inputPaths.length) return null;
-
-		const toleranceInClipper = Math.max(0, tolerance) * CLIPPER_SCALE;
-		const cutoutTree = new ClipperLib.PolyTree();
-		if (toleranceInClipper > 0) {
-			const co = new ClipperLib.ClipperOffset(2, 2);
-			co.AddPaths(inputPaths, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
-			const offsetPaths: { X: number; Y: number }[][] = [];
-			co.Execute(offsetPaths, toleranceInClipper);
-			const c = new ClipperLib.Clipper();
-			c.AddPaths(offsetPaths, ClipperLib.PolyType.ptSubject, true);
-			c.Execute(
-				ClipperLib.ClipType.ctUnion,
-				cutoutTree,
-				ClipperLib.PolyFillType.pftNonZero,
-				ClipperLib.PolyFillType.pftNonZero
-			);
-		} else {
-			const c = new ClipperLib.Clipper();
-			c.AddPaths(inputPaths, ClipperLib.PolyType.ptSubject, true);
-			c.Execute(
-				ClipperLib.ClipType.ctUnion,
-				cutoutTree,
-				ClipperLib.PolyFillType.pftNonZero,
-				ClipperLib.PolyFillType.pftNonZero
-			);
-		}
-
-		const getTreeBbox = (tree: any) => {
-			let minX = Infinity;
-			let maxX = -Infinity;
-			let minY = Infinity;
-			let maxY = -Infinity;
-			const collect = (node: any) => {
-				const contour = node.Contour?.() ?? node.m_polygon ?? [];
-				for (const p of contour) {
-					minX = Math.min(minX, p.X);
-					maxX = Math.max(maxX, p.X);
-					minY = Math.min(minY, p.Y);
-					maxY = Math.max(maxY, p.Y);
-				}
-				const children = node.Childs?.() ?? node.m_Childs ?? [];
-				for (const child of children) collect(child);
-			};
-			const roots = tree.Childs?.() ?? tree.m_Childs ?? [];
-			for (const root of roots) collect(root);
-			return { minX, maxX, minY, maxY };
-		};
-
-		const cutoutBbox = getTreeBbox(cutoutTree);
-		const textWidth = (cutoutBbox.maxX - cutoutBbox.minX) / CLIPPER_SCALE;
-		const textHeight = (cutoutBbox.maxY - cutoutBbox.minY) / CLIPPER_SCALE;
-		if (
-			!Number.isFinite(textWidth) ||
-			!Number.isFinite(textHeight) ||
-			textWidth <= 0 ||
-			textHeight <= 0
-		) {
-			return null;
-		}
-
+		const { textWidth, textHeight, cutoutTree, baseCornerRadius, baseDepth } = layout;
+		const cutoutBbox = clipperTreeToBbox(cutoutTree);
 		const cx = (cutoutBbox.minX + cutoutBbox.maxX) / 2 / CLIPPER_SCALE;
 		const cy = (cutoutBbox.minY + cutoutBbox.maxY) / 2 / CLIPPER_SCALE;
 		const halfW = textWidth / 2;
@@ -532,39 +539,43 @@
 			`${(p.X / CLIPPER_SCALE - cx + halfW).toFixed(4)},${(-(p.Y / CLIPPER_SCALE) + cy + halfH).toFixed(4)}`;
 
 		const pathParts: string[] = [];
-		const roots = cutoutTree.Childs?.() ?? cutoutTree.m_Childs ?? [];
+		const roots = cutoutTree.Childs?.() ?? (cutoutTree as { m_Childs?: unknown[] }).m_Childs ?? [];
 		for (const n of roots) {
-			const isHole = n.IsHole?.() ?? n.m_IsHole;
+			const node = n as {
+				IsHole?: () => boolean;
+				m_IsHole?: boolean;
+				Contour?: () => { X: number; Y: number }[];
+				m_polygon?: { X: number; Y: number }[];
+				Childs?: () => unknown[];
+				m_Childs?: unknown[];
+			};
+			const isHole = node.IsHole?.() ?? node.m_IsHole;
 			if (isHole) continue;
-			const contour = n.Contour?.() ?? n.m_polygon ?? [];
+			const contour = node.Contour?.() ?? node.m_polygon ?? [];
 			if (!contour?.length || contour.length < 3) continue;
 			pathParts.push(`M ${contour.map(toPt).join(' L ')} Z`);
-			const children = n.Childs?.() ?? n.m_Childs ?? [];
+			const children = node.Childs?.() ?? node.m_Childs ?? [];
 			for (const ch of children) {
-				const hole = ch.IsHole?.() ?? ch.m_IsHole;
+				const child = ch as typeof node;
+				const hole = child.IsHole?.() ?? child.m_IsHole;
 				if (!hole) continue;
-				const hContour = ch.Contour?.() ?? ch.m_polygon ?? [];
+				const hContour = child.Contour?.() ?? child.m_polygon ?? [];
 				if (!hContour?.length || hContour.length < 3) continue;
 				pathParts.push(`M ${hContour.map(toPt).join(' L ')} Z`);
 			}
 		}
 		if (!pathParts.length) return null;
 
-		const baseWidth = textWidth + padding * 2;
-		const baseHeight = textHeight + padding * 2;
-		const maxRadius = Math.max(0, Math.min(baseWidth / 2, baseHeight / 2));
-		const baseCornerRadius = Math.max(0, Math.min(cornerRadius, maxRadius));
-		const baseThickness = Math.max(0.5, thickness);
 		const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${textWidth.toFixed(4)} ${textHeight.toFixed(4)}"><path fill-rule="evenodd" d="${pathParts.join(' ')}" fill="black"/></svg>`;
 
 		return {
 			svg,
 			textWidth,
 			textHeight,
-			baseWidth,
-			baseHeight,
+			baseWidth: textWidth + padding * 2,
+			baseHeight: textHeight + padding * 2,
 			baseCornerRadius,
-			baseThickness
+			baseThickness: baseDepth
 		};
 	}
 
@@ -646,7 +657,7 @@ difference() {
 		await tickThenYieldToPaint();
 		try {
 			if (previewMode === 'pieces') {
-				const piecesGroup = buildPuzzlePiecesGroup();
+				const piecesGroup = buildPuzzlePiecesGroup(EXPORT_CURVE_SEGMENTS);
 				try {
 					if (piecesGroup.children.length === 0) throw new Error('Could not generate puzzle pieces');
 					piecesGroup.updateWorldMatrix(true, true);
@@ -716,7 +727,7 @@ difference() {
 		await tickThenYieldToPaint();
 		try {
 			if (previewMode === 'pieces') {
-				const piecesGroup = buildPuzzlePiecesGroup();
+				const piecesGroup = buildPuzzlePiecesGroup(EXPORT_CURVE_SEGMENTS);
 				try {
 					if (piecesGroup.children.length === 0) throw new Error('Could not generate puzzle pieces');
 					const blob = await exportTo3MF(piecesGroup);
@@ -769,7 +780,7 @@ difference() {
 		await tickThenYieldToPaint();
 		try {
 			if (previewMode === 'pieces') {
-				const piecesGroup = buildPuzzlePiecesGroup();
+				const piecesGroup = buildPuzzlePiecesGroup(EXPORT_CURVE_SEGMENTS);
 				try {
 					if (piecesGroup.children.length === 0) throw new Error('Could not generate puzzle pieces');
 					const blob = await exportTo3MF(piecesGroup);
@@ -807,47 +818,117 @@ difference() {
 	}
 
 	let rebuildTimeoutId: ReturnType<typeof setTimeout> | null = null;
-	const REBUILD_DEBOUNCE_MS = 350;
+	let rebuildGeneration = 0;
+	let rebuildInFlight = false;
+	let rebuildPending = false;
+	let sliderInteractionCount = 0;
+	const REBUILD_DEBOUNCE_MS = 120;
 
-	$effect(() => {
-		void textContent;
-		void textSize;
-		void thickness;
-		void padding;
-		void tolerance;
-		void cornerRadius;
-		void baseColor;
-		void pieceColor;
-		void isReady;
-		if (!group) return;
-		if (isReady) sceneLoading = true;
+	function yieldToMain(): Promise<void> {
+		return new Promise((resolve) => {
+			requestAnimationFrame(() => {
+				requestAnimationFrame(() => {
+					if (typeof requestIdleCallback !== 'undefined') {
+						requestIdleCallback(() => resolve(), { timeout: 150 });
+					} else {
+						setTimeout(resolve, 0);
+					}
+				});
+			});
+		});
+	}
+
+	function clearRebuildTimer() {
 		if (rebuildTimeoutId !== null) {
 			clearTimeout(rebuildTimeoutId);
 			rebuildTimeoutId = null;
 		}
+	}
+
+	function onSliderInteractionStart() {
+		sliderInteractionCount++;
+		if (sliderInteractionCount === 1) {
+			window.addEventListener('pointerup', onSliderInteractionEnd, true);
+			window.addEventListener('pointercancel', onSliderInteractionEnd, true);
+		}
+	}
+
+	function onSliderInteractionEnd() {
+		if (sliderInteractionCount <= 0) return;
+		sliderInteractionCount--;
+		if (sliderInteractionCount === 0) {
+			window.removeEventListener('pointerup', onSliderInteractionEnd, true);
+			window.removeEventListener('pointercancel', onSliderInteractionEnd, true);
+			if (rebuildPending) {
+				rebuildPending = false;
+				queuePreviewRebuild(0);
+			}
+		}
+	}
+
+	function handleControlsPointerDownCapture(event: PointerEvent) {
+		const target = event.target;
+		if (!(target instanceof Element)) return;
+		if (target.closest('[data-slot="slider-thumb"], [data-slot="slider-track"]')) {
+			onSliderInteractionStart();
+		}
+	}
+
+	async function runPreviewRebuildWhenIdle() {
+		if (rebuildInFlight) {
+			rebuildPending = true;
+			return;
+		}
+		const generation = ++rebuildGeneration;
+		rebuildInFlight = true;
+		if (isReady) sceneLoading = true;
+		try {
+			await tick();
+			await yieldToMain();
+			if (generation !== rebuildGeneration || !group) return;
+			rebuildMeshes();
+		} catch (e) {
+			console.error('NamePuzzle preview rebuild failed:', e);
+		} finally {
+			rebuildInFlight = false;
+			sceneLoading = false;
+			if (rebuildPending) {
+				rebuildPending = false;
+				void runPreviewRebuildWhenIdle();
+			}
+		}
+	}
+
+	function queuePreviewRebuild(delayMs: number) {
+		clearRebuildTimer();
+		if (sliderInteractionCount > 0) {
+			rebuildPending = true;
+			return;
+		}
 		rebuildTimeoutId = setTimeout(() => {
 			rebuildTimeoutId = null;
-			const done = () => {
-				rebuildMeshes();
-				sceneLoading = false;
-			};
-			if (typeof requestIdleCallback !== 'undefined') {
-				requestIdleCallback(done, { timeout: 50 });
-			} else {
-				done();
-			}
-		}, REBUILD_DEBOUNCE_MS);
-		return () => {
-			if (rebuildTimeoutId !== null) {
-				clearTimeout(rebuildTimeoutId);
-				rebuildTimeoutId = null;
-			}
-		};
+			void runPreviewRebuildWhenIdle();
+		}, delayMs);
+	}
+
+	$effect(() => {
+		void textContent;
+		void textSize;
+		void thickness;
+		void padding;
+		void tolerance;
+		void cornerRadius;
+		void previewMode;
+		if (!group || !isReady) return;
+		queuePreviewRebuild(REBUILD_DEBOUNCE_MS);
+		return () => clearRebuildTimer();
 	});
 
 	$effect(() => {
-		void previewMode;
-		applyPreviewModeVisibility();
+		void baseColor;
+		void pieceColor;
+		if (!group || !isReady) return;
+		applyMaterialColors();
 	});
 
 	$effect(() => {
@@ -860,7 +941,7 @@ difference() {
 		void baseColor;
 		void pieceColor;
 		void previewMode;
-		saveNamePuzzleSettings({
+		scheduleSaveNamePuzzleSettings({
 			textContent,
 			textSize,
 			thickness,
@@ -936,6 +1017,11 @@ difference() {
 	});
 
 	onDestroy(() => {
+		rebuildGeneration++;
+		clearRebuildTimer();
+		window.removeEventListener('pointerup', onSliderInteractionEnd, true);
+		window.removeEventListener('pointercancel', onSliderInteractionEnd, true);
+		flushNamePuzzleSettingsSave();
 		cancelAnimationFrame(rafId);
 		ro?.disconnect();
 		ro = null;
@@ -959,7 +1045,10 @@ difference() {
 				</h1>
 				<Button variant="outline" size="sm" onclick={onBack}>Back</Button>
 			</div>
-			<div class="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto p-4 pt-0">
+			<div
+				class="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto p-4 pt-0"
+				onpointerdowncapture={handleControlsPointerDownCapture}
+			>
 				<div>
 					<label for="name-puzzle-text" class="mb-1 block text-xs font-medium text-slate-700"
 						>Name</label
