@@ -27,11 +27,11 @@
 	import { tickThenYieldToPaint } from '$lib/yield-to-paint';
 	import type { PaletteColor } from '$lib/colorPalette';
 	import {
-		CLIPPER_SCALE,
 		clampElementOutlineThicknessMm,
 		ELEMENT_OUTLINE_THICKNESS_MAX_MM,
 		ELEMENT_OUTLINE_THICKNESS_MIN_MM,
 		elementLabel,
+		clipperPathsToKonvaPathD,
 		getElementOutlinePolyTree,
 		getLocalPathsForElement,
 		getWorldPathsForElement,
@@ -50,17 +50,41 @@
 		buildPlateBaseMeshPreview,
 		buildPlateOuterMeshPreview,
 		clampElementCenterToPlate,
+		plateElementCenterLimits,
 		clampPlateElementDepthMm,
-		clampPlateTextCapDepthMm,
-		maxPlateTextCapDepthMm,
+		clampPlateBaseHeightMm,
+		clampPlateBaseThicknessMm,
+		clampPlateEndPaddingMm,
+		clampPlateHoleSpacingMm,
+		clampPlateSlotHeightMm,
+		clampPlateSlotWidthMm,
+		defaultPlateBarParams,
+		defaultPlateSlotDimensions,
+		maxPlateEndPaddingMm,
+		maxPlateHoleSpacingMm,
+		normalizePlateBarParams,
+		normalizePlateSlotDimensions,
+		plateDesignZone,
+		plateEndPaddingFromLegacyBaseLengthMm,
+		PLATE_BASE_HEIGHT_MAX_MM,
+		PLATE_BASE_HEIGHT_MIN_MM,
+		PLATE_BASE_THICKNESS_MAX_MM,
+		PLATE_BASE_THICKNESS_MIN_MM,
 		PLATE_ELEMENT_DEPTH_MIN_MM,
+		PLATE_END_PADDING_DEFAULT_MM,
+		PLATE_END_PADDING_MIN_MM,
+		PLATE_HOLE_SPACING_DEFAULT_MM,
+		PLATE_HOLE_SPACING_MIN_MM,
+		PLATE_SLOT_HEIGHT_MAX_MM,
+		PLATE_SLOT_HEIGHT_MIN_MM,
+		PLATE_SLOT_WIDTH_MAX_MM,
+		PLATE_SLOT_WIDTH_MIN_MM,
 		PLATE_SPEC,
-		PLATE_TEXT_CAP_DEPTH_MIN_MM,
-		plateBadgeTextLayer3D,
-		plateOuterKonvaPathD,
-		plateSlotKonvaPathD,
+		plateBadgeElementLayer3D,
+		plateBaseSilhouetteKonvaPathD,
 		subtractPlateMountingSlotsFromPolyTree,
-		type PlateBadgeTextEmbedMode
+		type PlateBarParams,
+		type PlateSlotDimensions
 	} from '$lib/utils-plate-badge';
 
 	import DesignerExportToolbar from './DesignerExportToolbar.svelte';
@@ -116,23 +140,32 @@
 
 	interface PlateBadgeSettings {
 		elements: CanvasElement[];
-		baseDepth: number;
+		/** Extrusion depth of the base + outline stack (mm, Z). */
+		baseThickness?: number;
+		/** @deprecated Use baseThickness. */
+		baseDepth?: number;
+		/** Full bar height across Y (mm). */
+		baseHeightMm?: number;
 		/** Plan-view width of the base-colored frame around each glyph (mm). */
 		outlineThicknessMm?: number;
 		baseColor: string;
-		/** `full` = text fill through base depth; `cap` = thin top layer for multi-color. */
-		textEmbedMode?: PlateBadgeTextEmbedMode;
-		textCapDepthMm?: number;
-		scale: number;
+		/** Mounting hole size along the bar (mm). */
+		slotWidthMm?: number;
+		/** Mounting hole size across the bar (mm). */
+		slotHeightMm?: number;
+		/** Center-to-center distance between mounting holes (mm). */
+		holeSpacingMm?: number;
+		/** Distance from each bar end to the outer edge of a mounting slot (mm). */
+		endPaddingMm?: number;
+		/** @deprecated Legacy — converted to endPaddingMm on load. */
+		baseLengthMm?: number;
 		phase: 'layout' | 'threeD';
 		viewport?: CanvasStudioViewport;
 	}
 
-	function parseTextEmbedMode(v: unknown): PlateBadgeTextEmbedMode {
-		return v === 'cap' ? 'cap' : 'full';
-	}
-
 	function defaultSettings(): PlateBadgeSettings {
+		const defaultSlot = defaultPlateSlotDimensions();
+		const defaultBar = defaultPlateBarParams();
 		return {
 			elements: [
 				{
@@ -150,12 +183,14 @@
 					depth: 3
 				}
 			],
-			baseDepth: 2,
+			baseThickness: 2,
+			baseHeightMm: defaultBar.baseHeightMm,
 			outlineThicknessMm: 2,
 			baseColor: '#1e293b',
-			textEmbedMode: 'full',
-			textCapDepthMm: 0.4,
-			scale: 1,
+			slotWidthMm: defaultSlot.widthMm,
+			slotHeightMm: defaultSlot.heightMm,
+			holeSpacingMm: defaultBar.holeSpacingMm,
+			endPaddingMm: defaultBar.endPaddingMm,
 			phase: 'layout'
 		};
 	}
@@ -166,12 +201,45 @@
 			const raw = localStorage.getItem(STORAGE_KEY);
 			if (!raw) return fallback;
 			const parsed = JSON.parse(raw) as Partial<PlateBadgeSettings>;
+			const slotForLoad = normalizePlateSlotDimensions({
+				widthMm: clampPlateSlotWidthMm(
+					numOr(parsed.slotWidthMm, fallback.slotWidthMm ?? defaultPlateSlotDimensions().widthMm)
+				),
+				heightMm: clampPlateSlotHeightMm(
+					numOr(parsed.slotHeightMm, fallback.slotHeightMm ?? defaultPlateSlotDimensions().heightMm)
+				)
+			});
+			const holeForLoad = numOr(
+				parsed.holeSpacingMm,
+				fallback.holeSpacingMm ?? defaultPlateBarParams(slotForLoad).holeSpacingMm
+			);
+			const endPadForLoad =
+				parsed.endPaddingMm != null
+					? numOr(parsed.endPaddingMm, PLATE_END_PADDING_DEFAULT_MM)
+					: parsed.baseLengthMm != null
+						? plateEndPaddingFromLegacyBaseLengthMm(
+								numOr(parsed.baseLengthMm, defaultPlateBarParams(slotForLoad).baseLengthMm),
+								holeForLoad,
+								slotForLoad.widthMm
+							)
+						: (fallback.endPaddingMm ?? defaultPlateBarParams(slotForLoad).endPaddingMm);
+			const barForLoad = normalizePlateBarParams(
+				{
+					holeSpacingMm: holeForLoad,
+					endPaddingMm: endPadForLoad,
+					baseHeightMm: numOr(
+						parsed.baseHeightMm,
+						fallback.baseHeightMm ?? defaultPlateBarParams(slotForLoad).baseHeightMm
+					)
+				},
+				slotForLoad
+			);
 			const rawList = Array.isArray(parsed.elements) ? parsed.elements : [];
 			const elements: CanvasElement[] = rawList
 				.filter((e): e is CanvasElement => !!e && typeof e === 'object' && 'kind' in (e as object))
 				.map((el) => {
 					const e = el as CanvasElement;
-					const c = clampElementCenterToPlate(numOr(e.x, 0), numOr(e.y, 0));
+					const c = clampElementCenterToPlate(numOr(e.x, 0), numOr(e.y, 0), barForLoad, e);
 					const rest = { ...e } as CanvasElement & {
 						outlineColor?: string;
 						outlineEnabled?: boolean;
@@ -189,20 +257,27 @@
 				});
 			return {
 				elements: elements.length > 0 ? elements : fallback.elements,
-				baseDepth: numOr(parsed.baseDepth, fallback.baseDepth),
+				baseThickness: clampPlateBaseThicknessMm(
+					numOr(
+						parsed.baseThickness ?? parsed.baseDepth,
+						fallback.baseThickness ?? fallback.baseDepth ?? 2
+					)
+				),
+				baseHeightMm: barForLoad.baseHeightMm,
 				outlineThicknessMm: clampElementOutlineThicknessMm(
 					numOr(
 						parsed.outlineThicknessMm,
-						numOr(parsed.baseDepth, fallback.outlineThicknessMm ?? fallback.baseDepth)
+						numOr(
+							parsed.baseThickness ?? parsed.baseDepth,
+							fallback.outlineThicknessMm ?? fallback.baseThickness ?? 2
+						)
 					)
 				),
 				baseColor: strOr(parsed.baseColor, fallback.baseColor),
-				textEmbedMode: parseTextEmbedMode(parsed.textEmbedMode ?? fallback.textEmbedMode),
-				textCapDepthMm: clampPlateTextCapDepthMm(
-					numOr(parsed.textCapDepthMm, fallback.textCapDepthMm ?? 0.4),
-					numOr(parsed.baseDepth, fallback.baseDepth)
-				),
-				scale: numOr(parsed.scale, fallback.scale),
+				slotWidthMm: slotForLoad.widthMm,
+				slotHeightMm: slotForLoad.heightMm,
+				holeSpacingMm: barForLoad.holeSpacingMm,
+				endPaddingMm: barForLoad.endPaddingMm,
 				phase: parsed.phase === 'threeD' ? 'threeD' : 'layout',
 				viewport: sanitizeViewport(parsed.viewport)
 			};
@@ -232,18 +307,84 @@
 
 	const initial = loadSettings();
 	let elements = $state<CanvasElement[]>(initial.elements);
-	let baseDepth = $state(initial.baseDepth);
+	let baseThickness = $state(
+		clampPlateBaseThicknessMm(initial.baseThickness ?? initial.baseDepth ?? 2)
+	);
+	let baseHeightMm = $state(
+		clampPlateBaseHeightMm(initial.baseHeightMm ?? defaultPlateBarParams().baseHeightMm)
+	);
 	let outlineThicknessMm = $state(
-		clampElementOutlineThicknessMm(initial.outlineThicknessMm ?? initial.baseDepth)
+		clampElementOutlineThicknessMm(initial.outlineThicknessMm ?? initial.baseThickness ?? 2)
 	);
 	let baseColor = $state(initial.baseColor);
-	let textEmbedMode = $state<PlateBadgeTextEmbedMode>(initial.textEmbedMode ?? 'full');
-	let textCapDepthMm = $state(initial.textCapDepthMm ?? 0.4);
-	let overallScale = $state(initial.scale);
+	let slotWidthMm = $state(
+		clampPlateSlotWidthMm(initial.slotWidthMm ?? defaultPlateSlotDimensions().widthMm)
+	);
+	let slotHeightMm = $state(
+		clampPlateSlotHeightMm(initial.slotHeightMm ?? defaultPlateSlotDimensions().heightMm)
+	);
+	let holeSpacingMm = $state(initial.holeSpacingMm ?? defaultPlateBarParams().holeSpacingMm);
+	let endPaddingMm = $state(initial.endPaddingMm ?? defaultPlateBarParams().endPaddingMm);
 
-	$effect(() => {
-		textCapDepthMm = clampPlateTextCapDepthMm(textCapDepthMm, baseDepth);
+	const plateSlotDims = $derived<PlateSlotDimensions>({
+		widthMm: slotWidthMm,
+		heightMm: slotHeightMm
 	});
+	const plateBarParams = $derived<PlateBarParams>(
+		normalizePlateBarParams({ holeSpacingMm, endPaddingMm, baseHeightMm }, plateSlotDims)
+	);
+	const plateHalfLengthMm = $derived(plateBarParams.baseLengthMm / 2);
+	const plateHalfHeightMm = $derived(plateBarParams.baseHeightMm / 2);
+	const computedBaseLengthMm = $derived(plateBarParams.baseLengthMm);
+	const maxHoleSpacingMm = $derived(maxPlateHoleSpacingMm(endPaddingMm, slotWidthMm));
+	const maxEndPaddingMm = $derived(maxPlateEndPaddingMm(holeSpacingMm, slotWidthMm));
+
+	function clampElToPlate(x: number, y: number, el: CanvasElement) {
+		return clampElementCenterToPlate(x, y, plateBarParams, el);
+	}
+
+	function patchAffectsPlacement(patch: Partial<CanvasElement>): boolean {
+		return (
+			'x' in patch ||
+			'y' in patch ||
+			'size' in patch ||
+			'rotation' in patch ||
+			'scaleX' in patch ||
+			'scaleY' in patch ||
+			'content' in patch ||
+			'fontKey' in patch ||
+			'shapeId' in patch
+		);
+	}
+
+	function patchNeedsGeometryRegen(patch: Partial<CanvasElement>): boolean {
+		return (
+			'content' in patch ||
+			'fontKey' in patch ||
+			'size' in patch ||
+			'shapeId' in patch ||
+			'lineSpacingMm' in patch
+		);
+	}
+
+	function patchNeedsSilhouetteRegen(patch: Partial<CanvasElement>): boolean {
+		return patchNeedsGeometryRegen(patch) || patchAffectsPlacement(patch);
+	}
+
+	function applyElementPatchToKonva(el: CanvasElement, patch: Partial<CanvasElement>): boolean {
+		const node = pathNodes.get(el.id);
+		if (!node || !konvaContentLayer || patchNeedsGeometryRegen(patch)) return false;
+		if ('color' in patch && node.fill() !== el.color) node.fill(el.color);
+		const a = konvaAttrsFromElement(el);
+		node.x(a.x);
+		node.y(a.y);
+		node.rotation(a.rotation);
+		node.scaleX(a.scaleX);
+		node.scaleY(a.scaleY);
+		konvaContentLayer.batchDraw();
+		return true;
+	}
+
 	let phase = $state<'layout' | 'threeD'>(initial.phase);
 	let selectedId = $state<string | null>(initial.elements[0]?.id ?? null);
 	let viewport = $state<CanvasStudioViewport | null>(initial.viewport ?? null);
@@ -262,34 +403,65 @@
 	});
 
 	$effect(() => {
-		const snap: PlateBadgeSettings = {
-			elements,
-			baseDepth,
-			outlineThicknessMm: clampElementOutlineThicknessMm(outlineThicknessMm),
-			baseColor,
-			textEmbedMode,
-			textCapDepthMm: clampPlateTextCapDepthMm(textCapDepthMm, baseDepth),
-			scale: overallScale,
-			phase,
-			viewport: viewport ?? undefined
-		};
-		try {
-			localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
-		} catch (e) {
-			console.error('Plate badge: persist failed', e);
-		}
+		const bar = normalizePlateBarParams({ holeSpacingMm, endPaddingMm, baseHeightMm }, plateSlotDims);
+		if (bar.holeSpacingMm !== holeSpacingMm) holeSpacingMm = bar.holeSpacingMm;
+		if (bar.endPaddingMm !== endPaddingMm) endPaddingMm = bar.endPaddingMm;
+		if (bar.baseHeightMm !== baseHeightMm) baseHeightMm = bar.baseHeightMm;
+	});
+
+	$effect(() => {
+		void plateBarParams.baseLengthMm;
+		let changed = false;
+		const next = elements.map((el) => {
+			const c = clampElementCenterToPlate(el.x, el.y, plateBarParams, el);
+			if (c.x === el.x && c.y === el.y) return el;
+			changed = true;
+			return { ...el, x: c.x, y: c.y };
+		});
+		if (changed) elements = next;
+	});
+
+	$effect(() => {
+		void plateBarParams;
+		syncKonvaDesignZone();
+		scheduleBaseSilhouetteSync();
+	});
+
+	$effect(() => {
+		void plateSlotDims;
+		void outlineThicknessMm;
+		void elements;
+		scheduleBaseSilhouetteSync();
+		if (phase === 'layout') scheduleKonvaSync();
+	});
+
+	$effect(() => {
+		void elements;
+		void baseThickness;
+		void baseHeightMm;
+		void outlineThicknessMm;
+		void baseColor;
+		void slotWidthMm;
+		void slotHeightMm;
+		void holeSpacingMm;
+		void endPaddingMm;
+		void phase;
+		void viewport;
+		schedulePersistSettings();
 	});
 
 	const selectedElement = $derived(elements.find((e) => e.id === selectedId) ?? null);
-	const textCapDepthMaxMm = $derived(maxPlateTextCapDepthMm(baseDepth));
-	const textLayerSummary = $derived.by(() => {
-		if (textEmbedMode === 'cap') {
-			const layer = plateBadgeTextLayer3D(baseDepth, 'cap', textCapDepthMm, 3);
-			return `Text cap ${layer.extrudeDepthMm.toFixed(2)} mm on top of base (${baseDepth.toFixed(1)} mm)`;
+	const selectedPosLimits = $derived.by(() => {
+		if (!selectedElement) {
+			return {
+				xMin: -plateHalfLengthMm,
+				xMax: plateHalfLengthMm,
+				yMin: -plateHalfHeightMm,
+				yMax: plateHalfHeightMm
+			};
 		}
-		return `Text sits on top of base — depth per layer below`;
+		return plateElementCenterLimits(selectedElement, plateBarParams);
 	});
-
 	function setSelected(id: string | null) {
 		selectedId = id;
 		syncSelectionToKonva();
@@ -300,70 +472,399 @@
 		syncSelectionToKonva();
 	}
 
+	const KONVA_SYNC_DEBOUNCE_MS = 48;
+	const SILHOUETTE_DEBOUNCE_MS = 72;
+	const PERSIST_DEBOUNCE_MS = 280;
+	const THREE_PREVIEW_DEBOUNCE_MS = 100;
+	const PREVIEW_INDICATOR_DELAY_MS = 100;
+
+	let konvaSyncTimer: ReturnType<typeof setTimeout> | null = null;
+	let konvaSyncRaf: number | null = null;
+	let silhouetteTimer: ReturnType<typeof setTimeout> | null = null;
+	let silhouetteIdleId: number | null = null;
+	let persistTimer: ReturnType<typeof setTimeout> | null = null;
+	let threePreviewTimer: ReturnType<typeof setTimeout> | null = null;
+	let threePreviewRaf: number | null = null;
+	let layoutPreviewBusy = $state(false);
+	let layoutPreviewVisible = $state(false);
+	let scenePreviewBusy = $state(false);
+	let scenePreviewVisible = $state(false);
+	let layoutPreviewRevealTimer: ReturnType<typeof setTimeout> | null = null;
+	let scenePreviewRevealTimer: ReturnType<typeof setTimeout> | null = null;
+	const elementGeometryKeys = new Map<string, string>();
+
+	function setPreviewIndicatorBusy(kind: 'layout' | 'scene', busy: boolean) {
+		if (kind === 'layout') {
+			layoutPreviewBusy = busy;
+			if (busy) {
+				if (layoutPreviewRevealTimer === null) {
+					layoutPreviewRevealTimer = setTimeout(() => {
+						layoutPreviewRevealTimer = null;
+						if (layoutPreviewBusy) layoutPreviewVisible = true;
+					}, PREVIEW_INDICATOR_DELAY_MS);
+				}
+				return;
+			}
+			if (layoutPreviewRevealTimer !== null) {
+				clearTimeout(layoutPreviewRevealTimer);
+				layoutPreviewRevealTimer = null;
+			}
+			layoutPreviewVisible = false;
+			return;
+		}
+		scenePreviewBusy = busy;
+		if (busy) {
+			if (scenePreviewRevealTimer === null) {
+				scenePreviewRevealTimer = setTimeout(() => {
+					scenePreviewRevealTimer = null;
+					if (scenePreviewBusy) scenePreviewVisible = true;
+				}, PREVIEW_INDICATOR_DELAY_MS);
+			}
+			return;
+		}
+		if (scenePreviewRevealTimer !== null) {
+			clearTimeout(scenePreviewRevealTimer);
+			scenePreviewRevealTimer = null;
+		}
+		scenePreviewVisible = false;
+	}
+
+	function syncLayoutPreviewBusy() {
+		setPreviewIndicatorBusy(
+			'layout',
+			konvaSyncTimer !== null ||
+				konvaSyncRaf !== null ||
+				silhouetteTimer !== null ||
+				silhouetteIdleId !== null
+		);
+	}
+
+	function syncScenePreviewBusy() {
+		setPreviewIndicatorBusy(
+			'scene',
+			threePreviewTimer !== null ||
+				threePreviewRaf !== null ||
+				scenePrebuildTimer !== null ||
+				scenePrebuildIdleId !== null ||
+				rebuildDebounceTimer !== null ||
+				rebuildPending
+		);
+	}
+
+	function clearPreviewIndicatorTimers() {
+		if (layoutPreviewRevealTimer !== null) {
+			clearTimeout(layoutPreviewRevealTimer);
+			layoutPreviewRevealTimer = null;
+		}
+		if (scenePreviewRevealTimer !== null) {
+			clearTimeout(scenePreviewRevealTimer);
+			scenePreviewRevealTimer = null;
+		}
+		layoutPreviewBusy = false;
+		layoutPreviewVisible = false;
+		scenePreviewBusy = false;
+		scenePreviewVisible = false;
+	}
+
+	function clearDeferredLayoutWork() {
+		if (konvaSyncTimer !== null) {
+			clearTimeout(konvaSyncTimer);
+			konvaSyncTimer = null;
+		}
+		if (konvaSyncRaf !== null) {
+			cancelAnimationFrame(konvaSyncRaf);
+			konvaSyncRaf = null;
+		}
+		if (silhouetteTimer !== null) {
+			clearTimeout(silhouetteTimer);
+			silhouetteTimer = null;
+		}
+		if (silhouetteIdleId !== null && typeof cancelIdleCallback !== 'undefined') {
+			cancelIdleCallback(silhouetteIdleId);
+			silhouetteIdleId = null;
+		}
+		if (persistTimer !== null) {
+			clearTimeout(persistTimer);
+			persistTimer = null;
+		}
+		if (threePreviewTimer !== null) {
+			clearTimeout(threePreviewTimer);
+			threePreviewTimer = null;
+		}
+		if (threePreviewRaf !== null) {
+			cancelAnimationFrame(threePreviewRaf);
+			threePreviewRaf = null;
+		}
+		cancelScenePrebuild();
+		syncLayoutPreviewBusy();
+		syncScenePreviewBusy();
+	}
+
+	function cancelScenePrebuild() {
+		if (scenePrebuildTimer !== null) {
+			clearTimeout(scenePrebuildTimer);
+			scenePrebuildTimer = null;
+		}
+		if (scenePrebuildIdleId !== null && typeof cancelIdleCallback !== 'undefined') {
+			cancelIdleCallback(scenePrebuildIdleId);
+			scenePrebuildIdleId = null;
+		}
+	}
+
+	function invalidateScenePreview() {
+		lastAppliedSceneKey = '';
+	}
+
+	function sceneCacheKey(): string {
+		const baseThicknessSafe = Math.max(0.1, baseThickness);
+		const outlineWidthSafe = clampElementOutlineThicknessMm(outlineThicknessMm);
+		const plateKey = plateRebuildKey(baseThicknessSafe, outlineWidthSafe);
+		const artSig = elements
+			.map((e) => {
+				const depth = clampPlateElementDepthMm(e.depth);
+				if (e.kind === 'text') {
+					return `${e.id}:t:${e.x.toFixed(3)}:${e.y.toFixed(3)}:${e.rotation.toFixed(4)}:${e.scaleX}:${e.scaleY}:${depth}:${e.color}:${e.content}|${e.fontKey}|${e.size}|${e.lineSpacingMm ?? ''}`;
+				}
+				return `${e.id}:s:${e.x.toFixed(3)}:${e.y.toFixed(3)}:${e.rotation.toFixed(4)}:${e.scaleX}:${e.scaleY}:${depth}:${e.color}:${e.shapeId}|${e.size}`;
+			})
+			.join(';');
+		return `${plateKey}::${artSig}`;
+	}
+
+	function sceneArtIsCurrent(key: string = sceneCacheKey()): boolean {
+		if (key !== lastAppliedSceneKey || !group) return false;
+		if (!findPlateBaseMesh()) return false;
+		if (elements.length === 0) return true;
+		return group.children.some(isPlateBadgeArtObject);
+	}
+
+	function scheduleScenePrebuild() {
+		if (phase === 'threeD') return;
+		cancelScenePrebuild();
+		scenePrebuildTimer = setTimeout(() => {
+			scenePrebuildTimer = null;
+			const run = () => {
+				scenePrebuildIdleId = null;
+				if (phase === 'threeD' || !threeHostEl) return;
+				const key = sceneCacheKey();
+				if (sceneArtIsCurrent(key)) return;
+				ensureThreeScene();
+				refreshPlateBadgeScene({ allowLayout: true });
+			};
+			if (typeof requestIdleCallback !== 'undefined') {
+				scenePrebuildIdleId = requestIdleCallback(run, { timeout: 400 });
+			} else {
+				requestAnimationFrame(run);
+			}
+			syncScenePreviewBusy();
+		}, 120);
+		syncScenePreviewBusy();
+	}
+
+	function scheduleKonvaSync() {
+		if (konvaSyncTimer !== null) clearTimeout(konvaSyncTimer);
+		konvaSyncTimer = setTimeout(() => {
+			konvaSyncTimer = null;
+			if (konvaSyncRaf !== null) cancelAnimationFrame(konvaSyncRaf);
+			konvaSyncRaf = requestAnimationFrame(() => {
+				konvaSyncRaf = null;
+				pushElementsToKonva();
+				syncLayoutPreviewBusy();
+			});
+			syncLayoutPreviewBusy();
+		}, KONVA_SYNC_DEBOUNCE_MS);
+		syncLayoutPreviewBusy();
+	}
+
+	function clearKonvaSyncTimers() {
+		if (konvaSyncTimer !== null) {
+			clearTimeout(konvaSyncTimer);
+			konvaSyncTimer = null;
+		}
+		if (konvaSyncRaf !== null) {
+			cancelAnimationFrame(konvaSyncRaf);
+			konvaSyncRaf = null;
+		}
+		syncLayoutPreviewBusy();
+	}
+
+	function flushKonvaSync() {
+		clearKonvaSyncTimers();
+		pushElementsToKonva();
+		syncLayoutPreviewBusy();
+	}
+
+	function elementGeometryKey(el: CanvasElement): string {
+		if (el.kind === 'text') {
+			return `${el.content}|${el.fontKey}|${el.size}|${el.lineSpacingMm ?? ''}`;
+		}
+		return `${el.shapeId}|${el.size}`;
+	}
+
+	function applyBaseSilhouetteToKonva() {
+		if (!konvaBaseSilhouettePath) return;
+		konvaBaseSilhouettePath.data(
+			plateBaseSilhouetteKonvaPathD(
+				elements,
+				clampElementOutlineThicknessMm(outlineThicknessMm),
+				plateSlotDims,
+				plateBarParams
+			)
+		);
+		konvaGuideLayer?.batchDraw();
+	}
+
+	function scheduleBaseSilhouetteSync() {
+		if (phase !== 'layout') return;
+		if (silhouetteTimer !== null) clearTimeout(silhouetteTimer);
+		silhouetteTimer = setTimeout(() => {
+			silhouetteTimer = null;
+			const run = () => {
+				silhouetteIdleId = null;
+				applyBaseSilhouetteToKonva();
+				syncLayoutPreviewBusy();
+			};
+			if (typeof requestIdleCallback !== 'undefined') {
+				silhouetteIdleId = requestIdleCallback(run, { timeout: 120 });
+			} else {
+				requestAnimationFrame(run);
+			}
+			syncLayoutPreviewBusy();
+		}, SILHOUETTE_DEBOUNCE_MS);
+		syncLayoutPreviewBusy();
+	}
+
+	function flushBaseSilhouetteSync() {
+		if (silhouetteTimer !== null) {
+			clearTimeout(silhouetteTimer);
+			silhouetteTimer = null;
+		}
+		if (silhouetteIdleId !== null && typeof cancelIdleCallback !== 'undefined') {
+			cancelIdleCallback(silhouetteIdleId);
+			silhouetteIdleId = null;
+		}
+		applyBaseSilhouetteToKonva();
+		syncLayoutPreviewBusy();
+	}
+
+	function syncKonvaDesignZone() {
+		if (!konvaDesignZoneLine) return;
+		const dz = plateDesignZone(plateBarParams);
+		const yTop = -dz.maxY;
+		const yBot = -dz.minY;
+		konvaDesignZoneLine.points([
+			dz.minX,
+			yTop,
+			dz.maxX,
+			yTop,
+			dz.maxX,
+			yBot,
+			dz.minX,
+			yBot,
+			dz.minX,
+			yTop
+		]);
+		konvaGuideLayer?.batchDraw();
+	}
+
+	function schedulePersistSettings() {
+		if (persistTimer !== null) clearTimeout(persistTimer);
+		persistTimer = setTimeout(() => {
+			persistTimer = null;
+			const snap: PlateBadgeSettings = {
+				elements,
+				baseThickness,
+				baseHeightMm: plateBarParams.baseHeightMm,
+				outlineThicknessMm: clampElementOutlineThicknessMm(outlineThicknessMm),
+				baseColor,
+				slotWidthMm: clampPlateSlotWidthMm(slotWidthMm),
+				slotHeightMm: clampPlateSlotHeightMm(slotHeightMm),
+				holeSpacingMm: plateBarParams.holeSpacingMm,
+				endPaddingMm: plateBarParams.endPaddingMm,
+				phase,
+				viewport: viewport ?? undefined
+			};
+			try {
+				localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
+			} catch (e) {
+				console.error('Plate badge: persist failed', e);
+			}
+		}, PERSIST_DEBOUNCE_MS);
+	}
+
 	function addText() {
 		const { x: cx, y: cy } = artboardMmAtCanvasCenter();
-		const c = clampElementCenterToPlate(cx, cy);
-		const el: TextElement = {
+		const draft: TextElement = {
 			id: makeId(),
 			kind: 'text',
 			content: 'Text',
 			fontKey: FONT_OPTIONS[0]?.key ?? 'Titan One_Regular',
 			size: 12,
-			x: c.x,
-			y: c.y,
+			x: cx,
+			y: cy,
 			rotation: 0,
 			scaleX: 1,
 			scaleY: 1,
 			color: '#f8fafc',
 			depth: 3
 		};
+		const c = clampElToPlate(cx, cy, draft);
+		const el: TextElement = { ...draft, x: c.x, y: c.y };
 		elements = [...elements, el];
 		selectedId = el.id;
 		shapePickerOpen = false;
-		pushElementsToKonva();
+		flushKonvaSync();
+		flushBaseSilhouetteSync();
 	}
 
 	function addShape(shapeId: string) {
 		const def = getShape(shapeId);
 		if (!def) return;
 		const { x: cx, y: cy } = artboardMmAtCanvasCenter();
-		const c = clampElementCenterToPlate(cx, cy);
-		const el: ShapeElement = {
+		const draft: ShapeElement = {
 			id: makeId(),
 			kind: 'shape',
 			shapeId,
 			size: 18,
-			x: c.x,
-			y: c.y,
+			x: cx,
+			y: cy,
 			rotation: 0,
 			scaleX: 1,
 			scaleY: 1,
 			color: '#f472b6',
 			depth: 3
 		};
+		const c = clampElToPlate(cx, cy, draft);
+		const el: ShapeElement = { ...draft, x: c.x, y: c.y };
 		elements = [...elements, el];
 		selectedId = el.id;
 		shapePickerOpen = false;
-		pushElementsToKonva();
+		flushKonvaSync();
+		flushBaseSilhouetteSync();
 	}
 
 	function updateElement(id: string, patch: Partial<CanvasElement>) {
 		elements = elements.map((el) => {
 			if (el.id !== id) return el;
 			const merged = { ...el, ...patch } as CanvasElement;
-			if ('x' in patch || 'y' in patch) {
-				const c = clampElementCenterToPlate(merged.x, merged.y);
-				return { ...merged, x: c.x, y: c.y };
-			}
-			return merged;
+			if (!patchAffectsPlacement(patch)) return merged;
+			const c = clampElToPlate(merged.x, merged.y, merged);
+			return { ...merged, x: c.x, y: c.y };
 		});
-		syncElementsToKonva();
+		const el = elements.find((e) => e.id === id);
+		if (el && applyElementPatchToKonva(el, patch)) {
+			if (patchNeedsSilhouetteRegen(patch)) scheduleBaseSilhouetteSync();
+			return;
+		}
+		scheduleKonvaSync();
+		if (patchNeedsSilhouetteRegen(patch)) scheduleBaseSilhouetteSync();
 	}
 
 	function removeElement(id: string) {
 		elements = elements.filter((el) => el.id !== id);
 		if (selectedId === id) selectedId = elements[elements.length - 1]?.id ?? null;
-		pushElementsToKonva();
+		flushKonvaSync();
+		flushBaseSilhouetteSync();
 	}
 
 	function duplicateElement(id: string) {
@@ -371,13 +872,14 @@
 		if (idx < 0) return;
 		const source = elements[idx];
 		const copy = { ...source, id: makeId(), x: source.x + 4, y: source.y - 4 } as CanvasElement;
-		const c = clampElementCenterToPlate(copy.x, copy.y);
+		const c = clampElToPlate(copy.x, copy.y, copy);
 		const placed = { ...copy, x: c.x, y: c.y };
 		const next = [...elements];
 		next.splice(idx + 1, 0, placed);
 		elements = next;
 		selectedId = placed.id;
-		pushElementsToKonva();
+		flushKonvaSync();
+		flushBaseSilhouetteSync();
 	}
 
 	function moveElement(id: string, delta: number) {
@@ -389,7 +891,7 @@
 		const [el] = next.splice(idx, 1);
 		next.splice(target, 0, el);
 		elements = next;
-		pushElementsToKonva();
+		flushKonvaSync();
 	}
 
 	function flipElement(id: string, axis: 'x' | 'y') {
@@ -407,6 +909,8 @@
 	let konvaStage: Konva.Stage | null = null;
 	let konvaGridLayer: Konva.Layer | null = null;
 	let konvaGuideLayer: Konva.Layer | null = null;
+	let konvaBaseSilhouettePath: Konva.Path | null = null;
+	let konvaDesignZoneLine: Konva.Line | null = null;
 	let konvaContentLayer: Konva.Layer | null = null;
 	let konvaUiLayer: Konva.Layer | null = null;
 	let konvaTransformer: Konva.Transformer | null = null;
@@ -422,6 +926,7 @@
 	const INITIAL_SCALE = 3;
 
 	function initKonva(host: HTMLDivElement) {
+		if (konvaStage) return;
 		const rect = host.getBoundingClientRect();
 		const w0 = Math.max(1, rect.width || window.innerWidth - 360);
 		const h0 = Math.max(1, rect.height || window.innerHeight - 64);
@@ -448,51 +953,35 @@
 			didInitialMeasure = rect.width > 0 && rect.height > 0;
 		}
 
-		konvaGuideLayer.add(
-			new Konva.Path({
-				data: plateOuterKonvaPathD(),
-				fill: 'rgba(14, 165, 233, 0.07)',
-				stroke: '#0ea5e9',
-				strokeWidth: 1.1,
-				strokeScaleEnabled: false,
-				listening: false,
-				perfectDrawEnabled: false
-			})
-		);
-		konvaGuideLayer.add(
-			new Konva.Path({
-				data: plateSlotKonvaPathD(-1),
-				fill: 'rgba(255,255,255,0.2)',
-				stroke: '#0369a1',
-				strokeWidth: 0.85,
-				strokeScaleEnabled: false,
-				listening: false
-			})
-		);
-		konvaGuideLayer.add(
-			new Konva.Path({
-				data: plateSlotKonvaPathD(1),
-				fill: 'rgba(255,255,255,0.2)',
-				stroke: '#0369a1',
-				strokeWidth: 0.85,
-				strokeScaleEnabled: false,
-				listening: false
-			})
-		);
-		const dz = PLATE_SPEC.designZone;
+		konvaBaseSilhouettePath = new Konva.Path({
+			data: plateBaseSilhouetteKonvaPathD(
+				elements,
+				clampElementOutlineThicknessMm(outlineThicknessMm),
+				plateSlotDims,
+				plateBarParams
+			),
+			fill: 'rgba(14, 165, 233, 0.07)',
+			stroke: '#0ea5e9',
+			strokeWidth: 1.1,
+			strokeScaleEnabled: false,
+			fillRule: 'evenodd',
+			listening: false,
+			perfectDrawEnabled: false
+		});
+		konvaGuideLayer.add(konvaBaseSilhouettePath);
+		const dz = plateDesignZone(plateBarParams);
 		const yTop = -dz.maxY;
 		const yBot = -dz.minY;
-		konvaGuideLayer.add(
-			new Konva.Line({
-				points: [dz.minX, yTop, dz.maxX, yTop, dz.maxX, yBot, dz.minX, yBot, dz.minX, yTop],
-				stroke: '#64748b',
-				strokeWidth: 0.65,
-				dash: [5, 4],
-				strokeScaleEnabled: false,
-				listening: false,
-				closed: false
-			})
-		);
+		konvaDesignZoneLine = new Konva.Line({
+			points: [dz.minX, yTop, dz.maxX, yTop, dz.maxX, yBot, dz.minX, yBot, dz.minX, yTop],
+			stroke: '#64748b',
+			strokeWidth: 0.65,
+			dash: [5, 4],
+			strokeScaleEnabled: false,
+			listening: false,
+			closed: false
+		});
+		konvaGuideLayer.add(konvaDesignZoneLine);
 		konvaGuideLayer.batchDraw();
 
 		konvaTransformer = new Konva.Transformer({
@@ -574,6 +1063,9 @@
 		konvaContentLayer = null;
 		konvaUiLayer = null;
 		pathNodes.clear();
+		elementGeometryKeys.clear();
+		clearDeferredLayoutWork();
+		clearPreviewIndicatorTimers();
 	}
 
 	function captureViewport() {
@@ -641,17 +1133,28 @@
 		node.on('mousedown touchstart', () => setSelected(el.id));
 		node.on('dragstart', () => setSelected(el.id));
 		node.on('dragend', () => {
-			const c = clampElementCenterToPlate(node.x(), -node.y());
+			const draft = { ...el, x: node.x(), y: -node.y() } as CanvasElement;
+			const c = clampElToPlate(draft.x, draft.y, draft);
 			updateElement(el.id, { x: c.x, y: c.y });
 			node.x(c.x);
 			node.y(-c.y);
+			flushKonvaSync();
+			flushBaseSilhouetteSync();
 		});
 		node.on('transformend', () => {
 			const u = elementUpdatesFromKonva(node);
-			const c = clampElementCenterToPlate(u.x ?? node.x(), u.y ?? -node.y());
+			const draft = {
+				...el,
+				...u,
+				x: u.x ?? node.x(),
+				y: u.y ?? -node.y()
+			} as CanvasElement;
+			const c = clampElToPlate(draft.x, draft.y, draft);
 			updateElement(el.id, { ...u, x: c.x, y: c.y });
 			node.x(c.x);
 			node.y(-c.y);
+			flushKonvaSync();
+			flushBaseSilhouetteSync();
 		});
 		return node;
 	}
@@ -663,6 +1166,7 @@
 			if (!ids.has(id)) {
 				node.destroy();
 				pathNodes.delete(id);
+				elementGeometryKeys.delete(id);
 			}
 		}
 		for (const el of elements) {
@@ -671,9 +1175,14 @@
 				node = createPathNode(el);
 				konvaContentLayer.add(node);
 				pathNodes.set(el.id, node);
+				elementGeometryKeys.set(el.id, elementGeometryKey(el));
 			} else {
-				const expectedD = elementToPathD(el);
-				if (node.data() !== expectedD) node.data(expectedD);
+				const gk = elementGeometryKey(el);
+				if (elementGeometryKeys.get(el.id) !== gk) {
+					const expectedD = elementToPathD(el);
+					if (node.data() !== expectedD) node.data(expectedD);
+					elementGeometryKeys.set(el.id, gk);
+				}
 				if (node.fill() !== el.color) node.fill(el.color);
 				if (node.stroke() !== '#64748b') node.stroke('#64748b');
 				if (Math.abs(node.strokeWidth() - 1) > 1e-4) node.strokeWidth(1);
@@ -859,22 +1368,7 @@
 	}
 
 	function elementToPathD(el: CanvasElement): string {
-		const paths = getLocalPathsForElement(el);
-		if (paths.length === 0) return '';
-		const parts: string[] = [];
-		for (const path of paths) {
-			if (path.length < 3) continue;
-			const head = path[0];
-			parts.push(
-				`M ${(head.X / CLIPPER_SCALE).toFixed(3)} ${(-head.Y / CLIPPER_SCALE).toFixed(3)}`
-			);
-			for (let i = 1; i < path.length; i++) {
-				const p = path[i];
-				parts.push(`L ${(p.X / CLIPPER_SCALE).toFixed(3)} ${(-p.Y / CLIPPER_SCALE).toFixed(3)}`);
-			}
-			parts.push('Z');
-		}
-		return parts.join(' ');
+		return clipperPathsToKonvaPathD(getLocalPathsForElement(el));
 	}
 
 	function onCanvasKeyDown(e: KeyboardEvent) {
@@ -886,6 +1380,7 @@
 			e.preventDefault();
 			return;
 		}
+		if (isTextInputFocused(e.target) && e.key.startsWith('Arrow')) return;
 		if (!selectedId) return;
 		const el = elements.find((x) => x.id === selectedId);
 		if (!el) return;
@@ -944,6 +1439,11 @@
 	let rebuildPending = false;
 	let rebuildAgainAfterPending = false;
 	let rebuildDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+	let threeDSessionActive = false;
+	let sceneRefreshGeneration = 0;
+	let lastAppliedSceneKey = '';
+	let scenePrebuildTimer: ReturnType<typeof setTimeout> | null = null;
+	let scenePrebuildIdleId: number | null = null;
 	/** Bumps on each 3D rebuild so stale OpenSCAD results are discarded. */
 	let plateRebuildGeneration = 0;
 	let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
@@ -1047,8 +1547,8 @@
 		keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
 		keyLight.position.set(80, -120, 140);
 		keyLight.castShadow = true;
-		keyLight.shadow.mapSize.width = 4096;
-		keyLight.shadow.mapSize.height = 4096;
+		keyLight.shadow.mapSize.width = 2048;
+		keyLight.shadow.mapSize.height = 2048;
 		keyLight.shadow.bias = -0.0001;
 		keyLight.shadow.normalBias = 0.018;
 		scene.add(keyLight);
@@ -1079,6 +1579,7 @@
 		attachThreePickListeners();
 		const tick = () => {
 			rafId = requestAnimationFrame(tick);
+			if (phase !== 'threeD') return;
 			controls?.update();
 			if (renderer && scene && camera) renderer.render(scene, camera);
 		};
@@ -1176,14 +1677,16 @@
 
 	function buildElementOutlineMesh(
 		el: CanvasElement,
-		baseDepthMm: number,
+		baseThicknessMm: number,
 		outlineWidthMm: number,
 		plateBaseColor: string
 	): THREE.Mesh | null {
 		const planW = Math.max(0.1, outlineWidthMm);
-		const rimH = Math.max(0.1, baseDepthMm);
+		const rimH = Math.max(0.1, baseThicknessMm);
 		const outlineTree = subtractPlateMountingSlotsFromPolyTree(
-			getElementOutlinePolyTree(el, planW)
+			getElementOutlinePolyTree(el, planW),
+			plateSlotDims,
+			plateBarParams
 		);
 		const shapes = polyTreeToThreeShapes(outlineTree);
 		if (shapes.length === 0) return null;
@@ -1241,14 +1744,17 @@
 		return mesh;
 	}
 
-	function collectPlateOutlineMeshes(baseDepthSafe: number, outlineWidthSafe: number): THREE.Mesh[] {
+	function collectPlateOutlineMeshes(
+		baseThicknessSafe: number,
+		outlineWidthSafe: number
+	): THREE.Mesh[] {
 		const outlineParts: THREE.Mesh[] = [];
 		for (let i = 0; i < elements.length; i++) {
 			const el = elements[i];
 			try {
 				const outlineMesh = buildElementOutlineMesh(
 					el,
-					baseDepthSafe,
+					baseThicknessSafe,
 					outlineWidthSafe,
 					baseColor
 				);
@@ -1267,9 +1773,12 @@
 		return !!(obj.userData?.elementId || obj.userData?.isElementOutline);
 	}
 
-	function buildPlateBadgeArtMeshes(baseDepthSafe: number, outlineWidthSafe: number): THREE.Object3D[] {
+	function buildPlateBadgeArtMeshes(
+		baseThicknessSafe: number,
+		outlineWidthSafe: number
+	): THREE.Object3D[] {
 		const art: THREE.Object3D[] = [];
-		const outlineParts = collectPlateOutlineMeshes(baseDepthSafe, outlineWidthSafe);
+		const outlineParts = collectPlateOutlineMeshes(baseThicknessSafe, outlineWidthSafe);
 		for (const om of outlineParts) {
 			om.castShadow = true;
 			om.receiveShadow = true;
@@ -1277,12 +1786,7 @@
 		}
 		for (let i = 0; i < elements.length; i++) {
 			const el = elements[i];
-			const textLayer = plateBadgeTextLayer3D(
-				baseDepthSafe,
-				textEmbedMode,
-				textCapDepthMm,
-				el.depth
-			);
+			const textLayer = plateBadgeElementLayer3D(baseThicknessSafe, el.depth);
 			const mesh = buildElementMesh(el, textLayer);
 			if (!mesh) continue;
 			alignGeometryBottomToZ0(mesh.geometry);
@@ -1308,7 +1812,7 @@
 	function finalizePlateBadgeGroupFrame() {
 		if (!group) return;
 		group.position.set(0, 0, 0);
-		group.scale.set(overallScale, overallScale, 1);
+		group.scale.set(1, 1, 1);
 		group.updateWorldMatrix(true, true);
 		snapGroupBottomToBuildPlate(group);
 		const box = new THREE.Box3().setFromObject(group);
@@ -1319,6 +1823,10 @@
 		}
 		const size = measureWorldAabbSizeMm(group);
 		modelAabbMm = size ? { x: size.x, y: size.y, z: size.z } : null;
+	}
+
+	function plateRebuildKey(baseThicknessSafe: number, outlineWidthSafe: number): string {
+		return `${baseThicknessSafe.toFixed(2)}:${outlineWidthSafe.toFixed(2)}:${baseColor}:${slotWidthMm.toFixed(2)}:${slotHeightMm.toFixed(2)}:${plateBarParams.holeSpacingMm.toFixed(2)}:${plateBarParams.endPaddingMm.toFixed(2)}:${plateBarParams.baseHeightMm.toFixed(2)}`;
 	}
 
 	function findPlateBaseMesh(): THREE.Mesh | undefined {
@@ -1345,25 +1853,94 @@
 	}
 
 	/** Instant 3D preview: sync plate depth + outlines/fills; OpenSCAD refines the base in the background. */
-	function refreshPlateBadgeScene() {
-		if (phase !== 'threeD' || !group) return;
-		const baseDepthSafe = Math.max(0.1, baseDepth);
+	function refreshPlateBadgeScene(options?: { allowLayout?: boolean }) {
+		const key = sceneCacheKey();
+		if (!options?.allowLayout && phase !== 'threeD') return;
+		if (!group) return;
+		if (sceneArtIsCurrent(key)) {
+			if (phase === 'threeD') {
+				applyThreeSelectionHighlight();
+				syncScenePreviewBusy();
+			}
+			return;
+		}
+
+		const gen = ++sceneRefreshGeneration;
+		const baseThicknessSafe = Math.max(0.1, baseThickness);
 		const outlineWidthSafe = clampElementOutlineThicknessMm(outlineThicknessMm);
-		const plateKey = `${baseDepthSafe.toFixed(2)}:${outlineWidthSafe.toFixed(2)}:${baseColor}`;
+		const plateKey = plateRebuildKey(baseThicknessSafe, outlineWidthSafe);
 		const existingPlate = findPlateBaseMesh();
 
 		if (!existingPlate || existingPlate.userData.plateKey !== plateKey) {
 			installPlateBaseMesh(
-				buildPlateBaseMeshPreview(baseDepthSafe, baseColor),
+				buildPlateBaseMeshPreview(baseThicknessSafe, baseColor, plateSlotDims, plateBarParams),
 				plateKey,
 				'preview'
 			);
 		}
 
+		if (gen !== sceneRefreshGeneration) return;
+
 		disposeThreeSelectionOutline();
-		swapPlateBadgeArtMeshes(buildPlateBadgeArtMeshes(baseDepthSafe, outlineWidthSafe));
+		const artMeshes = buildPlateBadgeArtMeshes(baseThicknessSafe, outlineWidthSafe);
+		if (gen !== sceneRefreshGeneration) {
+			for (const m of artMeshes) disposeObject3D(m);
+			return;
+		}
+		swapPlateBadgeArtMeshes(artMeshes);
+		lastAppliedSceneKey = key;
 		finalizePlateBadgeGroupFrame();
-		applyThreeSelectionHighlight();
+		if (phase === 'threeD') applyThreeSelectionHighlight();
+		syncScenePreviewBusy();
+	}
+
+	function cancelQueuedScenePreview() {
+		if (threePreviewTimer !== null) {
+			clearTimeout(threePreviewTimer);
+			threePreviewTimer = null;
+		}
+		if (threePreviewRaf !== null) {
+			cancelAnimationFrame(threePreviewRaf);
+			threePreviewRaf = null;
+		}
+	}
+
+	function runScenePreviewRefresh() {
+		threePreviewRaf = null;
+		if (phase !== 'threeD') {
+			syncScenePreviewBusy();
+			return;
+		}
+		ensureThreeScene();
+		refreshPlateBadgeScene();
+	}
+
+	/** Defer mesh rebuild so the 3D tab can paint before heavy Clipper/Three work. */
+	function queueScenePreviewRefresh(immediate: boolean) {
+		cancelQueuedScenePreview();
+		syncScenePreviewBusy();
+		if (immediate && sceneArtIsCurrent()) {
+			ensureThreeScene();
+			threeResize();
+			applyThreeSelectionHighlight();
+			syncScenePreviewBusy();
+			return;
+		}
+		const scheduleRun = () => {
+			threePreviewRaf = requestAnimationFrame(() => {
+				runScenePreviewRefresh();
+			});
+			syncScenePreviewBusy();
+		};
+		if (immediate) {
+			scheduleRun();
+		} else {
+			threePreviewTimer = setTimeout(() => {
+				threePreviewTimer = null;
+				scheduleRun();
+			}, THREE_PREVIEW_DEBOUNCE_MS);
+		}
+		syncScenePreviewBusy();
 	}
 
 	/** Debounced: swap preview plate for manifold OpenSCAD mesh (export-quality holes). */
@@ -1374,11 +1951,12 @@
 			return;
 		}
 		rebuildPending = true;
+		syncScenePreviewBusy();
 		const gen = ++plateRebuildGeneration;
 		try {
-			const baseDepthSafe = Math.max(0.1, baseDepth);
+			const baseThicknessSafe = Math.max(0.1, baseThickness);
 			const outlineWidthSafe = clampElementOutlineThicknessMm(outlineThicknessMm);
-			const plateKey = `${baseDepthSafe.toFixed(2)}:${outlineWidthSafe.toFixed(2)}:${baseColor}`;
+			const plateKey = plateRebuildKey(baseThicknessSafe, outlineWidthSafe);
 			const existingPlate = findPlateBaseMesh();
 			if (
 				existingPlate?.userData.plateKey === plateKey &&
@@ -1389,7 +1967,12 @@
 
 			let refined: THREE.Mesh;
 			try {
-				refined = await buildPlateBaseMeshFromOpenScad(baseDepthSafe, baseColor);
+				refined = await buildPlateBaseMeshFromOpenScad(
+					baseThicknessSafe,
+					baseColor,
+					plateSlotDims,
+					plateBarParams
+				);
 			} catch (err) {
 				console.error('Plate badge: OpenSCAD base failed', err);
 				return;
@@ -1406,6 +1989,7 @@
 			console.error('Plate badge: refinePlateBaseWithOpenScad failed', err);
 		} finally {
 			rebuildPending = false;
+			syncScenePreviewBusy();
 			if (rebuildAgainAfterPending) {
 				rebuildAgainAfterPending = false;
 				void refinePlateBaseWithOpenScad();
@@ -1414,17 +1998,61 @@
 	}
 
 	$effect(() => {
-		if (phase !== 'threeD') return;
-		ensureThreeScene();
+		const host = threeHostEl;
+		if (!host) return;
+		const warm = () => {
+			if (renderer) return;
+			ensureThreeScene();
+		};
+		if (typeof requestIdleCallback !== 'undefined') {
+			const id = requestIdleCallback(warm, { timeout: 1200 });
+			return () => cancelIdleCallback(id);
+		}
+		const t = setTimeout(warm, 150);
+		return () => clearTimeout(t);
+	});
+
+	$effect(() => {
+		if (phase === 'threeD') return;
 		void elements;
-		void elements.map((e) => `${e.id}:${clampPlateElementDepthMm(e.depth)}`);
-		void baseDepth;
+		void elements.map(
+			(e) =>
+				`${e.id}:${e.x.toFixed(3)}:${e.y.toFixed(3)}:${e.rotation.toFixed(4)}:${e.scaleX}:${e.scaleY}:${clampPlateElementDepthMm(e.depth)}:${e.kind === 'text' ? `${e.content}|${e.fontKey}|${e.size}` : `${(e as ShapeElement).shapeId}|${e.size}`}`
+		);
+		void baseThickness;
+		void baseHeightMm;
 		void outlineThicknessMm;
 		void baseColor;
-		void textEmbedMode;
-		void textCapDepthMm;
+		void slotWidthMm;
+		void slotHeightMm;
+		void holeSpacingMm;
+		void endPaddingMm;
+		scheduleScenePrebuild();
+		return () => cancelScenePrebuild();
+	});
 
-		refreshPlateBadgeScene();
+	$effect(() => {
+		if (phase !== 'threeD') {
+			threeDSessionActive = false;
+			return;
+		}
+		void elements;
+		void elements.map(
+			(e) =>
+				`${e.id}:${e.x.toFixed(3)}:${e.y.toFixed(3)}:${e.rotation.toFixed(4)}:${e.scaleX}:${e.scaleY}:${clampPlateElementDepthMm(e.depth)}`
+		);
+		void baseThickness;
+		void baseHeightMm;
+		void outlineThicknessMm;
+		void baseColor;
+		void slotWidthMm;
+		void slotHeightMm;
+		void holeSpacingMm;
+		void endPaddingMm;
+
+		const needsImmediate = !threeDSessionActive;
+		threeDSessionActive = true;
+		queueScenePreviewRefresh(needsImmediate);
 
 		if (rebuildDebounceTimer !== null) {
 			clearTimeout(rebuildDebounceTimer);
@@ -1432,31 +2060,20 @@
 		}
 		rebuildDebounceTimer = setTimeout(() => {
 			rebuildDebounceTimer = null;
+			syncScenePreviewBusy();
 			void refinePlateBaseWithOpenScad().catch((err) =>
 				console.error('Plate badge: debounced refinePlateBaseWithOpenScad failed', err)
 			);
 		}, 400);
+		syncScenePreviewBusy();
 		return () => {
+			cancelQueuedScenePreview();
 			if (rebuildDebounceTimer !== null) {
 				clearTimeout(rebuildDebounceTimer);
 				rebuildDebounceTimer = null;
 			}
+			syncScenePreviewBusy();
 		};
-	});
-
-	/** Scale is applied here only — avoids full OpenSCAD + mesh rebuild on every slider tick (flicker). */
-	$effect(() => {
-		// Dependencies first: early returns must not skip these reads or the effect never re-runs.
-		void phase;
-		void overallScale;
-		if (phase !== 'threeD' || !group) return;
-		if (group.children.length === 0) return;
-		group.scale.set(overallScale, overallScale, 1);
-		group.updateWorldMatrix(true, true);
-		snapGroupBottomToBuildPlate(group);
-		fitKeyLightShadowToModel();
-		const size = measureWorldAabbSizeMm(group);
-		modelAabbMm = size ? { x: size.x, y: size.y, z: size.z } : null;
 	});
 
 	$effect(() => {
@@ -1466,16 +2083,98 @@
 	});
 
 	function enterThreeDPhase() {
+		threeDSessionActive = false;
 		phase = 'threeD';
 	}
 
 	function backToLayout() {
+		cancelQueuedScenePreview();
 		phase = 'layout';
+		if (konvaStage && canvasHostEl) {
+			applyHostSize(canvasHostEl);
+			syncSelectionToKonva();
+			konvaGridLayer?.batchDraw();
+			konvaGuideLayer?.batchDraw();
+			konvaContentLayer?.batchDraw();
+			konvaUiLayer?.batchDraw();
+		}
+		scheduleKonvaSync();
+		scheduleBaseSilhouetteSync();
+	}
+
+	function applySettingsSnapshot(snap: PlateBadgeSettings) {
+		const slot = normalizePlateSlotDimensions({
+			widthMm: snap.slotWidthMm ?? defaultPlateSlotDimensions().widthMm,
+			heightMm: snap.slotHeightMm ?? defaultPlateSlotDimensions().heightMm
+		});
+		const bar = normalizePlateBarParams(
+			{
+				holeSpacingMm: snap.holeSpacingMm,
+				endPaddingMm: snap.endPaddingMm,
+				baseHeightMm: snap.baseHeightMm
+			},
+			slot
+		);
+		elements = snap.elements.map((el) => {
+			const c = clampElementCenterToPlate(el.x, el.y, bar, el);
+			return {
+				...el,
+				x: c.x,
+				y: c.y,
+				depth: clampPlateElementDepthMm(el.depth)
+			};
+		});
+		baseThickness = clampPlateBaseThicknessMm(snap.baseThickness ?? snap.baseDepth ?? 2);
+		baseHeightMm = bar.baseHeightMm;
+		outlineThicknessMm = clampElementOutlineThicknessMm(
+			snap.outlineThicknessMm ?? snap.baseThickness ?? 2
+		);
+		baseColor = snap.baseColor;
+		slotWidthMm = slot.widthMm;
+		slotHeightMm = slot.heightMm;
+		holeSpacingMm = bar.holeSpacingMm;
+		endPaddingMm = bar.endPaddingMm;
+		phase = snap.phase;
+		selectedId = snap.elements[0]?.id ?? null;
+		viewport = snap.viewport ?? null;
+		didInitFrame = false;
+		modelAabbMm = null;
+		plateRebuildGeneration++;
+		invalidateScenePreview();
+		disposeThreeSelectionOutline();
+		if (group) {
+			for (const child of group.children.slice()) {
+				group.remove(child);
+				disposeObject3D(child);
+			}
+		}
+	}
+
+	function resetAllToDefaults() {
+		const defaults = defaultSettings();
+		try {
+			localStorage.removeItem(STORAGE_KEY);
+		} catch (e) {
+			console.error('Plate badge: clear persisted settings failed', e);
+		}
+		applySettingsSnapshot(defaults);
+		if (konvaStage) {
+			if (viewport) {
+				konvaStage.scale({ x: viewport.scale, y: viewport.scale });
+				konvaStage.position({ x: viewport.x, y: viewport.y });
+				stageZoomPct = Math.round((viewport.scale / INITIAL_SCALE) * 100);
+			} else {
+				resetView();
+			}
+			drawKonvaGrid();
+		}
+		flushKonvaSync();
+		flushBaseSilhouetteSync();
 	}
 
 	function modelNameSafe(): string {
 		const first = elements.find((e) => isTextElement(e)) as TextElement | undefined;
-		const raw = first?.content || 'plate-badge';
+		const raw = (first?.content || 'plate-badge').split(/\r?\n/)[0] ?? 'plate-badge';
 		const safe = raw
 			.trim()
 			.toLowerCase()
@@ -1487,35 +2186,34 @@
 	async function buildExportGroup(): Promise<THREE.Group> {
 		const exportGroup = new THREE.Group();
 		exportGroup.position.set(0, 0, 0);
-		const baseDepthSafe = Math.max(0.1, baseDepth);
+		const baseThicknessSafe = Math.max(0.1, baseThickness);
 		let plateMesh: THREE.Mesh;
 		try {
-			plateMesh = await buildPlateBaseMeshFromOpenScad(baseDepthSafe, baseColor);
+			plateMesh = await buildPlateBaseMeshFromOpenScad(
+				baseThicknessSafe,
+				baseColor,
+				plateSlotDims,
+				plateBarParams
+			);
 		} catch (err) {
 			console.error('Plate badge: export OpenSCAD base failed', err);
-			plateMesh = buildPlateOuterMeshPreview(baseDepthSafe, baseColor);
+			plateMesh = buildPlateOuterMeshPreview(baseThicknessSafe, baseColor, plateBarParams);
 		}
 		exportGroup.add(plateMesh);
 
 		const outlineWidthSafe = clampElementOutlineThicknessMm(outlineThicknessMm);
-		const outlineParts = collectPlateOutlineMeshes(baseDepthSafe, outlineWidthSafe);
+		const outlineParts = collectPlateOutlineMeshes(baseThicknessSafe, outlineWidthSafe);
 		for (const om of outlineParts) exportGroup.add(om);
 
 		for (let i = 0; i < elements.length; i++) {
 			const el = elements[i];
-			const textLayer = plateBadgeTextLayer3D(
-				baseDepthSafe,
-				textEmbedMode,
-				textCapDepthMm,
-				el.depth
-			);
+			const textLayer = plateBadgeElementLayer3D(baseThicknessSafe, el.depth);
 			const mesh = buildElementMesh(el, textLayer);
 			if (!mesh) continue;
 			alignGeometryBottomToZ0(mesh.geometry);
 			mesh.position.z = textLayer.bottomZMm;
 			exportGroup.add(mesh);
 		}
-		exportGroup.scale.set(overallScale, overallScale, 1);
 		exportGroup.updateWorldMatrix(true, true);
 		snapGroupBottomToBuildPlate(exportGroup);
 		return exportGroup;
@@ -1624,9 +2322,8 @@
 
 	$effect(() => {
 		const host = canvasHostEl;
-		if (phase !== 'layout' || !host) return;
+		if (!host) return;
 		untrack(() => initKonva(host));
-		return () => untrack(() => disposeKonva());
 	});
 
 	onDestroy(() => {
@@ -1673,7 +2370,7 @@
 						class="rounded-lg px-3 py-1.5 text-xs font-semibold transition {phase === 'layout'
 							? 'bg-white text-indigo-600 shadow-sm'
 							: 'text-slate-600 hover:text-slate-900'}"
-						onclick={() => (phase = 'layout')}
+						onclick={backToLayout}
 					>
 						1. Layout
 					</button>
@@ -1831,15 +2528,18 @@
 								{@const tel = selectedElement}
 								<label class="grid gap-1.5">
 									<span class="text-xs font-medium text-slate-700">Text</span>
-									<input
-										class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm ring-indigo-500/25 outline-none placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2"
-										type="text"
+									<textarea
+										class="min-h-[4.5rem] w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm leading-snug text-slate-900 shadow-sm ring-indigo-500/25 outline-none placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2"
+										rows={3}
 										value={tel.content}
 										oninput={(e) =>
 											updateElement(tel.id, {
-												content: (e.currentTarget as HTMLInputElement).value
+												content: (e.currentTarget as HTMLTextAreaElement).value
 											})}
-									/>
+									></textarea>
+									<p class="text-[11px] leading-snug text-slate-500">
+										Press Enter for a new line.
+									</p>
 								</label>
 								<label class="grid gap-1.5">
 									<span class="text-xs font-medium text-slate-700">Font</span>
@@ -1905,8 +2605,8 @@
 										type="single"
 										value={selectedElement.x}
 										onValueChange={(v: number) => updateElement(selectedElement.id, { x: v })}
-										min={-PLATE_SPEC.halfLengthMm}
-										max={PLATE_SPEC.halfLengthMm}
+										min={selectedPosLimits.xMin}
+										max={selectedPosLimits.xMax}
 										step={0.5}
 										class="w-full"
 									/>
@@ -1922,8 +2622,8 @@
 										type="single"
 										value={selectedElement.y}
 										onValueChange={(v: number) => updateElement(selectedElement.id, { y: v })}
-										min={-PLATE_SPEC.halfHeightMm}
-										max={PLATE_SPEC.halfHeightMm}
+										min={selectedPosLimits.yMin}
+										max={selectedPosLimits.yMax}
 										step={0.5}
 										class="w-full"
 									/>
@@ -1967,14 +2667,9 @@
 									max={8}
 									step={0.1}
 									class="w-full"
-									disabled={textEmbedMode === 'cap'}
 								/>
 								<p class="text-[11px] leading-snug text-slate-500">
-									{#if textEmbedMode === 'cap'}
-										Uses thin cap depth from Base plate while cap mode is on.
-									{:else}
-										Extrusion height for this layer in 3D / export.
-									{/if}
+									Extrusion height above the base in 3D / export.
 								</p>
 							</label>
 
@@ -2004,18 +2699,41 @@
 						</p>
 						<label class="grid gap-1.5">
 							<div class="flex items-center justify-between gap-2">
-								<span class="text-xs font-medium text-slate-700">Base + outline height (mm)</span>
-								<span class="text-xs text-slate-600 tabular-nums">{baseDepth.toFixed(1)}</span>
+								<span class="text-xs font-medium text-slate-700">Base height (mm)</span>
+								<span class="text-xs text-slate-600 tabular-nums">{baseHeightMm.toFixed(1)}</span>
 							</div>
 							<Slider
 								type="single"
-								value={baseDepth}
-								onValueChange={(v: number) => (baseDepth = v)}
-								min={0.8}
-								max={6}
+								value={baseHeightMm}
+								onValueChange={(v: number) =>
+									(baseHeightMm = clampPlateBaseHeightMm(v))}
+								min={PLATE_BASE_HEIGHT_MIN_MM}
+								max={PLATE_BASE_HEIGHT_MAX_MM}
+								step={0.5}
+								class="w-full"
+							/>
+							<p class="text-[11px] leading-snug text-slate-500">
+								Across the bar — default {defaultPlateBarParams().baseHeightMm} mm.
+							</p>
+						</label>
+						<label class="grid gap-1.5">
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-xs font-medium text-slate-700">Base thickness (mm)</span>
+								<span class="text-xs text-slate-600 tabular-nums">{baseThickness.toFixed(1)}</span>
+							</div>
+							<Slider
+								type="single"
+								value={baseThickness}
+								onValueChange={(v: number) =>
+									(baseThickness = clampPlateBaseThicknessMm(v))}
+								min={PLATE_BASE_THICKNESS_MIN_MM}
+								max={PLATE_BASE_THICKNESS_MAX_MM}
 								step={0.2}
 								class="w-full"
 							/>
+							<p class="text-[11px] leading-snug text-slate-500">
+								Extrusion depth of the base + outline stack (Z).
+							</p>
 						</label>
 						<label class="grid gap-1.5">
 							<div class="flex items-center justify-between gap-2">
@@ -2038,73 +2756,95 @@
 								Plan width of the base-colored frame around every letter (always on).
 							</p>
 						</label>
+						<div class="space-y-2 border-t border-slate-200 pt-3">
+							<span class="text-xs font-medium text-slate-700">Mounting holes</span>
+							<label class="grid gap-1.5">
+								<div class="flex items-center justify-between gap-2">
+									<span class="text-xs font-medium text-slate-700">Hole width (mm)</span>
+									<span class="text-xs text-slate-600 tabular-nums">{slotWidthMm.toFixed(1)}</span>
+								</div>
+								<Slider
+									type="single"
+									value={slotWidthMm}
+									onValueChange={(v: number) => (slotWidthMm = clampPlateSlotWidthMm(v))}
+									min={PLATE_SLOT_WIDTH_MIN_MM}
+									max={PLATE_SLOT_WIDTH_MAX_MM}
+									step={0.5}
+									class="w-full"
+								/>
+								<p class="text-[11px] leading-snug text-slate-500">
+									Along the bar — default {defaultPlateSlotDimensions().widthMm} mm.
+								</p>
+							</label>
+							<label class="grid gap-1.5">
+								<div class="flex items-center justify-between gap-2">
+									<span class="text-xs font-medium text-slate-700">Hole height (mm)</span>
+									<span class="text-xs text-slate-600 tabular-nums">{slotHeightMm.toFixed(1)}</span>
+								</div>
+								<Slider
+									type="single"
+									value={slotHeightMm}
+									onValueChange={(v: number) => (slotHeightMm = clampPlateSlotHeightMm(v))}
+									min={PLATE_SLOT_HEIGHT_MIN_MM}
+									max={PLATE_SLOT_HEIGHT_MAX_MM}
+									step={0.5}
+									class="w-full"
+								/>
+								<p class="text-[11px] leading-snug text-slate-500">
+									Across the bar — default {defaultPlateSlotDimensions().heightMm} mm.
+								</p>
+							</label>
+							<label class="grid gap-1.5">
+								<div class="flex items-center justify-between gap-2">
+									<span class="text-xs font-medium text-slate-700">Hole distance (mm)</span>
+									<span class="text-xs text-slate-600 tabular-nums">{holeSpacingMm.toFixed(1)}</span>
+								</div>
+								<Slider
+									type="single"
+									value={holeSpacingMm}
+									onValueChange={(v: number) =>
+										(holeSpacingMm = clampPlateHoleSpacingMm(v, endPaddingMm, slotWidthMm))}
+									min={Math.max(PLATE_HOLE_SPACING_MIN_MM, slotWidthMm + 8)}
+									max={maxHoleSpacingMm}
+									step={0.5}
+									class="w-full"
+								/>
+								<p class="text-[11px] leading-snug text-slate-500">
+									Center-to-center — default {PLATE_HOLE_SPACING_DEFAULT_MM} mm.
+								</p>
+							</label>
+							<label class="grid gap-1.5">
+								<div class="flex items-center justify-between gap-2">
+									<span class="text-xs font-medium text-slate-700">Left/right padding (mm)</span>
+									<span class="text-xs text-slate-600 tabular-nums">{endPaddingMm.toFixed(1)}</span>
+								</div>
+								<Slider
+									type="single"
+									value={endPaddingMm}
+									onValueChange={(v: number) =>
+										(endPaddingMm = clampPlateEndPaddingMm(v, holeSpacingMm, slotWidthMm))}
+									min={PLATE_END_PADDING_MIN_MM}
+									max={maxEndPaddingMm}
+									step={0.5}
+									class="w-full"
+								/>
+								<p class="text-[11px] leading-snug text-slate-500">
+									From each bar end to the outer edge of a mounting slot — default{' '}
+									{PLATE_END_PADDING_DEFAULT_MM} mm.
+								</p>
+							</label>
+							<p class="text-[11px] leading-snug text-slate-500">
+								Base length (auto): <span class="font-medium tabular-nums text-slate-600"
+									>{computedBaseLengthMm.toFixed(1)} mm</span
+								>
+							</p>
+						</div>
 						<ColorPalettePicker
 							value={baseColor}
 							onValueChange={(v: string) => (baseColor = v)}
 							{palette}
 							label="Base color"
 						/>
-						<div class="space-y-2 border-t border-slate-200 pt-3">
-							<span class="text-xs font-medium text-slate-700">Text on top (multi-color)</span>
-							<div class="grid grid-cols-2 gap-1.5">
-								{#each [{ id: 'full' as const, label: 'Full depth' }, { id: 'cap' as const, label: 'Thin cap' }] as opt (opt.id)}
-									<button
-										type="button"
-										class="rounded-lg border px-2 py-1.5 text-[11px] font-medium transition {textEmbedMode ===
-										opt.id
-											? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-											: 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}"
-										onclick={() => (textEmbedMode = opt.id)}
-									>
-										{opt.label}
-									</button>
-								{/each}
-							</div>
-							{#if textEmbedMode === 'cap'}
-								<label class="grid gap-1.5">
-									<div class="flex items-center justify-between gap-2">
-										<span class="text-xs font-medium text-slate-700">Cap depth (mm)</span>
-										<span class="text-xs text-slate-600 tabular-nums"
-											>{textCapDepthMm.toFixed(2)}</span
-										>
-									</div>
-									<Slider
-										type="single"
-										value={textCapDepthMm}
-										onValueChange={(v: number) =>
-											(textCapDepthMm = clampPlateTextCapDepthMm(v, baseDepth))}
-										min={PLATE_TEXT_CAP_DEPTH_MIN_MM}
-										max={textCapDepthMaxMm}
-										step={0.05}
-										class="w-full"
-									/>
-								</label>
-								<p class="text-[11px] leading-snug text-slate-500">
-									Thin top layer for the letter color — less filament change height when using
-									multi-color.
-								</p>
-							{:else}
-								<p class="text-[11px] leading-snug text-slate-500">
-									Per-layer text depth (min {PLATE_ELEMENT_DEPTH_MIN_MM} mm) in Properties or
-									Per-element 3D below.
-								</p>
-							{/if}
-						</div>
-						<label class="grid gap-1.5">
-							<div class="flex items-center justify-between gap-2">
-								<span class="text-xs font-medium text-slate-700">Overall scale</span>
-								<span class="text-xs text-slate-600 tabular-nums">{overallScale.toFixed(2)}×</span>
-							</div>
-							<Slider
-								type="single"
-								value={overallScale}
-								onValueChange={(v: number) => (overallScale = v)}
-								min={0.5}
-								max={2}
-								step={0.05}
-								class="w-full"
-							/>
-						</label>
 					</div>
 				{:else}
 					<div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
@@ -2147,9 +2887,9 @@
 									label="Element color"
 								/>
 								<p class="text-[11px] leading-snug text-slate-500">
-									Base-colored outline ({outlineThicknessMm.toFixed(2)} mm wide, {baseDepth.toFixed(
+									Base-colored outline ({outlineThicknessMm.toFixed(2)} mm wide, {baseThickness.toFixed(
 										1
-									)} mm tall) is always added for this layer.
+									)} mm thick) is always added for this layer.
 								</p>
 								<label class="grid gap-1.5">
 									<div class="flex items-center justify-between gap-2">
@@ -2169,13 +2909,7 @@
 										max={8}
 										step={0.1}
 										class="w-full"
-										disabled={textEmbedMode === 'cap'}
 									/>
-									{#if textEmbedMode === 'cap'}
-										<p class="text-[11px] leading-snug text-slate-500">
-											Cap mode uses global cap depth ({textCapDepthMm.toFixed(2)} mm).
-										</p>
-									{/if}
 								</label>
 							</div>
 						{/if}
@@ -2188,18 +2922,41 @@
 						</p>
 						<label class="grid gap-1.5">
 							<div class="flex items-center justify-between gap-2">
-								<span class="text-xs font-medium text-slate-700">Base + outline height (mm)</span>
-								<span class="text-xs text-slate-600 tabular-nums">{baseDepth.toFixed(1)}</span>
+								<span class="text-xs font-medium text-slate-700">Base height (mm)</span>
+								<span class="text-xs text-slate-600 tabular-nums">{baseHeightMm.toFixed(1)}</span>
 							</div>
 							<Slider
 								type="single"
-								value={baseDepth}
-								onValueChange={(v: number) => (baseDepth = v)}
-								min={0.8}
-								max={6}
+								value={baseHeightMm}
+								onValueChange={(v: number) =>
+									(baseHeightMm = clampPlateBaseHeightMm(v))}
+								min={PLATE_BASE_HEIGHT_MIN_MM}
+								max={PLATE_BASE_HEIGHT_MAX_MM}
+								step={0.5}
+								class="w-full"
+							/>
+							<p class="text-[11px] leading-snug text-slate-500">
+								Across the bar — default {defaultPlateBarParams().baseHeightMm} mm.
+							</p>
+						</label>
+						<label class="grid gap-1.5">
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-xs font-medium text-slate-700">Base thickness (mm)</span>
+								<span class="text-xs text-slate-600 tabular-nums">{baseThickness.toFixed(1)}</span>
+							</div>
+							<Slider
+								type="single"
+								value={baseThickness}
+								onValueChange={(v: number) =>
+									(baseThickness = clampPlateBaseThicknessMm(v))}
+								min={PLATE_BASE_THICKNESS_MIN_MM}
+								max={PLATE_BASE_THICKNESS_MAX_MM}
 								step={0.2}
 								class="w-full"
 							/>
+							<p class="text-[11px] leading-snug text-slate-500">
+								Extrusion depth of the base + outline stack (Z).
+							</p>
 						</label>
 						<label class="grid gap-1.5">
 							<div class="flex items-center justify-between gap-2">
@@ -2222,54 +2979,95 @@
 								Plan width of the base-colored frame around every letter (always on).
 							</p>
 						</label>
+						<div class="space-y-2 border-t border-slate-200 pt-3">
+							<span class="text-xs font-medium text-slate-700">Mounting holes</span>
+							<label class="grid gap-1.5">
+								<div class="flex items-center justify-between gap-2">
+									<span class="text-xs font-medium text-slate-700">Hole width (mm)</span>
+									<span class="text-xs text-slate-600 tabular-nums">{slotWidthMm.toFixed(1)}</span>
+								</div>
+								<Slider
+									type="single"
+									value={slotWidthMm}
+									onValueChange={(v: number) => (slotWidthMm = clampPlateSlotWidthMm(v))}
+									min={PLATE_SLOT_WIDTH_MIN_MM}
+									max={PLATE_SLOT_WIDTH_MAX_MM}
+									step={0.5}
+									class="w-full"
+								/>
+								<p class="text-[11px] leading-snug text-slate-500">
+									Along the bar — default {defaultPlateSlotDimensions().widthMm} mm.
+								</p>
+							</label>
+							<label class="grid gap-1.5">
+								<div class="flex items-center justify-between gap-2">
+									<span class="text-xs font-medium text-slate-700">Hole height (mm)</span>
+									<span class="text-xs text-slate-600 tabular-nums">{slotHeightMm.toFixed(1)}</span>
+								</div>
+								<Slider
+									type="single"
+									value={slotHeightMm}
+									onValueChange={(v: number) => (slotHeightMm = clampPlateSlotHeightMm(v))}
+									min={PLATE_SLOT_HEIGHT_MIN_MM}
+									max={PLATE_SLOT_HEIGHT_MAX_MM}
+									step={0.5}
+									class="w-full"
+								/>
+								<p class="text-[11px] leading-snug text-slate-500">
+									Across the bar — default {defaultPlateSlotDimensions().heightMm} mm.
+								</p>
+							</label>
+							<label class="grid gap-1.5">
+								<div class="flex items-center justify-between gap-2">
+									<span class="text-xs font-medium text-slate-700">Hole spacing (mm)</span>
+									<span class="text-xs text-slate-600 tabular-nums">{holeSpacingMm.toFixed(1)}</span>
+								</div>
+								<Slider
+									type="single"
+									value={holeSpacingMm}
+									onValueChange={(v: number) =>
+										(holeSpacingMm = clampPlateHoleSpacingMm(v, endPaddingMm, slotWidthMm))}
+									min={Math.max(PLATE_HOLE_SPACING_MIN_MM, slotWidthMm + 8)}
+									max={maxHoleSpacingMm}
+									step={0.5}
+									class="w-full"
+								/>
+								<p class="text-[11px] leading-snug text-slate-500">
+									Center-to-center — default {PLATE_HOLE_SPACING_DEFAULT_MM} mm.
+								</p>
+							</label>
+							<label class="grid gap-1.5">
+								<div class="flex items-center justify-between gap-2">
+									<span class="text-xs font-medium text-slate-700">Left/right padding (mm)</span>
+									<span class="text-xs text-slate-600 tabular-nums">{endPaddingMm.toFixed(1)}</span>
+								</div>
+								<Slider
+									type="single"
+									value={endPaddingMm}
+									onValueChange={(v: number) =>
+										(endPaddingMm = clampPlateEndPaddingMm(v, holeSpacingMm, slotWidthMm))}
+									min={PLATE_END_PADDING_MIN_MM}
+									max={maxEndPaddingMm}
+									step={0.5}
+									class="w-full"
+								/>
+								<p class="text-[11px] leading-snug text-slate-500">
+									From each bar end to the outer edge of a mounting slot — default{' '}
+									{PLATE_END_PADDING_DEFAULT_MM} mm.
+								</p>
+							</label>
+							<p class="text-[11px] leading-snug text-slate-500">
+								Base length (auto): <span class="font-medium tabular-nums text-slate-600"
+									>{computedBaseLengthMm.toFixed(1)} mm</span
+								>
+							</p>
+						</div>
 						<ColorPalettePicker
 							value={baseColor}
 							onValueChange={(v: string) => (baseColor = v)}
 							{palette}
 							label="Base color"
 						/>
-						<div class="space-y-2 border-t border-slate-200 pt-3">
-							<span class="text-xs font-medium text-slate-700">Text on top (multi-color)</span>
-							<div class="grid grid-cols-2 gap-1.5">
-								{#each [{ id: 'full' as const, label: 'Full depth' }, { id: 'cap' as const, label: 'Thin cap' }] as opt (opt.id)}
-									<button
-										type="button"
-										class="rounded-lg border px-2 py-1.5 text-[11px] font-medium transition {textEmbedMode ===
-										opt.id
-											? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-											: 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}"
-										onclick={() => (textEmbedMode = opt.id)}
-									>
-										{opt.label}
-									</button>
-								{/each}
-							</div>
-							{#if textEmbedMode === 'cap'}
-								<label class="grid gap-1.5">
-									<div class="flex items-center justify-between gap-2">
-										<span class="text-xs font-medium text-slate-700">Cap depth (mm)</span>
-										<span class="text-xs text-slate-600 tabular-nums"
-											>{textCapDepthMm.toFixed(2)}</span
-										>
-									</div>
-									<Slider
-										type="single"
-										value={textCapDepthMm}
-										onValueChange={(v: number) =>
-											(textCapDepthMm = clampPlateTextCapDepthMm(v, baseDepth))}
-										min={PLATE_TEXT_CAP_DEPTH_MIN_MM}
-										max={textCapDepthMaxMm}
-										step={0.05}
-										class="w-full"
-									/>
-								</label>
-							{:else}
-								<p class="text-[11px] leading-snug text-slate-500">
-									Letter fill height is set per layer below (min {PLATE_ELEMENT_DEPTH_MIN_MM} mm).
-								</p>
-							{/if}
-							<p class="text-[11px] leading-snug text-slate-500">{textLayerSummary}</p>
-						</div>
 					</div>
 
 					{#if elements.length > 0}
@@ -2306,7 +3104,6 @@
 											max={8}
 											step={0.1}
 											class="w-full"
-											disabled={textEmbedMode === 'cap'}
 										/>
 									</li>
 								{/each}
@@ -2314,39 +3111,48 @@
 						</div>
 					{/if}
 
-					<label class="grid gap-1.5">
-						<div class="flex items-center justify-between gap-2">
-							<span class="text-xs font-medium text-slate-700">Overall scale</span>
-							<span class="text-xs text-slate-600 tabular-nums">{overallScale.toFixed(2)}×</span>
-						</div>
-						<Slider
-							type="single"
-							value={overallScale}
-							onValueChange={(v: number) => (overallScale = v)}
-							min={0.5}
-							max={2}
-							step={0.05}
-							class="w-full"
-						/>
-					</label>
-
 					<Button variant="outline" class="w-full" onclick={backToLayout}>← Back to layout</Button>
 				{/if}
+			</div>
+
+			<div class="shrink-0 border-t border-slate-200 p-4">
+				<Button variant="outline" size="sm" class="w-full" onclick={resetAllToDefaults}>
+					Reset to defaults
+				</Button>
 			</div>
 		</aside>
 
 		<section
 			class="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_12px_30px_rgba(15,23,42,0.07)]"
 		>
+			{#if (phase === 'layout' && layoutPreviewVisible) || (phase === 'threeD' && scenePreviewVisible)}
+				<div
+					class="pointer-events-none absolute top-3 left-3 z-10 flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/85 px-2.5 py-1 text-[10px] font-medium text-slate-500 shadow-sm backdrop-blur-sm"
+					aria-live="polite"
+					aria-busy="true"
+				>
+					<span
+						class="inline-block h-2.5 w-2.5 shrink-0 animate-spin rounded-full border border-slate-300 border-t-slate-500"
+						aria-hidden="true"
+					></span>
+					{phase === 'layout' ? 'Updating layout…' : 'Updating preview…'}
+				</div>
+			{/if}
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				bind:this={canvasHostEl}
+				class="absolute inset-0 touch-none bg-slate-100 {phase === 'layout'
+					? ''
+					: 'pointer-events-none invisible'}"
+				oncontextmenu={(e) => e.preventDefault()}
+			></div>
+			<div
+				bind:this={threeHostEl}
+				class="absolute inset-0 {phase === 'threeD' ? '' : 'pointer-events-none invisible'}"
+			></div>
 			{#if phase === 'layout'}
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
-					bind:this={canvasHostEl}
-					class="absolute inset-0 touch-none bg-slate-100"
-					oncontextmenu={(e) => e.preventDefault()}
-				></div>
-				<div
-					class="absolute top-3 right-3 flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-1 py-1 text-xs shadow"
+					class="absolute top-3 right-3 z-10 flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-1 py-1 text-xs shadow"
 				>
 					<button
 						type="button"
@@ -2387,9 +3193,8 @@
 				</div>
 			{:else}
 				<DesignerModelDimensionsHud sizes={modelAabbMm} />
-				<div bind:this={threeHostEl} class="absolute inset-0"></div>
 				<div
-					class="pointer-events-none absolute bottom-3 left-3 max-w-[min(100%,18rem)] rounded-full bg-white/90 px-3 py-1.5 text-[10px] font-medium leading-snug text-slate-600 shadow"
+					class="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[min(100%,18rem)] rounded-full bg-white/90 px-3 py-1.5 text-[10px] font-medium leading-snug text-slate-600 shadow"
 				>
 					Base + art share Z = 0; whole group snapped to build plate. Tap to select — color in sidebar
 				</div>

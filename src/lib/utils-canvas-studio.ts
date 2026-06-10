@@ -36,6 +36,8 @@ export interface TextElement extends BaseElement {
 	fontKey: string;
 	/** Cap-height in mm. */
 	size: number;
+	/** Gap between lines in mm when `content` contains newlines. */
+	lineSpacingMm?: number;
 }
 
 export interface ShapeElement extends BaseElement {
@@ -231,8 +233,14 @@ export function isShapeElement(el: CanvasElement): el is ShapeElement {
 	return el.kind === 'shape';
 }
 
+/** Default line gap as a fraction of cap height when `lineSpacingMm` is unset. */
+export const TEXT_DEFAULT_LINE_SPACING_RATIO = 0.12;
+
 export function elementLabel(el: CanvasElement): string {
-	if (el.kind === 'text') return (el.content || 'Text').trim().slice(0, 20) || 'Text';
+	if (el.kind === 'text') {
+		const flat = (el.content || 'Text').replace(/\s+/g, ' ').trim();
+		return flat.slice(0, 24) || 'Text';
+	}
 	const def = getShape(el.shapeId);
 	return def ? def.label : 'Shape';
 }
@@ -316,21 +324,76 @@ export function transformClipperPaths(
 	return out;
 }
 
+function translateClipperPaths(paths: ClipperPaths, dx: number, dy: number): ClipperPaths {
+	return paths.map((path) => path.map((pt) => ({ X: pt.X + dx, Y: pt.Y + dy })));
+}
+
+function textLineGapMm(el: TextElement): number {
+	const size = Math.max(1, el.size);
+	if (el.lineSpacingMm != null && Number.isFinite(el.lineSpacingMm)) {
+		return Math.max(0, el.lineSpacingMm);
+	}
+	return size * TEXT_DEFAULT_LINE_SPACING_RATIO;
+}
+
+function clipperPathsForTextLine(
+	font: NonNullable<ReturnType<typeof getFont>>,
+	line: string,
+	sizeMm: number
+): ClipperPaths {
+	const text = line.length > 0 ? line : ' ';
+	let shapes: THREE.Shape[] = [];
+	try {
+		shapes = font.generateShapes(text, sizeMm);
+	} catch (e) {
+		console.error('canvas-studio: text generateShapes failed', e);
+		return [];
+	}
+	const paths: ClipperPaths = [];
+	for (const s of shapes) paths.push(...shapeToClipperPaths(s, 18, false));
+	return paths;
+}
+
 /** Generate Clipper paths in local element coordinates (centered on origin, mm units). */
 export function getLocalPathsForElement(el: CanvasElement): ClipperPaths {
 	if (el.kind === 'text') {
 		const font = getFont(el.fontKey);
 		if (!font) return [];
-		let shapes: THREE.Shape[] = [];
-		try {
-			shapes = font.generateShapes(el.content || ' ', Math.max(1, el.size));
-		} catch (e) {
-			console.error('canvas-studio: text generateShapes failed', e);
-			return [];
+		const sizeMm = Math.max(1, el.size);
+		const rawLines = (el.content ?? ' ').split(/\r?\n/);
+		if (rawLines.length <= 1) {
+			const paths = clipperPathsForTextLine(font, rawLines[0] ?? ' ', sizeMm);
+			return paths.length > 0 ? centerPathsXY(paths) : [];
 		}
-		const paths: ClipperPaths = [];
-		for (const s of shapes) paths.push(...shapeToClipperPaths(s, 18, false));
-		return centerPathsXY(paths);
+
+		type LineBlock = { paths: ClipperPaths; height: number };
+		const blocks: LineBlock[] = [];
+		for (const line of rawLines) {
+			const paths = clipperPathsForTextLine(font, line, sizeMm);
+			if (paths.length === 0) continue;
+			const centered = centerPathsXY(paths);
+			const b = pathsBbox(centered);
+			const height = Math.max(0, b.maxY - b.minY);
+			if (height <= 0) continue;
+			blocks.push({ paths: centered, height });
+		}
+		if (blocks.length === 0) return [];
+		if (blocks.length === 1) return blocks[0].paths;
+
+		const gap = textLineGapMm(el) * CLIPPER_SCALE;
+		const totalHeight =
+			blocks.reduce((sum, block) => sum + block.height, 0) +
+			(blocks.length - 1) * gap;
+		let yCursor = totalHeight / 2;
+		const combined: ClipperPaths = [];
+		for (const block of blocks) {
+			const b = pathsBbox(block.paths);
+			const blockCy = (b.minY + b.maxY) / 2;
+			const targetCy = yCursor - block.height / 2;
+			combined.push(...translateClipperPaths(block.paths, 0, targetCy - blockCy));
+			yCursor -= block.height + gap;
+		}
+		return centerPathsXY(combined);
 	}
 	// Shape element
 	const def = getShape(el.shapeId);
@@ -539,6 +602,49 @@ export function threeShapeToClipperTree(shape: THREE.Shape, segs = 64): unknown 
 		ClipperLib.PolyFillType.pftNonZero
 	);
 	return tree;
+}
+
+/** Walk a PolyTree and collect every closed contour (outers and holes). */
+export function collectPolyTreeContours(tree: unknown): ClipperPaths {
+	const out: ClipperPaths = [];
+	const walk = (node: {
+		Contour?: () => ClipperPath;
+		m_polygon?: ClipperPath;
+		Childs?: () => unknown[];
+		m_Childs?: unknown[];
+	}) => {
+		const contour = node.Contour?.() ?? node.m_polygon ?? [];
+		if (contour.length >= 3) out.push(contour);
+		const childs = node.Childs?.() ?? node.m_Childs ?? [];
+		for (const ch of childs) walk(ch as typeof node);
+	};
+	const t = tree as { Childs?: () => unknown[]; m_Childs?: unknown[] };
+	const roots = t.Childs?.() ?? t.m_Childs ?? [];
+	for (const n of roots) walk(n as Parameters<typeof walk>[0]);
+	return out;
+}
+
+/** SVG path `d` for Konva (artboard mm, Y flipped for screen). */
+export function clipperPathsToKonvaPathD(paths: ClipperPaths): string {
+	const parts: string[] = [];
+	for (const path of paths) {
+		if (path.length < 3) continue;
+		const head = path[0];
+		parts.push(
+			`M ${(head.X / CLIPPER_SCALE).toFixed(3)} ${(-head.Y / CLIPPER_SCALE).toFixed(3)}`
+		);
+		for (let i = 1; i < path.length; i++) {
+			const p = path[i];
+			parts.push(`L ${(p.X / CLIPPER_SCALE).toFixed(3)} ${(-p.Y / CLIPPER_SCALE).toFixed(3)}`);
+		}
+		parts.push('Z');
+	}
+	return parts.join(' ');
+}
+
+/** SVG path `d` for a Clipper PolyTree (use `fillRule: 'evenodd'` on Konva for holes). */
+export function polyTreeToKonvaPathD(tree: unknown): string {
+	return clipperPathsToKonvaPathD(collectPolyTreeContours(tree));
 }
 
 /** Walk a PolyTree and collect every outer (non-hole) contour into a flat list. */

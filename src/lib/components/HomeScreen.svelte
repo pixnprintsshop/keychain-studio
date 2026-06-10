@@ -289,7 +289,9 @@
 		dogtag:
 			'Optional text-outline layer with a matching border frame, plus a color preset gallery (base, outline, and text/border). Presets sync when signed in.',
 		namePuzzle:
-			'Letters with descenders (like Q) no longer shrink or shift the rest of the name — only the base grows to fit the tail.'
+			'Letters with descenders (like Q) no longer shrink or shift the rest of the name — only the base grows to fit the tail.',
+		plateBadge:
+			'Multiline text — press Enter for a new line. The layout view shows a full preview of the plate base.'
 	};
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);
