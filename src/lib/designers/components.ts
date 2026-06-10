@@ -36,6 +36,7 @@ const LOADERS: Record<DesignerId, () => Promise<DesignerModule>> = {
 	dogtag: () => import('$lib/components/DogTagDesigner.svelte'),
 	bumpyText: () => import('$lib/components/BumpyTextDesigner.svelte'),
 	bowKeychain: () => import('$lib/components/BowKeychainDesigner.svelte'),
+	pickleballKeychain: () => import('$lib/components/PickleballKeychainDesigner.svelte'),
 	namePuzzle: () => import('$lib/components/NamePuzzleDesigner.svelte'),
 	engraveNamePlate: () => import('$lib/components/EngraveNamePlateDesigner.svelte'),
 	cakeTopper: () => import('$lib/components/CakeTopperDesigner.svelte'),

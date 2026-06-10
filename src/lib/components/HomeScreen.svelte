@@ -16,6 +16,7 @@
 	} from '$lib/subscription';
 	import FavoriteDesignersFeatureDialog from '$lib/components/FavoriteDesignersFeatureDialog.svelte';
 	import NewFontsFeatureDialog from '$lib/components/NewFontsFeatureDialog.svelte';
+	import PickleballKeychainFeatureDialog from '$lib/components/PickleballKeychainFeatureDialog.svelte';
 	import FloatingGlobalExportCounter from '$lib/components/FloatingGlobalExportCounter.svelte';
 	import FloatingRecentExportsFeed from '$lib/components/FloatingRecentExportsFeed.svelte';
 	import { exportStats, formatExportCount, getDesignerExportCount } from '$lib/exportStats.svelte';
@@ -43,6 +44,7 @@
 
 	const STORAGE_KEY_FAVORITE_FEATURE_DIALOG = 'favorite-designers-feature-dialog-v1';
 	const STORAGE_KEY_NEW_FONTS_FEATURE_DIALOG = 'new-fonts-feature-dialog-v1';
+	const STORAGE_KEY_PICKLEBALL_KEYCHAIN_FEATURE_DIALOG = 'pickleball-keychain-feature-dialog-v1';
 	const STORAGE_KEY_COMMUNITY_INVITE_DISMISSED = 'messenger-community-invite-dismissed-v1';
 	const STORAGE_KEY_COMMUNITY_INVITE_DIALOG = 'messenger-community-invite-dialog-v1';
 
@@ -50,6 +52,7 @@
 	let comingSoonInterestSending = $state<StyleName | null>(null);
 	let favoriteFeatureDialogOpen = $state(false);
 	let newFontsFeatureDialogOpen = $state(false);
+	let pickleballKeychainFeatureDialogOpen = $state(false);
 	let showCommunityInviteAlert = $state(false);
 
 	function markFavoriteFeatureDialogSeen() {
@@ -121,8 +124,30 @@
 		}
 	}
 
+	function markPickleballKeychainFeatureDialogSeen() {
+		try {
+			localStorage.setItem(STORAGE_KEY_PICKLEBALL_KEYCHAIN_FEATURE_DIALOG, '1');
+		} catch {
+			// Local storage can be unavailable in private browsing contexts.
+		}
+	}
+
+	function onPickleballKeychainFeatureDialogOpenChange(open: boolean) {
+		pickleballKeychainFeatureDialogOpen = open;
+		if (!open) markPickleballKeychainFeatureDialogSeen();
+	}
+
+	function isPickleballKeychainFeatureDialogSeen(): boolean {
+		try {
+			return localStorage.getItem(STORAGE_KEY_PICKLEBALL_KEYCHAIN_FEATURE_DIALOG) === '1';
+		} catch {
+			return true;
+		}
+	}
+
 	function isAnyHomeDialogVisible(): boolean {
 		return (
+			pickleballKeychainFeatureDialogOpen ||
 			newFontsFeatureDialogOpen ||
 			favoriteFeatureDialogOpen ||
 			pendingBetaDesigner !== null ||
@@ -131,18 +156,21 @@
 	}
 
 	function openHomeFeatureDialog(id: HomeFeatureDialogId) {
-		if (id === 'newFonts') newFontsFeatureDialogOpen = true;
+		if (id === 'pickleballKeychain') pickleballKeychainFeatureDialogOpen = true;
+		else if (id === 'newFonts') newFontsFeatureDialogOpen = true;
 		else favoriteFeatureDialogOpen = true;
 	}
 
 	/** Show at most one welcome/feature dialog per home visit; postpone if another modal is open. */
 	function showHomeFeatureDialogs() {
+		const shouldShowPickleballKeychain = !isPickleballKeychainFeatureDialogSeen();
 		const shouldShowNewFonts =
 			getNewFontsDialogFingerprint().length > 0 && !isNewFontsFeatureDialogSeen();
 		const shouldShowFavorite = !isFavoriteFeatureDialogSeen();
 		const pending = getPendingHomeFeatureDialog();
 		const next = resolveNextHomeFeatureDialog({
 			pending,
+			shouldShowPickleballKeychain,
 			shouldShowNewFonts,
 			shouldShowFavorite
 		});
@@ -180,6 +208,10 @@
 		onSelect('textOutline');
 	}
 
+	function tryPickleballKeychainFromDialog() {
+		onSelect('pickleballKeychain');
+	}
+
 	// Preload font so Name Puzzle designer opens faster; restore interest flags from session.
 	onMount(() => {
 		getFont('Roadside Sans_Regular');
@@ -212,6 +244,7 @@
 		| 'dogtag'
 		| 'bumpyText'
 		| 'bowKeychain'
+		| 'pickleballKeychain'
 		| 'articulatedKeychain'
 		| 'spotifyKeychain'
 		| 'namePuzzle'
@@ -291,7 +324,7 @@
 		namePuzzle:
 			'Letters with descenders (like Q) no longer shrink or shift the rest of the name — only the base grows to fit the tail.',
 		plateBadge:
-			'Multiline text — press Enter for a new line. The layout view shows a full preview of the plate base.'
+			'Multiline text — press Enter for a new line. The layout view shows a full preview of the plate base.',
 	};
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);
@@ -433,6 +466,14 @@
 			imageSrc: '/images/bow-keychain.png',
 			imageAlt: 'Bow Keychain preview',
 			previewImageSrc: '/images/bow-keychain-preview.png'
+		},
+		{
+			id: 'pickleballKeychain',
+			title: 'Pickleball keychain',
+			description:
+				'Paddle and ball keychain with a center icon, base rim, and decor details — optional keyring tab.',
+			imageSrc: '/images/pickleball-keychain-feature-dialog.png',
+			imageAlt: 'Pickleball keychain preview'
 		},
 		{
 			id: 'namePuzzle',
@@ -1237,6 +1278,12 @@
 		</div>
 	</div>
 </div>
+
+<PickleballKeychainFeatureDialog
+	open={pickleballKeychainFeatureDialogOpen}
+	onOpenChange={onPickleballKeychainFeatureDialogOpenChange}
+	onTryIt={tryPickleballKeychainFromDialog}
+/>
 
 <NewFontsFeatureDialog
 	open={newFontsFeatureDialogOpen}

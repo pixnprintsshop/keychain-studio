@@ -20,6 +20,7 @@ export type DesignerId =
 	| 'dogtag'
 	| 'bumpyText'
 	| 'bowKeychain'
+	| 'pickleballKeychain'
 	| 'namePuzzle'
 	| 'engraveNamePlate'
 	| 'cakeTopper'
@@ -50,6 +51,7 @@ export const DESIGNER_IDS: readonly DesignerId[] = [
 	'dogtag',
 	'bumpyText',
 	'bowKeychain',
+	'pickleballKeychain',
 	'namePuzzle',
 	'engraveNamePlate',
 	'cakeTopper',

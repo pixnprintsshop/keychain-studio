@@ -23,6 +23,7 @@ const DESIGN_NAME_TO_ID: Record<string, DesignerId> = {
 	'Dog Tag': 'dogtag',
 	'Bumpy Text': 'bumpyText',
 	'Bow Keychain': 'bowKeychain',
+	'Pickleball keychain': 'pickleballKeychain',
 	'Articulated Keychain': 'articulatedKeychain',
 	'Spotify Keychain': 'spotifyKeychain',
 	'Name Puzzle': 'namePuzzle',
