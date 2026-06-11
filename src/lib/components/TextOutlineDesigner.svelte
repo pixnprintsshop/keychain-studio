@@ -9,6 +9,7 @@
 	import FontSelect from '$lib/components/FontSelect.svelte';
 	import {
 		type CharSettings,
+		type KeyringStyle,
 		DEFAULT_CHAR_SETTINGS,
 		DEFAULT_FONT_KEY_OUTLINE,
 		DEFAULT_FONT_SETTINGS_OUTLINE,
@@ -29,6 +30,7 @@
 	import DesignerExportToolbar from './DesignerExportToolbar.svelte';
 	import DesignerModelDimensionsHud from './DesignerModelDimensionsHud.svelte';
 	import TextOutlineRimFeatureDialog from './TextOutlineRimFeatureDialog.svelte';
+	import TextOutlineSideTabKeyringFeatureDialog from './TextOutlineSideTabKeyringFeatureDialog.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Slider } from '$lib/components/ui/slider';
 	import ColorPalettePicker from './ColorPalettePicker.svelte';
@@ -79,6 +81,8 @@
 	const STORAGE_KEY_SINGLE_LINE_SPACING = 'keychain-outline-single-line-spacing';
 	const STORAGE_KEY_KEYCHAIN_ITEMS = 'keychain-outline-keychain-items';
 	const STORAGE_KEY_RIM_FEATURE_DIALOG = 'text-outline-rim-feature-dialog-v1';
+	const STORAGE_KEY_SIDE_TAB_KEYRING_FEATURE_DIALOG =
+		'text-outline-side-tab-keyring-feature-dialog-v1';
 
 	/** Vertical gap between stacked layers so faces do not touch. */
 	const LAYER_GAP = 0.001;
@@ -135,6 +139,62 @@
 		return Math.min(max, Math.max(min, isFiniteNumber(value) ? value : fallback));
 	}
 
+	/** X intersections where a closed path crosses a horizontal line (clipper integer coords). */
+	function pathEdgeXsAtClipperY(
+		path: { X: number; Y: number }[],
+		yTarget: number
+	): number[] {
+		const xs: number[] = [];
+		for (let i = 0; i < path.length; i++) {
+			const a = path[i];
+			const b = path[(i + 1) % path.length];
+			if (a.Y === b.Y) continue;
+			if ((a.Y <= yTarget && b.Y >= yTarget) || (a.Y >= yTarget && b.Y <= yTarget)) {
+				const t = (yTarget - a.Y) / (b.Y - a.Y);
+				xs.push(a.X + t * (b.X - a.X));
+			}
+		}
+		return xs;
+	}
+
+	function getOutlineLeftEdgeClipperXAtY(
+		outlinePaths: { X: number; Y: number }[][],
+		yClipper: number
+	): number | null {
+		let leftX = Infinity;
+		for (const path of outlinePaths) {
+			for (const x of pathEdgeXsAtClipperY(path, yClipper)) {
+				leftX = Math.min(leftX, x);
+			}
+		}
+		return Number.isFinite(leftX) ? leftX : null;
+	}
+
+	/** Side-tab keyring: inner edge overlaps the outline base; semicircle + hole extend outward. */
+	function buildSideTabOuterPath(
+		innerEdgeX: number,
+		holeCenterX: number,
+		centerY: number,
+		half: number,
+		scale: number,
+		segs = 32
+	): { X: number; Y: number }[] {
+		const path: { X: number; Y: number }[] = [
+			{ X: Math.round(innerEdgeX * scale), Y: Math.round((centerY - half) * scale) },
+			{ X: Math.round(innerEdgeX * scale), Y: Math.round((centerY + half) * scale) }
+		];
+		for (let i = 0; i <= segs; i++) {
+			const t = Math.PI / 2 + (i / segs) * Math.PI;
+			path.push({
+				X: Math.round((holeCenterX + half * Math.cos(t)) * scale),
+				Y: Math.round((centerY + half * Math.sin(t)) * scale)
+			});
+		}
+		const isCW = ClipperLib.Clipper.Orientation(path);
+		if (!isCW) path.reverse();
+		return path;
+	}
+
 	function parseTextItems(value: string): string[] {
 		return value
 			.split(/\r?\n/)
@@ -173,10 +233,12 @@
 		borderDepth: number;
 		borderColor: string;
 		keyringEnabled: boolean;
+		keyringStyle: KeyringStyle;
 		keyringOuterSize: number;
 		keyringHoleSize: number;
 		keyringOffsetX: number;
 		keyringOffsetY: number;
+		keyringTabExtensionMm: number;
 	};
 
 	type KeychainItemOverrides = Partial<
@@ -339,10 +401,12 @@
 				borderDepth: 1,
 				borderColor: '#2d2d2d',
 				keyringEnabled: fontSettings.keyringEnabled ?? true,
+				keyringStyle: charSettings.keyringStyle ?? 'round',
 				keyringOuterSize: charSettings.keyringOuterSize,
 				keyringHoleSize: charSettings.keyringHoleSize,
 				keyringOffsetX: charSettings.keyringOffsetX,
 				keyringOffsetY: charSettings.keyringOffsetY,
+				keyringTabExtensionMm: charSettings.keyringTabExtensionMm ?? 10,
 				...overrides
 			},
 			textValue
@@ -422,6 +486,10 @@
 				typeof candidate.keyringEnabled === 'boolean'
 					? candidate.keyringEnabled
 					: (fontSettings.keyringEnabled ?? true),
+			keyringStyle:
+				candidate.keyringStyle === 'sideTab' || candidate.keyringStyle === 'round'
+					? candidate.keyringStyle
+					: (charSettings.keyringStyle ?? 'round'),
 			keyringOuterSize: clampNumber(
 				candidate.keyringOuterSize,
 				charSettings.keyringOuterSize,
@@ -435,7 +503,13 @@
 				100
 			),
 			keyringOffsetX: clampNumber(candidate.keyringOffsetX, charSettings.keyringOffsetX, -100, 100),
-			keyringOffsetY: clampNumber(candidate.keyringOffsetY, charSettings.keyringOffsetY, -100, 100)
+			keyringOffsetY: clampNumber(candidate.keyringOffsetY, charSettings.keyringOffsetY, -100, 100),
+			keyringTabExtensionMm: clampNumber(
+				candidate.keyringTabExtensionMm,
+				charSettings.keyringTabExtensionMm ?? 10,
+				2,
+				40
+			)
 		};
 	}
 
@@ -538,10 +612,12 @@
 	let outlineColor = $state(fontSettings.outlineColor);
 	let fontKey = $state(restoredFont);
 	let keyringEnabled = $state(fontSettings.keyringEnabled ?? true);
+	let keyringStyle = $state<KeyringStyle>(charSettings.keyringStyle ?? 'round');
 	let keyringOuterSize = $state(charSettings.keyringOuterSize);
 	let keyringHoleSize = $state(charSettings.keyringHoleSize);
 	let keyringOffsetX = $state(charSettings.keyringOffsetX);
 	let keyringOffsetY = $state(charSettings.keyringOffsetY);
+	let keyringTabExtensionMm = $state(charSettings.keyringTabExtensionMm ?? 10);
 	let keychainItems = $state<KeychainItem[]>(loadKeychainItems());
 	let selectedItemId = $state<string | null>(null);
 	let activeFirstLineInput = $state<HTMLInputElement | null>(null);
@@ -565,6 +641,7 @@
 	let presetEditorText = $state('#2d2d2d');
 	let presetEditorTextOutlineEnabled = $state(true);
 	let rimFeatureDialogOpen = $state(false);
+	let sideTabKeyringFeatureDialogOpen = $state(false);
 
 	function snapPresetColors(outline: string, border: string, textOutline: string, text: string) {
 		return {
@@ -730,13 +807,59 @@
 		});
 	}
 
-	function maybeShowRimFeatureDialog() {
+	function isRimFeatureDialogSeen(): boolean {
 		try {
-			if (localStorage.getItem(STORAGE_KEY_RIM_FEATURE_DIALOG) === '1') return;
+			return localStorage.getItem(STORAGE_KEY_RIM_FEATURE_DIALOG) === '1';
+		} catch {
+			return true;
+		}
+	}
+
+	function maybeShowRimFeatureDialog(): boolean {
+		if (isRimFeatureDialogSeen()) return false;
+		rimFeatureDialogOpen = true;
+		return true;
+	}
+
+	function markSideTabKeyringFeatureDialogSeen() {
+		try {
+			localStorage.setItem(STORAGE_KEY_SIDE_TAB_KEYRING_FEATURE_DIALOG, '1');
+		} catch {
+			// Local storage can be unavailable in private browsing contexts.
+		}
+	}
+
+	function onSideTabKeyringFeatureDialogOpenChange(open: boolean) {
+		sideTabKeyringFeatureDialogOpen = open;
+		if (!open) markSideTabKeyringFeatureDialogSeen();
+	}
+
+	function trySideTabKeyringFromDialog() {
+		if (hasSelectedItem) {
+			updateSelectedItemSettings({ keyringEnabled: true, keyringStyle: 'sideTab' });
+		} else {
+			keyringEnabled = true;
+			keyringStyle = 'sideTab';
+		}
+		void tick().then(() => {
+			document
+				.getElementById('text-outline-keyring-settings')
+				?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+		});
+	}
+
+	function maybeShowSideTabKeyringFeatureDialog() {
+		try {
+			if (localStorage.getItem(STORAGE_KEY_SIDE_TAB_KEYRING_FEATURE_DIALOG) === '1') return;
 		} catch {
 			return;
 		}
-		rimFeatureDialogOpen = true;
+		sideTabKeyringFeatureDialogOpen = true;
+	}
+
+	function maybeShowTextOutlineFeatureDialogs() {
+		if (maybeShowRimFeatureDialog()) return;
+		maybeShowSideTabKeyringFeatureDialog();
 	}
 
 	async function commitPresetEditor() {
@@ -844,10 +967,12 @@
 		borderDepth: 1,
 		borderColor: '#2d2d2d',
 		keyringEnabled,
+		keyringStyle,
 		keyringOuterSize,
 		keyringHoleSize,
 		keyringOffsetX,
-		keyringOffsetY
+		keyringOffsetY,
+		keyringTabExtensionMm
 	});
 
 	const activeEditableItem = $derived(
@@ -908,10 +1033,12 @@
 				borderWidthMm: item.settings.borderWidthMm,
 				borderDepth: item.settings.borderDepth,
 				keyringEnabled: item.settings.keyringEnabled,
+				keyringStyle: item.settings.keyringStyle,
 				keyringOuterSize: item.settings.keyringOuterSize,
 				keyringHoleSize: item.settings.keyringHoleSize,
 				keyringOffsetX: item.settings.keyringOffsetX,
-				keyringOffsetY: item.settings.keyringOffsetY
+				keyringOffsetY: item.settings.keyringOffsetY,
+				keyringTabExtensionMm: item.settings.keyringTabExtensionMm
 			}))
 		)
 	);
@@ -956,10 +1083,12 @@
 			borderEnabled: item.settings.borderEnabled,
 			borderWidthMm: item.settings.borderWidthMm,
 			keyringEnabled: item.settings.keyringEnabled,
+			keyringStyle: item.settings.keyringStyle,
 			keyringOuterSize: item.settings.keyringOuterSize,
 			keyringHoleSize: item.settings.keyringHoleSize,
 			keyringOffsetX: item.settings.keyringOffsetX,
-			keyringOffsetY: item.settings.keyringOffsetY
+			keyringOffsetY: item.settings.keyringOffsetY,
+			keyringTabExtensionMm: item.settings.keyringTabExtensionMm
 		});
 	}
 
@@ -1175,10 +1304,12 @@
 	function loadKeyringForChar(fontName: string, char: string) {
 		if (!char || !fontName) return;
 		const cs = allCharSettings[fontName]?.[char] || DEFAULT_CHAR_SETTINGS;
+		keyringStyle = cs.keyringStyle ?? 'round';
 		keyringOffsetX = cs.keyringOffsetX;
 		keyringOffsetY = cs.keyringOffsetY;
 		keyringOuterSize = cs.keyringOuterSize;
 		keyringHoleSize = cs.keyringHoleSize;
+		keyringTabExtensionMm = cs.keyringTabExtensionMm ?? 10;
 	}
 
 	function saveKeyringForChar(fontName: string, char: string) {
@@ -1186,10 +1317,12 @@
 		if (!allCharSettings) allCharSettings = {};
 		if (!allCharSettings[fontName]) allCharSettings[fontName] = {};
 		allCharSettings[fontName][char] = {
+			keyringStyle,
 			keyringOffsetX,
 			keyringOffsetY,
 			keyringOuterSize,
-			keyringHoleSize
+			keyringHoleSize,
+			keyringTabExtensionMm
 		};
 		try {
 			localStorage.setItem(STORAGE_KEY_KEYRING, JSON.stringify(allCharSettings));
@@ -2175,22 +2308,43 @@
 					return path;
 				};
 				const outlineBbox = getTreeBbox(outlineTree);
-				const baseAnchorX = outlineBbox.minX / SCALE;
-				const baseAnchorY = outlineBbox.maxY / SCALE;
-				const kx = baseAnchorX + settings.keyringOffsetX;
-				const ky = baseAnchorY + settings.keyringOffsetY;
-				const outerR = Math.max(0.1, settings.keyringOuterSize / 2);
-				const innerR = Math.min(Math.max(0.05, settings.keyringHoleSize / 2), outerR - 0.1);
-				const outerCircle = circleToPath(kx, ky, outerR, true);
-				const innerCircle = circleToPath(kx, ky, innerR, false);
-				if (outerCircle && innerCircle) {
+				const tabHalf = Math.max(0.1, settings.keyringOuterSize / 2);
+				const innerR = Math.min(Math.max(0.05, settings.keyringHoleSize / 2), tabHalf - 0.1);
+				let outerPath: { X: number; Y: number }[] | null = null;
+				let innerCircle: { X: number; Y: number }[] | null = null;
+				if (settings.keyringStyle === 'sideTab') {
+					const centerY = (outlineBbox.minY + outlineBbox.maxY) / 2 / SCALE;
+					const centerYClipper = centerY * SCALE;
+					const outlinePathsForProbe: { X: number; Y: number }[][] = [];
+					const probeRoots = outlineTree.Childs?.() ?? outlineTree.m_Childs ?? [];
+					probeRoots.forEach((n: any) => collectOuterPaths(n, outlinePathsForProbe));
+					const leftEdgeClipperX =
+						getOutlineLeftEdgeClipperXAtY(outlinePathsForProbe, centerYClipper) ??
+						outlineBbox.minX;
+					const leftEdgeX = leftEdgeClipperX / SCALE;
+					/** Overlap into the outline base so the tab bridges solid material, not just bbox edge. */
+					const bridgeInsetMm = Math.max(1.5, tabHalf * 0.4);
+					const innerEdgeX = leftEdgeX + bridgeInsetMm;
+					const extension = Math.max(tabHalf, settings.keyringTabExtensionMm);
+					const holeCx = leftEdgeX - extension;
+					outerPath = buildSideTabOuterPath(innerEdgeX, holeCx, centerY, tabHalf, SCALE);
+					innerCircle = circleToPath(holeCx, centerY, innerR, false);
+				} else {
+					const baseAnchorX = outlineBbox.minX / SCALE;
+					const baseAnchorY = outlineBbox.maxY / SCALE;
+					const kx = baseAnchorX + settings.keyringOffsetX;
+					const ky = baseAnchorY + settings.keyringOffsetY;
+					outerPath = circleToPath(kx, ky, tabHalf, true);
+					innerCircle = circleToPath(kx, ky, innerR, false);
+				}
+				if (outerPath && innerCircle) {
 					const outlinePaths: any[] = [];
 					const roots = outlineTree.Childs?.() ?? outlineTree.m_Childs ?? [];
 					roots.forEach((n: any) => collectOuterPaths(n, outlinePaths));
 					const unionTree = new ClipperLib.PolyTree();
 					const unionC = new ClipperLib.Clipper();
 					outlinePaths.forEach((p) => unionC.AddPath(p, ClipperLib.PolyType.ptSubject, true));
-					unionC.AddPath(outerCircle, ClipperLib.PolyType.ptSubject, true);
+					unionC.AddPath(outerPath, ClipperLib.PolyType.ptSubject, true);
 					unionC.Execute(
 						ClipperLib.ClipType.ctUnion,
 						unionTree,
@@ -2577,7 +2731,7 @@
 		rebuildMeshes();
 		setTimeout(() => {
 			isUpdatingFromStorage = false;
-			maybeShowRimFeatureDialog();
+			maybeShowTextOutlineFeatureDialogs();
 		}, 0);
 		const tick = () => {
 			rafId = requestAnimationFrame(tick);
@@ -2708,10 +2862,12 @@
 		if (isUpdatingFromStorage) return;
 		const currentChar = getCurrentChar();
 		const currentFont = fontKey;
+		void keyringStyle;
 		void keyringOffsetX;
 		void keyringOffsetY;
 		void keyringOuterSize;
 		void keyringHoleSize;
+		void keyringTabExtensionMm;
 		if (!currentChar || !currentFont) return;
 		if (keyringPersistTimeout !== null) clearTimeout(keyringPersistTimeout);
 		keyringPersistTimeout = setTimeout(() => {
@@ -3265,7 +3421,10 @@
 							</div>
 						</div>
 
-						<div class="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white/70 p-3">
+						<div
+							id="text-outline-keyring-settings"
+							class="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white/70 p-3"
+						>
 							<div class="flex items-center justify-between">
 								<div class="text-xs font-semibold tracking-tight text-slate-700">Keyring</div>
 								<label class="flex items-center gap-2 text-xs font-medium text-slate-700">
@@ -3283,8 +3442,26 @@
 								</label>
 							</div>
 							<label class="grid gap-1.5">
+								<span class="text-xs font-medium text-slate-700">Style</span>
+								<select
+									class="h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+									value={editableSettings.keyringStyle}
+									onchange={(event) =>
+										updateSelectedItemSettings({
+											keyringStyle: (event.currentTarget as HTMLSelectElement)
+												.value as KeyringStyle
+										})}
+									disabled={!hasSelectedItem}
+								>
+									<option value="round">Round (corner)</option>
+									<option value="sideTab">Side tab (left center)</option>
+								</select>
+							</label>
+							<label class="grid gap-1.5">
 								<div class="flex items-center justify-between gap-2">
-									<span class="text-xs font-medium text-slate-700">Ring size</span>
+									<span class="text-xs font-medium text-slate-700">
+										{editableSettings.keyringStyle === 'sideTab' ? 'Tab width' : 'Ring size'}
+									</span>
 									<span class="text-xs text-slate-600 tabular-nums"
 										>{editableSettings.keyringOuterSize}</span
 									>
@@ -3320,46 +3497,72 @@
 									class="w-full"
 								/>
 							</label>
-							<div class="grid grid-cols-2 gap-3">
+							{#if editableSettings.keyringStyle === 'sideTab'}
 								<label class="grid gap-1.5">
 									<div class="flex items-center justify-between gap-2">
-										<span class="text-xs font-medium text-slate-700">Pos X</span>
+										<span class="text-xs font-medium text-slate-700">Extension</span>
 										<span class="text-xs text-slate-600 tabular-nums"
-											>{editableSettings.keyringOffsetX}</span
+											>{editableSettings.keyringTabExtensionMm}</span
 										>
 									</div>
 									<Slider
 										type="single"
-										value={editableSettings.keyringOffsetX}
+										value={editableSettings.keyringTabExtensionMm}
 										onValueChange={(value: number) =>
-											updateSelectedItemSettings({ keyringOffsetX: value })}
-										min={-40}
+											updateSelectedItemSettings({ keyringTabExtensionMm: value })}
+										min={Math.max(2, editableSettings.keyringOuterSize / 2)}
 										max={40}
 										step={0.5}
 										disabled={!hasSelectedItem}
 										class="w-full"
 									/>
+									<p class="text-[10px] leading-snug text-slate-500">
+										How far the tab extends from the outline edge to the hole center. The stem
+										bridges into the base automatically.
+									</p>
 								</label>
-								<label class="grid gap-1.5">
-									<div class="flex items-center justify-between gap-2">
-										<span class="text-xs font-medium text-slate-700">Pos Y</span>
-										<span class="text-xs text-slate-600 tabular-nums"
-											>{editableSettings.keyringOffsetY}</span
-										>
-									</div>
-									<Slider
-										type="single"
-										value={editableSettings.keyringOffsetY}
-										onValueChange={(value: number) =>
-											updateSelectedItemSettings({ keyringOffsetY: value })}
-										min={-40}
-										max={40}
-										step={0.5}
-										disabled={!hasSelectedItem}
-										class="w-full"
-									/>
-								</label>
-							</div>
+							{:else}
+								<div class="grid grid-cols-2 gap-3">
+									<label class="grid gap-1.5">
+										<div class="flex items-center justify-between gap-2">
+											<span class="text-xs font-medium text-slate-700">Pos X</span>
+											<span class="text-xs text-slate-600 tabular-nums"
+												>{editableSettings.keyringOffsetX}</span
+											>
+										</div>
+										<Slider
+											type="single"
+											value={editableSettings.keyringOffsetX}
+											onValueChange={(value: number) =>
+												updateSelectedItemSettings({ keyringOffsetX: value })}
+											min={-40}
+											max={40}
+											step={0.5}
+											disabled={!hasSelectedItem}
+											class="w-full"
+										/>
+									</label>
+									<label class="grid gap-1.5">
+										<div class="flex items-center justify-between gap-2">
+											<span class="text-xs font-medium text-slate-700">Pos Y</span>
+											<span class="text-xs text-slate-600 tabular-nums"
+												>{editableSettings.keyringOffsetY}</span
+											>
+										</div>
+										<Slider
+											type="single"
+											value={editableSettings.keyringOffsetY}
+											onValueChange={(value: number) =>
+												updateSelectedItemSettings({ keyringOffsetY: value })}
+											min={-40}
+											max={40}
+											step={0.5}
+											disabled={!hasSelectedItem}
+											class="w-full"
+										/>
+									</label>
+								</div>
+							{/if}
 						</div>
 					</div>
 
@@ -3652,5 +3855,11 @@
 		open={rimFeatureDialogOpen}
 		onOpenChange={onRimFeatureDialogOpenChange}
 		onTryIt={tryRimFeatureFromDialog}
+	/>
+
+	<TextOutlineSideTabKeyringFeatureDialog
+		open={sideTabKeyringFeatureDialogOpen}
+		onOpenChange={onSideTabKeyringFeatureDialogOpenChange}
+		onTryIt={trySideTabKeyringFromDialog}
 	/>
 </main>

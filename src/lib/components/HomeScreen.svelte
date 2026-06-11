@@ -312,7 +312,7 @@
 		basicName:
 			'Color preset gallery plus optional text-outline layer with a matching border frame. Import starters or save your own combos; presets sync to your account when signed in.',
 		textOutline:
-			'Nine new display fonts in the picker — plus suggest a font by name or link from the home welcome dialog. Inset border rim, text-outline layer, color presets, and keyring on the base corner.',
+			'Side-tab keyring style — a fixed left-center tab with adjustable extension and hole size, plus the original round corner ring. Also: new fonts, inset border rim, text-outline layer, and color presets.',
 		// whistleBagTag:
 		// 	'Optional text-outline layer (middle) plus a color preset gallery (base, outline, and border/text). Presets sync when signed in.',
 		// whistleV2:

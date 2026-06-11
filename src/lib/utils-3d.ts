@@ -41,11 +41,17 @@ export interface FontSettings {
 	keyringDepth?: number;
 }
 
+export type KeyringStyle = 'round' | 'sideTab';
+
 export interface CharSettings {
 	keyringOffsetX: number;
 	keyringOffsetY: number;
 	keyringOuterSize: number;
 	keyringHoleSize: number;
+	/** Text Outline only — round corner ring vs left-center side tab. */
+	keyringStyle?: KeyringStyle;
+	/** Text Outline side-tab only: distance from the left keychain edge to the hole center (mm). */
+	keyringTabExtensionMm?: number;
 }
 
 // ── Font options ────────────────────────────────────────────────────────────
@@ -234,7 +240,9 @@ export const DEFAULT_CHAR_SETTINGS: CharSettings = {
 	keyringOffsetX: 0,
 	keyringOffsetY: 0,
 	keyringOuterSize: 8,
-	keyringHoleSize: 4
+	keyringHoleSize: 4,
+	keyringStyle: 'round',
+	keyringTabExtensionMm: 4
 };
 
 export const DEFAULT_FONT_KEY_OUTLINE = 'Titan One_Regular';
