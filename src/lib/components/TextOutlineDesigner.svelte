@@ -170,19 +170,53 @@
 		return Number.isFinite(leftX) ? leftX : null;
 	}
 
-	/** Side-tab keyring: inner edge overlaps the outline base; semicircle + hole extend outward. */
+	/**
+	 * Deepest left silhouette within a vertical band (max min-X). The tab must bridge
+	 * past this so curved letters (e.g. n, o) do not leave edge gaps at tab top/bottom.
+	 */
+	function getOutlineLeftEdgeClipperXInBand(
+		outlinePaths: { X: number; Y: number }[][],
+		yMinClipper: number,
+		yMaxClipper: number,
+		samples = 11
+	): number | null {
+		let deepestLeft = -Infinity;
+		for (let i = 0; i < samples; i++) {
+			const t = i / Math.max(1, samples - 1);
+			const yClipper = Math.round(yMinClipper + t * (yMaxClipper - yMinClipper));
+			const leftX = getOutlineLeftEdgeClipperXAtY(outlinePaths, yClipper);
+			if (leftX !== null) deepestLeft = Math.max(deepestLeft, leftX);
+		}
+		return Number.isFinite(deepestLeft) && deepestLeft > -Infinity ? deepestLeft : null;
+	}
+
+	/** Side-tab keyring: attachment edge samples the outline band; semicircle + hole extend outward. */
 	function buildSideTabOuterPath(
-		innerEdgeX: number,
+		outlinePaths: { X: number; Y: number }[][],
 		holeCenterX: number,
 		centerY: number,
 		half: number,
+		bridgeInsetMm: number,
 		scale: number,
 		segs = 32
-	): { X: number; Y: number }[] {
-		const path: { X: number; Y: number }[] = [
-			{ X: Math.round(innerEdgeX * scale), Y: Math.round((centerY - half) * scale) },
-			{ X: Math.round(innerEdgeX * scale), Y: Math.round((centerY + half) * scale) }
-		];
+	): { X: number; Y: number }[] | null {
+		const yMinClipper = Math.round((centerY - half) * scale);
+		const yMaxClipper = Math.round((centerY + half) * scale);
+		const bandSamples = 11;
+		const attachPts: { X: number; Y: number }[] = [];
+		for (let i = 0; i < bandSamples; i++) {
+			const t = i / Math.max(1, bandSamples - 1);
+			const yClipper = Math.round(yMinClipper + t * (yMaxClipper - yMinClipper));
+			const leftClipper = getOutlineLeftEdgeClipperXAtY(outlinePaths, yClipper);
+			if (leftClipper === null) continue;
+			attachPts.push({
+				X: Math.round(leftClipper + bridgeInsetMm * scale),
+				Y: yClipper
+			});
+		}
+		if (attachPts.length < 2) return null;
+
+		const path: { X: number; Y: number }[] = [...attachPts];
 		for (let i = 0; i <= segs; i++) {
 			const t = Math.PI / 2 + (i / segs) * Math.PI;
 			path.push({
@@ -193,6 +227,19 @@
 		const isCW = ClipperLib.Clipper.Orientation(path);
 		if (!isCW) path.reverse();
 		return path;
+	}
+
+	function inflateClipperPath(
+		path: { X: number; Y: number }[],
+		deltaMm: number,
+		scale: number
+	): { X: number; Y: number }[] {
+		if (deltaMm <= 0) return path;
+		const co = new ClipperLib.ClipperOffset(2, 2);
+		co.AddPath(path, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+		const inflated: { X: number; Y: number }[][] = [];
+		co.Execute(inflated, deltaMm * scale);
+		return inflated[0] ?? path;
 	}
 
 	function parseTextItems(value: string): string[] {
@@ -2314,20 +2361,43 @@
 				let innerCircle: { X: number; Y: number }[] | null = null;
 				if (settings.keyringStyle === 'sideTab') {
 					const centerY = (outlineBbox.minY + outlineBbox.maxY) / 2 / SCALE;
-					const centerYClipper = centerY * SCALE;
+					const centerYClipper = Math.round(centerY * SCALE);
+					const yMinClipper = Math.round((centerY - tabHalf) * SCALE);
+					const yMaxClipper = Math.round((centerY + tabHalf) * SCALE);
 					const outlinePathsForProbe: { X: number; Y: number }[][] = [];
 					const probeRoots = outlineTree.Childs?.() ?? outlineTree.m_Childs ?? [];
 					probeRoots.forEach((n: any) => collectOuterPaths(n, outlinePathsForProbe));
-					const leftEdgeClipperX =
+					const leftEdgeBandClipper =
+						getOutlineLeftEdgeClipperXInBand(
+							outlinePathsForProbe,
+							yMinClipper,
+							yMaxClipper
+						) ??
 						getOutlineLeftEdgeClipperXAtY(outlinePathsForProbe, centerYClipper) ??
 						outlineBbox.minX;
-					const leftEdgeX = leftEdgeClipperX / SCALE;
-					/** Overlap into the outline base so the tab bridges solid material, not just bbox edge. */
-					const bridgeInsetMm = Math.max(1.5, tabHalf * 0.4);
-					const innerEdgeX = leftEdgeX + bridgeInsetMm;
+					const leftEdgeCenterClipper =
+						getOutlineLeftEdgeClipperXAtY(outlinePathsForProbe, centerYClipper) ??
+						leftEdgeBandClipper;
+					const leftEdgeCenterX = leftEdgeCenterClipper / SCALE;
+					/** Overlap into solid outline — scale with tab width and outline thickness. */
+					const bridgeInsetMm = Math.max(
+						3,
+						tabHalf * 0.85,
+						effectiveOutlineWorld * 0.25
+					);
 					const extension = Math.max(tabHalf, settings.keyringTabExtensionMm);
-					const holeCx = leftEdgeX - extension;
-					outerPath = buildSideTabOuterPath(innerEdgeX, holeCx, centerY, tabHalf, SCALE);
+					const holeCx = leftEdgeCenterX - extension;
+					const tabPath = buildSideTabOuterPath(
+						outlinePathsForProbe,
+						holeCx,
+						centerY,
+						tabHalf,
+						bridgeInsetMm,
+						SCALE
+					);
+					outerPath = tabPath
+						? inflateClipperPath(tabPath, 0.15, SCALE)
+						: null;
 					innerCircle = circleToPath(holeCx, centerY, innerR, false);
 				} else {
 					const baseAnchorX = outlineBbox.minX / SCALE;
