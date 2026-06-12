@@ -104,6 +104,8 @@ function applyFingerprintFields(row: Record<string, unknown> | undefined) {
  * auth change; the RPC is small and side-effect free.
  */
 export async function loadFreeTrialForUser(uid: string | null): Promise<void> {
+	if (uid === userId && loaded) return;
+
 	if (uid === null) {
 		userId = null;
 		used = 0;

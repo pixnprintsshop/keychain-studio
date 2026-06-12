@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import type { PaletteColor } from '$lib/colorPalette';
+	import { cn } from '$lib/utils';
 
 	interface Props {
 		value?: string;
@@ -77,14 +78,26 @@
 				</button>
 			{/snippet}
 		</Popover.Trigger>
-		<Popover.Content class="w-72 p-3" align="start">
+		<Popover.Content
+			class="w-72 p-3"
+			align="start"
+			onOpenAutoFocus={(e) => e.preventDefault()}
+			onCloseAutoFocus={(e) => e.preventDefault()}
+		>
 			<div class="grid grid-cols-5 gap-2">
 				{#each displayColors as color (color.hex)}
+					{@const selected = normalizeHex(color.hex) === displayValue}
 					<button
 						type="button"
-						class="flex cursor-pointer flex-col items-center gap-1 rounded-lg p-1 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+						class={cn(
+							'flex cursor-pointer flex-col items-center gap-1 rounded-lg border p-1 transition outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50',
+							selected
+								? 'border-indigo-400 bg-indigo-50/80 ring-2 ring-indigo-400/30'
+								: 'border-transparent hover:border-slate-200 hover:bg-slate-100'
+						)}
 						onclick={() => selectColor(color.hex)}
 						title={color.name ?? color.hex}
+						aria-pressed={selected}
 					>
 						<span
 							class="aspect-3/2 w-full min-h-8 rounded border border-slate-300/80"

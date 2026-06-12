@@ -23,6 +23,7 @@ const DESIGNER_DISPLAY_NAMES: Record<DesignerId, string> = {
 	bumpyText: 'Bumpy Text',
 	bowKeychain: 'Bow Keychain',
 	pickleballKeychain: 'Pickleball keychain',
+	hoopTag: 'HoopTag',
 	articulatedKeychain: 'Articulated Keychain',
 	spotifyKeychain: 'Spotify Keychain',
 	namePuzzle: 'Name Puzzle',

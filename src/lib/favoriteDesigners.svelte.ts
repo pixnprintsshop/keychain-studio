@@ -100,6 +100,8 @@ export function favoriteSortIndex(id: string): number {
 }
 
 export async function loadFavoriteDesigners(uid: string | null): Promise<void> {
+	if (uid === userId && loaded) return;
+
 	userId = uid;
 	loaded = false;
 	const local = loadLocalFavorites();

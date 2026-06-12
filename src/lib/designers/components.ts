@@ -37,6 +37,7 @@ const LOADERS: Record<DesignerId, () => Promise<DesignerModule>> = {
 	bumpyText: () => import('$lib/components/BumpyTextDesigner.svelte'),
 	bowKeychain: () => import('$lib/components/BowKeychainDesigner.svelte'),
 	pickleballKeychain: () => import('$lib/components/PickleballKeychainDesigner.svelte'),
+	hoopTag: () => import('$lib/components/HoopTagDesigner.svelte'),
 	namePuzzle: () => import('$lib/components/NamePuzzleDesigner.svelte'),
 	engraveNamePlate: () => import('$lib/components/EngraveNamePlateDesigner.svelte'),
 	cakeTopper: () => import('$lib/components/CakeTopperDesigner.svelte'),
@@ -48,6 +49,12 @@ const LOADERS: Record<DesignerId, () => Promise<DesignerModule>> = {
 	roomSign: () => import('$lib/components/RoomSignDesigner.svelte')
 };
 
+const componentCache = new Map<DesignerId, Promise<DesignerComponent>>();
+
 export function loadDesignerComponent(id: DesignerId): Promise<DesignerComponent> {
-	return LOADERS[id]().then((m) => m.default);
+	const cached = componentCache.get(id);
+	if (cached) return cached;
+	const promise = LOADERS[id]().then((m) => m.default);
+	componentCache.set(id, promise);
+	return promise;
 }

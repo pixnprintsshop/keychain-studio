@@ -245,6 +245,7 @@
 		| 'bumpyText'
 		| 'bowKeychain'
 		| 'pickleballKeychain'
+		| 'hoopTag'
 		| 'articulatedKeychain'
 		| 'spotifyKeychain'
 		| 'namePuzzle'
@@ -318,7 +319,9 @@
 		// whistleV2:
 		// 	'Color preset gallery for Accent, Main, and Border — import starters or save your own. Presets sync to your account when signed in.',
 		idNameTagV2:
-			'Choose a single center lace loop or dual side loops on any model shape. Optional text-outline layer with a matching border frame, plus color presets that sync when signed in.',
+			'Back print view uses a fixed underside preview with bottom lighting. Also: center or dual lace loops, optional text-outline layer, and color presets that sync when signed in.',
+		hoopTag:
+			'HoopTag default size and keyring tab are 10% smaller. Layer Based stacks four print layers for multi-color printing.',
 		dogtag:
 			'Optional text-outline layer with a matching border frame, plus a color preset gallery (base, outline, and text/border). Presets sync when signed in.',
 		namePuzzle:
@@ -474,6 +477,14 @@
 				'Paddle and ball keychain with a center icon, base rim, and decor details — optional keyring tab.',
 			imageSrc: '/images/pickleball-keychain-feature-dialog.png',
 			imageAlt: 'Pickleball keychain preview'
+		},
+		{
+			id: 'hoopTag',
+			title: 'HoopTag',
+			description:
+				'Basketball backboard and net keychain with multi-color artwork, offset base rim, and keyring hole.',
+			imageSrc: '/images/hoop-tag.png',
+			imageAlt: 'HoopTag basketball keychain preview'
 		},
 		{
 			id: 'namePuzzle',

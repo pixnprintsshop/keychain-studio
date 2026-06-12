@@ -605,9 +605,15 @@
 	let controls: InstanceType<typeof OrbitControls> | null = null;
 	let group: THREE.Group | null = null;
 	let keyLight: THREE.DirectionalLight | null = null;
+	let hemiLight: THREE.HemisphereLight | null = null;
+	let rimLight: THREE.DirectionalLight | null = null;
+	let fillLight: THREE.DirectionalLight | null = null;
+	let bottomLight: THREE.DirectionalLight | null = null;
+	let grid: THREE.GridHelper | null = null;
 	let rafId = 0;
 	let ro: ResizeObserver | null = null;
 	let didInitFrame = false;
+	let wasBackPreviewView = false;
 	let sceneReady = $state(false);
 	let exportLoading = $state(false);
 	let exportError = $state<string | null>(null);
@@ -657,6 +663,59 @@
 			return;
 		}
 		dualLaceFeatureDialogOpen = true;
+	}
+
+	function frameCameraToBottomView(
+		box: THREE.Box3,
+		cam: THREE.PerspectiveCamera,
+		ctl: InstanceType<typeof OrbitControls>
+	) {
+		const center = new THREE.Vector3();
+		box.getCenter(center);
+		const sphere = new THREE.Sphere();
+		box.getBoundingSphere(sphere);
+		const radius = Math.max(0.001, sphere.radius);
+		const fov = (cam.fov * Math.PI) / 200;
+		const dist = (radius / Math.sin(fov / 2)) * 1.15;
+		cam.position.set(center.x, center.y, center.z - dist);
+		cam.up.set(0, 1, 0);
+		cam.near = Math.max(0.01, dist / 200);
+		cam.far = Math.max(2000, dist * 20);
+		cam.updateProjectionMatrix();
+		cam.lookAt(center);
+		ctl.target.copy(center);
+		ctl.update();
+	}
+
+	function syncBackPrintPreviewView(box: THREE.Box3) {
+		const isBackView = backPrintEnabled && activeTextSide === 'back';
+		if (grid) grid.visible = !isBackView;
+		if (controls) {
+			controls.enableRotate = !isBackView;
+			controls.enablePan = !isBackView;
+			controls.enableZoom = !isBackView;
+		}
+		if (bottomLight) bottomLight.visible = isBackView;
+		if (keyLight) keyLight.intensity = isBackView ? 0.55 : 2.2;
+		if (rimLight) rimLight.visible = !isBackView;
+		if (fillLight) fillLight.visible = !isBackView;
+		if (hemiLight) hemiLight.intensity = isBackView ? 0.12 : 0.25;
+		if (!camera || !controls) return;
+		const center = new THREE.Vector3();
+		box.getCenter(center);
+		if (isBackView) {
+			if (bottomLight) {
+				bottomLight.position.set(center.x, center.y, center.z - 140);
+				bottomLight.target.position.copy(center);
+				bottomLight.target.updateWorldMatrix(true, true);
+			}
+			frameCameraToBottomView(box, camera, controls);
+		} else if (!didInitFrame || wasBackPreviewView) {
+			camera.up.set(0, 0, 1);
+			frameCameraToObject(box, camera, controls);
+			if (!didInitFrame) didInitFrame = true;
+		}
+		wasBackPreviewView = isBackView;
 	}
 
 	function resize() {
@@ -1548,10 +1607,7 @@
 			keyLight.target.position.copy(center);
 			keyLight.target.updateWorldMatrix(true, true);
 		}
-		if (!didInitFrame && camera && controls) {
-			frameCameraToObject(box, camera, controls);
-			didInitFrame = true;
-		}
+		syncBackPrintPreviewView(box);
 		const size = measureWorldAabbSizeMm(group);
 		modelAabbMm = size ? { x: size.x, y: size.y, z: size.z } : null;
 	}
@@ -1820,8 +1876,8 @@
 		controls.maxDistance = 800;
 		controls.update();
 
-		const hemi = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.25);
-		scene.add(hemi);
+		hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.25);
+		scene.add(hemiLight);
 		keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
 		keyLight.position.set(80, -120, 140);
 		keyLight.castShadow = true;
@@ -1831,14 +1887,19 @@
 		keyLight.shadow.normalBias = 0.02;
 		scene.add(keyLight);
 		scene.add(keyLight.target);
-		const rim = new THREE.DirectionalLight(0xffffff, 0.7);
-		rim.position.set(-120, 90, 80);
-		scene.add(rim);
-		const fill = new THREE.DirectionalLight(0xffffff, 0.45);
-		fill.position.set(40, 120, 60);
-		scene.add(fill);
+		rimLight = new THREE.DirectionalLight(0xffffff, 0.7);
+		rimLight.position.set(-120, 90, 80);
+		scene.add(rimLight);
+		fillLight = new THREE.DirectionalLight(0xffffff, 0.45);
+		fillLight.position.set(40, 120, 60);
+		scene.add(fillLight);
+		bottomLight = new THREE.DirectionalLight(0xffffff, 2.4);
+		bottomLight.position.set(0, 0, -140);
+		bottomLight.visible = false;
+		scene.add(bottomLight);
+		scene.add(bottomLight.target);
 
-		const grid = new THREE.GridHelper(250, 25, 0xcbd5e1, 0xe2e8f0);
+		grid = new THREE.GridHelper(250, 25, 0xcbd5e1, 0xe2e8f0);
 		grid.rotation.x = Math.PI / 2;
 		grid.position.z = -0.01;
 		scene.add(grid);
@@ -1971,6 +2032,11 @@
 		camera = null;
 		group = null;
 		keyLight = null;
+		hemiLight = null;
+		rimLight = null;
+		fillLight = null;
+		bottomLight = null;
+		grid = null;
 		sceneReady = false;
 	});
 </script>

@@ -237,16 +237,16 @@
 		});
 	});
 
-	// Sync free-trial state with the current account.
+	// Sync free-trial state with the current account (id only — ignore token refresh object churn).
 	$effect(() => {
-		const u = user;
-		void loadFreeTrialForUser(u?.id ?? null);
+		const uid = user?.id ?? null;
+		void loadFreeTrialForUser(uid);
 	});
 
 	// Favorite designers (home grid sort order).
 	$effect(() => {
-		const u = user;
-		void loadFavoriteDesigners(u?.id ?? null);
+		const uid = user?.id ?? null;
+		void loadFavoriteDesigners(uid);
 	});
 
 	// Platform + per-user export counters for home / stats UI.

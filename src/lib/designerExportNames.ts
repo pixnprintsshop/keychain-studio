@@ -24,6 +24,7 @@ const DESIGN_NAME_TO_ID: Record<string, DesignerId> = {
 	'Bumpy Text': 'bumpyText',
 	'Bow Keychain': 'bowKeychain',
 	'Pickleball keychain': 'pickleballKeychain',
+	HoopTag: 'hoopTag',
 	'Articulated Keychain': 'articulatedKeychain',
 	'Spotify Keychain': 'spotifyKeychain',
 	'Name Puzzle': 'namePuzzle',
