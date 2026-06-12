@@ -55,25 +55,107 @@
     let didInitFrame = false;
     let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
 
-    const defaultSettings = {
+    const STORAGE_KEY = "whistle-designer-settings-v1";
+    const FONT_SIZE_FOR_SHAPES = 12;
+
+    interface WhistleSettings {
+        textContent: string;
+        fontKey: string;
+        textScale: number;
+        textDepth: number;
+        textColor: string;
+        textOffsetX: number;
+        textOffsetY: number;
+        baseColor: string;
+    }
+
+    const defaults: WhistleSettings = {
         textContent: "Name",
-        fontKey: FONT_OPTIONS[0].key,
+        fontKey: FONT_OPTIONS[0]?.key ?? "Titan One_Regular",
         textScale: 1,
         textDepth: 1,
         textColor: "#ffffff",
         textOffsetX: 4.5,
+        textOffsetY: 0,
         baseColor: "#f97316",
     };
-    const FONT_SIZE_FOR_SHAPES = 12;
+
+    function clamp(n: number, lo: number, hi: number): number {
+        return Math.min(hi, Math.max(lo, n));
+    }
+
+    function loadSettings(): WhistleSettings {
+        try {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (!stored) return { ...defaults };
+            const parsed = JSON.parse(stored) as Partial<WhistleSettings>;
+            if (!parsed || typeof parsed !== "object") return { ...defaults };
+            const fontKey =
+                typeof parsed.fontKey === "string" &&
+                FONT_OPTIONS.some((option) => option.key === parsed.fontKey)
+                    ? parsed.fontKey
+                    : defaults.fontKey;
+            return {
+                textContent:
+                    typeof parsed.textContent === "string"
+                        ? parsed.textContent
+                        : defaults.textContent,
+                fontKey,
+                textScale:
+                    typeof parsed.textScale === "number" && Number.isFinite(parsed.textScale)
+                        ? clamp(parsed.textScale, 0.3, 2)
+                        : defaults.textScale,
+                textDepth:
+                    typeof parsed.textDepth === "number" && Number.isFinite(parsed.textDepth)
+                        ? clamp(parsed.textDepth, 0.2, 2)
+                        : defaults.textDepth,
+                textColor:
+                    typeof parsed.textColor === "string" ? parsed.textColor : defaults.textColor,
+                textOffsetX:
+                    typeof parsed.textOffsetX === "number" && Number.isFinite(parsed.textOffsetX)
+                        ? clamp(parsed.textOffsetX, -20, 20)
+                        : defaults.textOffsetX,
+                textOffsetY:
+                    typeof parsed.textOffsetY === "number" && Number.isFinite(parsed.textOffsetY)
+                        ? clamp(parsed.textOffsetY, -20, 20)
+                        : defaults.textOffsetY,
+                baseColor:
+                    typeof parsed.baseColor === "string" ? parsed.baseColor : defaults.baseColor,
+            };
+        } catch {
+            return { ...defaults };
+        }
+    }
+
+    const initial = loadSettings();
+
+    function saveSettings() {
+        try {
+            const payload: WhistleSettings = {
+                textContent,
+                fontKey,
+                textScale,
+                textDepth,
+                textColor,
+                textOffsetX,
+                textOffsetY,
+                baseColor,
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+        } catch {
+            /* localStorage may be unavailable */
+        }
+    }
 
     let whistleGeometry = $state<THREE.BufferGeometry | null>(null);
-    let textContent = $state("Name");
-    let fontKey = $state(FONT_OPTIONS[0].key);
-    let textScale = $state(defaultSettings.textScale);
-    let textDepth = $state(defaultSettings.textDepth);
-    let textColor = $state(defaultSettings.textColor);
-    let textOffsetX = $state(defaultSettings.textOffsetX);
-    let baseColor = $state(defaultSettings.baseColor);
+    let textContent = $state(initial.textContent);
+    let fontKey = $state(initial.fontKey);
+    let textScale = $state(initial.textScale);
+    let textDepth = $state(initial.textDepth);
+    let textColor = $state(initial.textColor);
+    let textOffsetX = $state(initial.textOffsetX);
+    let textOffsetY = $state(initial.textOffsetY);
+    let baseColor = $state(initial.baseColor);
     let exportError = $state<string | null>(null);
     let exportLoading = $state(false);
     let openBambuStudioLoading = $state(false);
@@ -160,7 +242,7 @@
                     textMesh.scale.set(scaleCapped, scaleCapped, 1);
                     textMesh.position.set(
                         centerX + textOffsetX,
-                        centerY,
+                        centerY + textOffsetY,
                         topZ + 0.02,
                     );
                     group.add(textMesh);
@@ -358,6 +440,18 @@
     }
 
     $effect(() => {
+        void textContent;
+        void fontKey;
+        void textScale;
+        void textDepth;
+        void textColor;
+        void textOffsetX;
+        void textOffsetY;
+        void baseColor;
+        saveSettings();
+    });
+
+    $effect(() => {
         void whistleGeometry;
         void textContent;
         void fontKey;
@@ -365,6 +459,7 @@
         void textDepth;
         void textColor;
         void textOffsetX;
+        void textOffsetY;
         void baseColor;
         if (!scene || !group) return;
         rebuildMeshes();
@@ -535,6 +630,47 @@
                         max={2}
                         step={0.1}
                         class="w-full" />
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <div class="mb-1 flex items-center justify-between">
+                            <label
+                                for="whistle-text-offset-x"
+                                class="text-xs font-medium text-slate-700">
+                                Text pos X
+                            </label>
+                            <span class="text-xs text-slate-500 tabular-nums"
+                                >{textOffsetX.toFixed(1)} mm</span>
+                        </div>
+                        <Slider
+                            id="whistle-text-offset-x"
+                            type="single"
+                            bind:value={textOffsetX}
+                            min={-20}
+                            max={20}
+                            step={0.1}
+                            class="w-full" />
+                    </div>
+                    <div>
+                        <div class="mb-1 flex items-center justify-between">
+                            <label
+                                for="whistle-text-offset-y"
+                                class="text-xs font-medium text-slate-700">
+                                Text pos Y
+                            </label>
+                            <span class="text-xs text-slate-500 tabular-nums"
+                                >{textOffsetY.toFixed(1)} mm</span>
+                        </div>
+                        <Slider
+                            id="whistle-text-offset-y"
+                            type="single"
+                            bind:value={textOffsetY}
+                            min={-20}
+                            max={20}
+                            step={0.1}
+                            class="w-full" />
+                    </div>
                 </div>
 
                 <ColorPalettePicker

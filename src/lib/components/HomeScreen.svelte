@@ -322,6 +322,8 @@
 			'Back print view uses a fixed underside preview with bottom lighting. Also: center or dual lace loops, optional text-outline layer, and color presets that sync when signed in.',
 		hoopTag:
 			'HoopTag default size and keyring tab are 10% smaller. Layer Based stacks four print layers for multi-color printing.',
+		whistle:
+			'Custom Whistle text position X/Y sliders and settings now persist across visits.',
 		dogtag:
 			'Optional text-outline layer with a matching border frame, plus a color preset gallery (base, outline, and text/border). Presets sync when signed in.',
 		namePuzzle:
