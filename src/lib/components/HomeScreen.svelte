@@ -352,8 +352,6 @@
 		// 	'Color preset gallery for Accent, Main, and Border — import starters or save your own. Presets sync to your account when signed in.',
 		idNameTagV2:
 			'Back print view uses a fixed underside preview with bottom lighting. Also: center or dual lace loops, optional text-outline layer, and color presets that sync when signed in.',
-		hoopTag:
-			'HoopTag default size and keyring tab are 10% smaller. Layer Based stacks four print layers for multi-color printing.',
 		whistle:
 			'Custom Whistle text position X/Y sliders and settings now persist across visits.',
 		dogtag:

@@ -1432,82 +1432,6 @@
 							class="w-full" />
 					</label>
 
-					<div class="rounded-lg border border-amber-200 bg-amber-50/80 p-2.5">
-						<div class="text-xs font-semibold text-amber-900">Placement (temporary)</div>
-						<p class="mt-1 text-[11px] text-amber-800/90">
-							Tune position, rotation, and skew — note values for defaults later.
-						</p>
-						<div class="mt-3 grid grid-cols-2 gap-3">
-							<label class="grid gap-1.5">
-								<div class="flex items-center justify-between gap-2">
-									<span class="text-xs font-medium text-slate-700">Pos X</span>
-									<span class="text-xs text-slate-600 tabular-nums">{textOffsetX.toFixed(2)}</span>
-								</div>
-								<Slider
-									type="single"
-									bind:value={textOffsetX}
-									min={-30}
-									max={30}
-									step={0.05}
-									class="w-full" />
-							</label>
-							<label class="grid gap-1.5">
-								<div class="flex items-center justify-between gap-2">
-									<span class="text-xs font-medium text-slate-700">Pos Y</span>
-									<span class="text-xs text-slate-600 tabular-nums">{textOffsetY.toFixed(2)}</span>
-								</div>
-								<Slider
-									type="single"
-									bind:value={textOffsetY}
-									min={-30}
-									max={30}
-									step={0.05}
-									class="w-full" />
-							</label>
-						</div>
-						<label class="mt-3 grid gap-1.5">
-							<div class="flex items-center justify-between gap-2">
-								<span class="text-xs font-medium text-slate-700">Rotation</span>
-								<span class="text-xs text-slate-600 tabular-nums">{textRotationDeg.toFixed(1)}°</span>
-							</div>
-							<Slider
-								type="single"
-								bind:value={textRotationDeg}
-								min={-45}
-								max={45}
-								step={0.25}
-								class="w-full" />
-						</label>
-						<div class="mt-3 grid grid-cols-2 gap-3">
-							<label class="grid gap-1.5">
-								<div class="flex items-center justify-between gap-2">
-									<span class="text-xs font-medium text-slate-700">Skew X</span>
-									<span class="text-xs text-slate-600 tabular-nums">{textSkewXDeg.toFixed(1)}°</span>
-								</div>
-								<Slider
-									type="single"
-									bind:value={textSkewXDeg}
-									min={-30}
-									max={30}
-									step={0.25}
-									class="w-full" />
-							</label>
-							<label class="grid gap-1.5">
-								<div class="flex items-center justify-between gap-2">
-									<span class="text-xs font-medium text-slate-700">Skew Y</span>
-									<span class="text-xs text-slate-600 tabular-nums">{textSkewYDeg.toFixed(1)}°</span>
-								</div>
-								<Slider
-									type="single"
-									bind:value={textSkewYDeg}
-									min={-30}
-									max={30}
-									step={0.25}
-									class="w-full" />
-							</label>
-						</div>
-					</div>
-
 					<label class="grid gap-1.5">
 						<div class="flex items-center justify-between gap-2">
 							<span class="text-xs font-medium text-slate-700">Overall scale</span>
@@ -1527,6 +1451,79 @@
 							1.00× = {REFERENCE_HEIGHT_AT_1X_MM.toFixed(1)} mm height
 						</p>
 					</label>
+
+					<div class="mt-1 border-t border-slate-200 pt-2 text-xs font-semibold text-slate-700">
+						Text Placement
+					</div>
+					<div class="grid grid-cols-2 gap-3">
+						<label class="grid gap-1.5">
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-xs font-medium text-slate-700">Pos X</span>
+								<span class="text-xs text-slate-600 tabular-nums">{textOffsetX.toFixed(2)}</span>
+							</div>
+							<Slider
+								type="single"
+								bind:value={textOffsetX}
+								min={-30}
+								max={30}
+								step={0.05}
+								class="w-full" />
+						</label>
+						<label class="grid gap-1.5">
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-xs font-medium text-slate-700">Pos Y</span>
+								<span class="text-xs text-slate-600 tabular-nums">{textOffsetY.toFixed(2)}</span>
+							</div>
+							<Slider
+								type="single"
+								bind:value={textOffsetY}
+								min={-30}
+								max={30}
+								step={0.05}
+								class="w-full" />
+						</label>
+					</div>
+					<label class="grid gap-1.5">
+						<div class="flex items-center justify-between gap-2">
+							<span class="text-xs font-medium text-slate-700">Rotation</span>
+							<span class="text-xs text-slate-600 tabular-nums">{textRotationDeg.toFixed(1)}°</span>
+						</div>
+						<Slider
+							type="single"
+							bind:value={textRotationDeg}
+							min={-45}
+							max={45}
+							step={0.25}
+							class="w-full" />
+					</label>
+					<div class="grid grid-cols-2 gap-3">
+						<label class="grid gap-1.5">
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-xs font-medium text-slate-700">Skew X</span>
+								<span class="text-xs text-slate-600 tabular-nums">{textSkewXDeg.toFixed(1)}°</span>
+							</div>
+							<Slider
+								type="single"
+								bind:value={textSkewXDeg}
+								min={-30}
+								max={30}
+								step={0.25}
+								class="w-full" />
+						</label>
+						<label class="grid gap-1.5">
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-xs font-medium text-slate-700">Skew Y</span>
+								<span class="text-xs text-slate-600 tabular-nums">{textSkewYDeg.toFixed(1)}°</span>
+							</div>
+							<Slider
+								type="single"
+								bind:value={textSkewYDeg}
+								min={-30}
+								max={30}
+								step={0.25}
+								class="w-full" />
+						</label>
+					</div>
 				</div>
 			</div>
 		</aside>
