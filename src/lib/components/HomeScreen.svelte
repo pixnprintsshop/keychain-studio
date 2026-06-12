@@ -16,6 +16,7 @@
 	} from '$lib/subscription';
 	import FavoriteDesignersFeatureDialog from '$lib/components/FavoriteDesignersFeatureDialog.svelte';
 	import NewFontsFeatureDialog from '$lib/components/NewFontsFeatureDialog.svelte';
+	import HoopTagFeatureDialog from '$lib/components/HoopTagFeatureDialog.svelte';
 	import PickleballKeychainFeatureDialog from '$lib/components/PickleballKeychainFeatureDialog.svelte';
 	import FloatingGlobalExportCounter from '$lib/components/FloatingGlobalExportCounter.svelte';
 	import FloatingRecentExportsFeed from '$lib/components/FloatingRecentExportsFeed.svelte';
@@ -44,6 +45,7 @@
 
 	const STORAGE_KEY_FAVORITE_FEATURE_DIALOG = 'favorite-designers-feature-dialog-v1';
 	const STORAGE_KEY_NEW_FONTS_FEATURE_DIALOG = 'new-fonts-feature-dialog-v1';
+	const STORAGE_KEY_HOOPTAG_FEATURE_DIALOG = 'hoop-tag-feature-dialog-v1';
 	const STORAGE_KEY_PICKLEBALL_KEYCHAIN_FEATURE_DIALOG = 'pickleball-keychain-feature-dialog-v1';
 	const STORAGE_KEY_COMMUNITY_INVITE_DISMISSED = 'messenger-community-invite-dismissed-v1';
 	const STORAGE_KEY_COMMUNITY_INVITE_DIALOG = 'messenger-community-invite-dialog-v1';
@@ -52,6 +54,7 @@
 	let comingSoonInterestSending = $state<StyleName | null>(null);
 	let favoriteFeatureDialogOpen = $state(false);
 	let newFontsFeatureDialogOpen = $state(false);
+	let hoopTagFeatureDialogOpen = $state(false);
 	let pickleballKeychainFeatureDialogOpen = $state(false);
 	let showCommunityInviteAlert = $state(false);
 
@@ -124,6 +127,27 @@
 		}
 	}
 
+	function markHoopTagFeatureDialogSeen() {
+		try {
+			localStorage.setItem(STORAGE_KEY_HOOPTAG_FEATURE_DIALOG, '1');
+		} catch {
+			// Local storage can be unavailable in private browsing contexts.
+		}
+	}
+
+	function onHoopTagFeatureDialogOpenChange(open: boolean) {
+		hoopTagFeatureDialogOpen = open;
+		if (!open) markHoopTagFeatureDialogSeen();
+	}
+
+	function isHoopTagFeatureDialogSeen(): boolean {
+		try {
+			return localStorage.getItem(STORAGE_KEY_HOOPTAG_FEATURE_DIALOG) === '1';
+		} catch {
+			return true;
+		}
+	}
+
 	function markPickleballKeychainFeatureDialogSeen() {
 		try {
 			localStorage.setItem(STORAGE_KEY_PICKLEBALL_KEYCHAIN_FEATURE_DIALOG, '1');
@@ -147,6 +171,7 @@
 
 	function isAnyHomeDialogVisible(): boolean {
 		return (
+			hoopTagFeatureDialogOpen ||
 			pickleballKeychainFeatureDialogOpen ||
 			newFontsFeatureDialogOpen ||
 			favoriteFeatureDialogOpen ||
@@ -156,13 +181,15 @@
 	}
 
 	function openHomeFeatureDialog(id: HomeFeatureDialogId) {
-		if (id === 'pickleballKeychain') pickleballKeychainFeatureDialogOpen = true;
+		if (id === 'hoopTag') hoopTagFeatureDialogOpen = true;
+		else if (id === 'pickleballKeychain') pickleballKeychainFeatureDialogOpen = true;
 		else if (id === 'newFonts') newFontsFeatureDialogOpen = true;
 		else favoriteFeatureDialogOpen = true;
 	}
 
 	/** Show at most one welcome/feature dialog per home visit; postpone if another modal is open. */
 	function showHomeFeatureDialogs() {
+		const shouldShowHoopTag = !isHoopTagFeatureDialogSeen();
 		const shouldShowPickleballKeychain = !isPickleballKeychainFeatureDialogSeen();
 		const shouldShowNewFonts =
 			getNewFontsDialogFingerprint().length > 0 && !isNewFontsFeatureDialogSeen();
@@ -170,6 +197,7 @@
 		const pending = getPendingHomeFeatureDialog();
 		const next = resolveNextHomeFeatureDialog({
 			pending,
+			shouldShowHoopTag,
 			shouldShowPickleballKeychain,
 			shouldShowNewFonts,
 			shouldShowFavorite
@@ -210,6 +238,10 @@
 
 	function tryPickleballKeychainFromDialog() {
 		onSelect('pickleballKeychain');
+	}
+
+	function tryHoopTagFromDialog() {
+		onSelect('hoopTag');
 	}
 
 	// Preload font so Name Puzzle designer opens faster; restore interest flags from session.
@@ -1291,6 +1323,12 @@
 		</div>
 	</div>
 </div>
+
+<HoopTagFeatureDialog
+	open={hoopTagFeatureDialogOpen}
+	onOpenChange={onHoopTagFeatureDialogOpenChange}
+	onTryIt={tryHoopTagFromDialog}
+/>
 
 <PickleballKeychainFeatureDialog
 	open={pickleballKeychainFeatureDialogOpen}
