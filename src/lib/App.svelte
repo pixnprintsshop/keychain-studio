@@ -33,6 +33,7 @@
 		loadSubscriptionTrialForDesigner,
 		subscriptionTrial
 	} from '$lib/subscriptionTrial.svelte';
+	import { loadUserFeatureFlagsForUser } from '$lib/userFeatureFlags.svelte';
 	import { favoriteDesigners, loadFavoriteDesigners } from '$lib/favoriteDesigners.svelte';
 	import { loadExportStats } from '$lib/exportStats.svelte';
 	import {
@@ -247,6 +248,11 @@
 		const uid = user?.id ?? null;
 		void loadFreeTrialForUser(uid);
 		if (!uid) clearSubscriptionTrialState();
+	});
+
+	// Per-user feature flags (admin-granted).
+	$effect(() => {
+		void loadUserFeatureFlagsForUser(user?.id ?? null);
 	});
 
 	// Per-designer LS subscription trial credits when on a designer route.

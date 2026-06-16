@@ -25,6 +25,8 @@
 	import border3StlUrl from '$lib/assets/stl/idnametag/border3.stl?url';
 	import border4StlUrl from '$lib/assets/stl/idnametag/border4.stl?url';
 	import { ensureExportAccess, getExportTitle, showExportLockIcon, type SubscriptionStatus } from '$lib/subscription';
+	import { FEATURE_FLAG_KEYS } from '$lib/featureFlags';
+	import { userFeatureFlags } from '$lib/userFeatureFlags.svelte';
 	import { upload3mfToSupabase } from '$lib/upload3mf';
 	import {
 		centerGeometryXY,
@@ -594,9 +596,13 @@
 			importPresetsLoading = false;
 		}
 	}
-	const backPrintEnabled =
+	const backPrintDevOverride =
+		import.meta.env.DEV &&
 		typeof window !== 'undefined' &&
 		new URL(window.location.href).searchParams.get('backprint') === '1';
+	const backPrintEnabled = $derived(
+		backPrintDevOverride || userFeatureFlags.has(FEATURE_FLAG_KEYS.ID_NAME_TAG_V2_BACKPRINT)
+	);
 
 	let hostEl: HTMLDivElement | null = null;
 	let renderer: THREE.WebGLRenderer | null = null;
@@ -1971,6 +1977,12 @@
 	});
 
 	$effect(() => {
+		if (!backPrintEnabled && activeTextSide === 'back') {
+			activeTextSide = 'front';
+		}
+	});
+
+	$effect(() => {
 		void user?.id;
 		void syncCustomPresetsFromAccount();
 	});
@@ -1997,6 +2009,8 @@
 		void backLines;
 		void backLineSpacing;
 		void activeTextSide;
+		void backPrintEnabled;
+		void userFeatureFlags.loaded;
 		void textOutlineEnabled;
 		void textOutlineThicknessMm;
 		void textOutlineDepth;
