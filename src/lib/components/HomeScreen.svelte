@@ -14,7 +14,6 @@
 		isSubscriberOnlyDesigner,
 		type SubscriptionStatus
 	} from '$lib/subscription';
-	import NewFontsFeatureDialog from '$lib/components/NewFontsFeatureDialog.svelte';
 	import PickleballKeychainFeatureDialog from '$lib/components/PickleballKeychainFeatureDialog.svelte';
 	import FloatingGlobalExportCounter from '$lib/components/FloatingGlobalExportCounter.svelte';
 	import FloatingRecentExportsFeed from '$lib/components/FloatingRecentExportsFeed.svelte';
@@ -38,17 +37,14 @@
 		setPendingHomeFeatureDialog,
 		type HomeFeatureDialogId
 	} from '$lib/homeFeatureDialogQueue';
-	import { getNewFontsDialogFingerprint } from '$lib/newFonts';
 	import { getFont } from '$lib/utils-3d';
 
-	const STORAGE_KEY_NEW_FONTS_FEATURE_DIALOG = 'new-fonts-feature-dialog-v1';
 	const STORAGE_KEY_PICKLEBALL_KEYCHAIN_FEATURE_DIALOG = 'pickleball-keychain-feature-dialog-v1';
 	const STORAGE_KEY_COMMUNITY_INVITE_DISMISSED = 'messenger-community-invite-dismissed-v1';
 	const STORAGE_KEY_COMMUNITY_INVITE_DIALOG = 'messenger-community-invite-dialog-v1';
 
 	let comingSoonInterestSent = $state<Set<StyleName>>(new Set());
 	let comingSoonInterestSending = $state<StyleName | null>(null);
-	let newFontsFeatureDialogOpen = $state(false);
 	let pickleballKeychainFeatureDialogOpen = $state(false);
 	let showCommunityInviteAlert = $state(false);
 
@@ -69,34 +65,6 @@
 			localStorage.setItem(STORAGE_KEY_COMMUNITY_INVITE_DISMISSED, '1');
 		} catch {
 			// Local storage can be unavailable in private browsing contexts.
-		}
-	}
-
-	function markNewFontsFeatureDialogSeen() {
-		try {
-			localStorage.setItem(
-				STORAGE_KEY_NEW_FONTS_FEATURE_DIALOG,
-				getNewFontsDialogFingerprint()
-			);
-		} catch {
-			// Local storage can be unavailable in private browsing contexts.
-		}
-	}
-
-	function onNewFontsFeatureDialogOpenChange(open: boolean) {
-		newFontsFeatureDialogOpen = open;
-		if (!open) markNewFontsFeatureDialogSeen();
-	}
-
-	function isNewFontsFeatureDialogSeen(): boolean {
-		try {
-			const seen = localStorage.getItem(STORAGE_KEY_NEW_FONTS_FEATURE_DIALOG);
-			if (!seen) return false;
-			// Legacy dismiss flag — re-show when the new-font list has changed.
-			if (seen === '1') return getNewFontsDialogFingerprint() === '';
-			return seen === getNewFontsDialogFingerprint();
-		} catch {
-			return true;
 		}
 	}
 
@@ -124,7 +92,6 @@
 	function isAnyHomeDialogVisible(): boolean {
 		return (
 			pickleballKeychainFeatureDialogOpen ||
-			newFontsFeatureDialogOpen ||
 			pendingBetaDesigner !== null ||
 			pendingSubscriberDesigner !== null
 		);
@@ -132,19 +99,17 @@
 
 	function openHomeFeatureDialog(id: HomeFeatureDialogId) {
 		if (id === 'pickleballKeychain') pickleballKeychainFeatureDialogOpen = true;
-		else newFontsFeatureDialogOpen = true;
 	}
 
 	/** Show at most one welcome/feature dialog per home visit; postpone if another modal is open. */
 	function showHomeFeatureDialogs() {
 		const shouldShowPickleballKeychain = !isPickleballKeychainFeatureDialogSeen();
-		const shouldShowNewFonts =
-			getNewFontsDialogFingerprint().length > 0 && !isNewFontsFeatureDialogSeen();
 		const pending = getPendingHomeFeatureDialog();
 		const next = resolveNextHomeFeatureDialog({
 			pending,
+			shouldShowHoopTag: false,
 			shouldShowPickleballKeychain,
-			shouldShowNewFonts
+			shouldShowFavorite: false
 		});
 
 		if (!next) {
@@ -172,10 +137,6 @@
 		showHomeFeatureDialogs();
 	});
 
-	function tryNewFontsFromDialog() {
-		onSelect('textOutline');
-	}
-
 	function tryPickleballKeychainFromDialog() {
 		onSelect('pickleballKeychain');
 	}
@@ -195,6 +156,7 @@
 	type StyleName =
 		| 'textOutline'
 		| 'initial'
+		| 'monogramInsert'
 		| 'flower'
 		| 'basicName'
 		| 'idNameTag'
@@ -278,24 +240,7 @@
 	// "Updated" badge. Any designer listed here gets the Updated badge.
 	// Keep each note to one or two sentences.
 	const UPDATE_NOTES: Partial<Record<StyleName, string>> = {
-		basicName:
-			'Color preset gallery plus optional text-outline layer with a matching border frame. Import starters or save your own combos; presets sync to your account when signed in.',
-		textOutline:
-			'Side-tab keyring style — a fixed left-center tab with adjustable extension and hole size, plus the original round corner ring. Also: new fonts, inset border rim, text-outline layer, and color presets.',
-		// whistleBagTag:
-		// 	'Optional text-outline layer (middle) plus a color preset gallery (base, outline, and border/text). Presets sync when signed in.',
-		// whistleV2:
-		// 	'Color preset gallery for Accent, Main, and Border — import starters or save your own. Presets sync to your account when signed in.',
-		idNameTagV2:
-			'Back print (underside text) is available on invite — contact support for early access. Also: dual lace loops, text-outline layer, and synced color presets.',
-		whistle:
-			'Custom Whistle text position X/Y sliders and settings now persist across visits.',
-		dogtag:
-			'Optional text-outline layer with a matching border frame, plus a color preset gallery (base, outline, and text/border). Presets sync when signed in.',
-		namePuzzle:
-			'Letters with descenders (like Q) no longer shrink or shift the rest of the name — only the base grows to fit the tail.',
-		plateBadge:
-			'Multiline text — press Enter for a new line. The layout view shows a full preview of the plate base.'
+		
 	};
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);
@@ -416,10 +361,10 @@
 		},
 		{
 			id: 'engraveNamePlate',
-			title: 'Engrave name plate',
+			title: 'Engrave Name Plate',
 			description: 'Contour plate from your text with an engraved pocket and optional keyring tab.',
 			imageSrc: '/images/engrave-name-plate.png',
-			imageAlt: 'Engrave name plate preview'
+			imageAlt: 'Engrave Name Plate preview'
 		},
 		{
 			id: 'bumpyText',
@@ -469,6 +414,14 @@
 			description: 'Large initial with smaller name text',
 			imageSrc: '/images/text+initial.png',
 			imageAlt: 'Text & Initial preview'
+		},
+		{
+			id: 'monogramInsert',
+			title: 'Monogram Insert',
+			description:
+				'Large initial with an embedded name pocket and a separate name insert — two-part print.',
+			imageSrc: '/images/monogram-insert.png',
+			imageAlt: 'Monogram Insert preview'
 		},
 		{
 			id: 'flower',
@@ -1262,11 +1215,4 @@
 	open={pickleballKeychainFeatureDialogOpen}
 	onOpenChange={onPickleballKeychainFeatureDialogOpenChange}
 	onTryIt={tryPickleballKeychainFromDialog}
-/>
-
-<NewFontsFeatureDialog
-	open={newFontsFeatureDialogOpen}
-	onOpenChange={onNewFontsFeatureDialogOpenChange}
-	onTryIt={tryNewFontsFromDialog}
-	{subscriptionStatus}
 />

@@ -19,6 +19,7 @@ type DesignerModule = { default: DesignerComponent };
 const LOADERS: Record<DesignerId, () => Promise<DesignerModule>> = {
 	textOutline: () => import('$lib/components/TextOutlineDesigner.svelte'),
 	initial: () => import('$lib/components/InitialDesigner.svelte'),
+	monogramInsert: () => import('$lib/components/InitialAndNameDesigner.svelte'),
 	flower: () => import('$lib/components/FlowerDesigner.svelte'),
 	basicName: () => import('$lib/components/BasicNameDesigner.svelte'),
 	idNameTag: () => import('$lib/components/IdNameTagDesigner.svelte'),

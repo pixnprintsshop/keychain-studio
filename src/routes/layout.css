@@ -289,6 +289,13 @@
 	font-style: normal;
 }
 
+@font-face {
+	font-family: 'Varsity Relaxa Slab Serif';
+	src: url('/fonts/VarsityRelaxaSlabSerif-Regular.otf') format('opentype');
+	font-weight: 400;
+	font-style: normal;
+}
+
 @layer base {
 	* {
 		@apply border-border outline-ring/50;

@@ -3,6 +3,7 @@
 export type DesignerId =
 	| 'textOutline'
 	| 'initial'
+	| 'monogramInsert'
 	| 'flower'
 	| 'basicName'
 	| 'idNameTag'
@@ -35,6 +36,7 @@ export type DesignerId =
 export const DESIGNER_IDS: readonly DesignerId[] = [
 	'textOutline',
 	'initial',
+	'monogramInsert',
 	'flower',
 	'basicName',
 	'idNameTag',

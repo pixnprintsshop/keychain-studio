@@ -25,6 +25,7 @@ import lobsterTwoJson from './assets/fonts/Lobster Two_Regular.json';
 import roadsideSansJson from './assets/fonts/Roadside Sans_Regular.json';
 import trainOneJson from './assets/fonts/Train One_Regular.json';
 import daffiysJson from './assets/fonts/Daffiys_Regular.json';
+import varsityRelaxaSlabSerifJson from './assets/fonts/Varsity Relaxa Slab Serif_Regular.json';
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -62,8 +63,6 @@ export interface FontOption {
 	label: string;
 	json: any;
 	fontFamily: string;
-	/** Shown in the home “New fonts” feature dialog. Set when adding a font. */
-	isNew?: boolean;
 }
 
 export const FONT_OPTIONS: FontOption[] = [
@@ -90,8 +89,7 @@ export const FONT_OPTIONS: FontOption[] = [
 		key: 'Kablammo_Regular',
 		label: 'Kablammo (Regular)',
 		json: kablammoJson,
-		fontFamily: 'Kablammo',
-		isNew: true
+		fontFamily: 'Kablammo'
 	},
 	{
 		key: 'Beautiful Harmony_Regular',
@@ -109,29 +107,25 @@ export const FONT_OPTIONS: FontOption[] = [
 		key: 'Milkshake_Regular',
 		label: 'Milkshake (Regular)',
 		json: milkshakeJson,
-		fontFamily: 'Milkshake',
-		isNew: true
+		fontFamily: 'Milkshake'
 	},
 	{
 		key: 'Ngaco_Regular',
 		label: 'Ngaco (Regular)',
 		json: ngacoJson,
-		fontFamily: 'Ngaco',
-		isNew: true
+		fontFamily: 'Ngaco'
 	},
 	{
 		key: 'Miltonian_Regular',
 		label: 'Miltonian (Regular)',
 		json: miltonianJson,
-		fontFamily: 'Miltonian',
-		isNew: true
+		fontFamily: 'Miltonian'
 	},
 	{
 		key: 'Monoton_Regular',
 		label: 'Monoton (Regular)',
 		json: monotonJson,
-		fontFamily: 'Monoton',
-		isNew: true
+		fontFamily: 'Monoton'
 	},
 	{
 		key: 'Bebas Neue_Regular',
@@ -143,44 +137,38 @@ export const FONT_OPTIONS: FontOption[] = [
 		key: 'Black Ops One_Regular',
 		label: 'Black Ops One (Regular)',
 		json: blackOpsOneJson,
-		fontFamily: 'Black Ops One',
-		isNew: true
+		fontFamily: 'Black Ops One'
 	},
 	{
 		key: 'Berkshire Swash_Regular',
 		label: 'Berkshire Swash (Regular)',
 		json: berkshireSwashJson,
-		fontFamily: 'Berkshire Swash',
-		isNew: true
+		fontFamily: 'Berkshire Swash'
 	},
 	{
 		key: 'Cherry Bomb One_Regular',
 		label: 'Cherry Bomb One (Regular)',
 		json: cherryBombOneJson,
-		fontFamily: 'Cherry Bomb One',
-		isNew: true
+		fontFamily: 'Cherry Bomb One'
 	},
 	{
 		key: 'Cherry Swash_Bold',
 		label: 'Cherry Swash (Bold)',
 		json: cherrySwashJson,
-		fontFamily: 'Cherry Swash',
-		isNew: true
+		fontFamily: 'Cherry Swash'
 	},
 	{ key: 'DynaPuff_Bold', label: 'DynaPuff (Bold)', json: dynaPuffJson, fontFamily: 'DynaPuff' },
 	{
 		key: 'Fascinate Inline_Regular',
 		label: 'Fascinate Inline (Regular)',
 		json: fascinateInlineJson,
-		fontFamily: 'Fascinate Inline',
-		isNew: true
+		fontFamily: 'Fascinate Inline'
 	},
 	{
 		key: 'Getlles_Regular',
 		label: 'Getlles (Regular)',
 		json: getllesJson,
-		fontFamily: 'Getlles',
-		isNew: true
+		fontFamily: 'Getlles'
 	},
 	{ key: 'Coiny_Regular', label: 'Coiny (Regular)', json: coinyJson, fontFamily: 'Coiny' },
 	{
@@ -205,21 +193,21 @@ export const FONT_OPTIONS: FontOption[] = [
 		key: 'Train One_Regular',
 		label: 'Train One (Regular)',
 		json: trainOneJson,
-		fontFamily: 'Train One',
-		isNew: true
+		fontFamily: 'Train One'
 	},
 	{
 		key: 'Daffiys_Regular',
 		label: 'Daffiys (Regular)',
 		json: daffiysJson,
-		fontFamily: 'Daffiys',
-		isNew: true
+		fontFamily: 'Daffiys'
+	},
+	{
+		key: 'Varsity Relaxa Slab',
+		label: 'Varsity Relaxa Slab (Regular)',
+		json: varsityRelaxaSlabSerifJson,
+		fontFamily: 'Varsity Relaxa Slab Serif'
 	}
 ];
-
-export function getNewFontOptions(): FontOption[] {
-	return FONT_OPTIONS.filter((font) => font.isNew);
-}
 
 export const DEFAULT_FONT_SETTINGS_OUTLINE: FontSettings = {
 	textSize: 13,
@@ -241,7 +229,7 @@ export const DEFAULT_FONT_SETTINGS_INITIAL: FontSettings = {
 	keyringEnabled: true,
 	initialDepth: 10,
 	initialTextSize: 39,
-	initialFontKey: 'Milkyway_Regular'
+	initialFontKey: 'Varsity Relaxa Slab'
 };
 
 export const DEFAULT_CHAR_SETTINGS: CharSettings = {
@@ -255,7 +243,7 @@ export const DEFAULT_CHAR_SETTINGS: CharSettings = {
 
 export const DEFAULT_FONT_KEY_OUTLINE = 'Titan One_Regular';
 export const DEFAULT_FONT_KEY_INITIAL = 'Beautiful Harmony_Regular';
-export const DEFAULT_INITIAL_FONT_KEY = 'Milkyway_Regular';
+export const DEFAULT_INITIAL_FONT_KEY = 'Varsity Relaxa Slab';
 export const DEFAULT_TEXT = 'Name';
 
 const fontLoader = new FontLoader();

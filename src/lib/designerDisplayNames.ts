@@ -5,6 +5,7 @@ import { isDesignerId } from '$lib/designers/ids';
 const DESIGNER_DISPLAY_NAMES: Record<DesignerId, string> = {
 	textOutline: 'Text Only',
 	initial: 'Text & Initial',
+	monogramInsert: 'Monogram Insert',
 	flower: 'Flower + Initial',
 	basicName: 'Basic Name Tag',
 	idNameTag: 'ID Name Tag',
