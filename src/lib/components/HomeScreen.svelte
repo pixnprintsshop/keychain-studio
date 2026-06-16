@@ -179,6 +179,7 @@
 		| 'hoopTag'
 		| 'articulatedKeychain'
 		| 'spotifyCodeKeychain'
+		| 'qrCodeMaker'
 		| 'namePuzzle'
 		| 'engraveNamePlate'
 		| 'cakeTopper'
@@ -286,6 +287,14 @@
 			description: 'Floating text model for quick name plates or labels.',
 			imageSrc: '/images/text-only.png',
 			imageAlt: 'Standalone Name Keychain preview'
+		},
+		{
+			id: 'qrCodeMaker',
+			title: 'QR Code Maker',
+			description:
+				'Turn any URL or text into a scannable QR code with optional label and keyring.',
+			imageSrc: '/images/qr-code-maker.png',
+			imageAlt: 'QR Code Maker preview'
 		},
 		{
 			id: 'spotifyCodeKeychain',

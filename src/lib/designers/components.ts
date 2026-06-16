@@ -46,6 +46,7 @@ const LOADERS: Record<DesignerId, () => Promise<DesignerModule>> = {
 	motorcyclePlateBar: () => import('$lib/components/PlateBadgeDesigner.svelte'),
 	articulatedKeychain: () => import('$lib/components/ArticulatedKeychainDesigner.svelte'),
 	spotifyCodeKeychain: () => import('$lib/components/SpotifyKeychainDesigner.svelte'),
+	qrCodeMaker: () => import('$lib/components/QrCodeMakerDesigner.svelte'),
 	addressNumberSign: () => import('$lib/components/HouseNumberPlaqueDesigner.svelte'),
 	doorNamePlaque: () => import('$lib/components/RoomSignDesigner.svelte')
 };

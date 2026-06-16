@@ -277,30 +277,24 @@ export function createRoundedRectShape(
 	const h = Math.max(0.01, halfH);
 	const r = Math.max(0, Math.min(cornerRadius, w, h));
 	const shape = new THREE.Shape();
-	const segments = Math.max(2, Math.min(16, Math.ceil((r * Math.PI) / 2)));
-	function arcPoints(
-		cx: number,
-		cy: number,
-		startAngle: number,
-		endAngle: number
-	): { x: number; y: number }[] {
-		const points: { x: number; y: number }[] = [];
-		for (let i = 1; i <= segments; i++) {
-			const t = i / segments;
-			const angle = startAngle + t * (endAngle - startAngle);
-			points.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
-		}
-		return points;
+
+	if (r <= 0) {
+		shape.moveTo(-w, h);
+		shape.lineTo(w, h);
+		shape.lineTo(w, -h);
+		shape.lineTo(-w, -h);
+		shape.lineTo(-w, h);
+		return shape;
 	}
+
 	shape.moveTo(-w, h - r);
-	if (r > 0) arcPoints(-w + r, h - r, Math.PI, Math.PI / 2).forEach((p) => shape.lineTo(p.x, p.y));
+	shape.absarc(-w + r, h - r, r, Math.PI, Math.PI / 2, true);
 	shape.lineTo(w - r, h);
-	if (r > 0) arcPoints(w - r, h - r, Math.PI / 2, 0).forEach((p) => shape.lineTo(p.x, p.y));
+	shape.absarc(w - r, h - r, r, Math.PI / 2, 0, true);
 	shape.lineTo(w, -h + r);
-	if (r > 0) arcPoints(w - r, -h + r, 0, -Math.PI / 2).forEach((p) => shape.lineTo(p.x, p.y));
+	shape.absarc(w - r, -h + r, r, 0, -Math.PI / 2, true);
 	shape.lineTo(-w + r, -h);
-	if (r > 0)
-		arcPoints(-w + r, -h + r, -Math.PI / 2, -Math.PI).forEach((p) => shape.lineTo(p.x, p.y));
+	shape.absarc(-w + r, -h + r, r, -Math.PI / 2, Math.PI, true);
 	shape.lineTo(-w, h - r);
 	return shape;
 }

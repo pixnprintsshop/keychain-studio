@@ -27,6 +27,7 @@ const DESIGNER_DISPLAY_NAMES: Record<DesignerId, string> = {
 	hoopTag: 'HoopTag',
 	articulatedKeychain: 'Articulated Keychain',
 	spotifyCodeKeychain: 'Spotify Code Keychain',
+	qrCodeMaker: 'QR Code Maker',
 	namePuzzle: 'Name Puzzle',
 	engraveNamePlate: 'Engrave Name Plate',
 	cakeTopper: 'Cake Topper',

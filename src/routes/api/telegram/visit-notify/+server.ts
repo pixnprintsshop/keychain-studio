@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
 import { isTelegramNotifyEnabled } from '$lib/server/opsInDev';
+import { claimFirstVisitNotifySlot, releaseVisitNotifySlot } from '$lib/server/visit-notify-sent';
 import { getFlag, resolveIpAndCountry, summarizeUserAgent } from '$lib/server/visit-info';
 
 const TELEGRAM_API = 'https://api.telegram.org';
@@ -26,13 +27,19 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ error: 'Invalid JSON' }, { status: 400 });
 	}
 
-	const { email, userId, subscriptionStatus, referrer, view } = (data ?? {}) as {
+	const { email, userId, guestKey, subscriptionStatus, referrer, view } = (data ?? {}) as {
 		email?: string;
 		userId?: string;
+		guestKey?: string;
 		subscriptionStatus?: string;
 		referrer?: string;
 		view?: string;
 	};
+
+	const claim = await claimFirstVisitNotifySlot({ userId, guestKey });
+	if (!claim.claimed) {
+		return json({ ok: true, skipped: true, reason: claim.reason ?? 'repeat_visitor' });
+	}
 
 	const { ip, country } = await resolveIpAndCountry(request);
 	const flag = getFlag(country);
@@ -79,11 +86,13 @@ export const POST: RequestHandler = async ({ request }) => {
 		if (!res.ok) {
 			const errBody = await res.text();
 			console.error('Telegram visit notify error:', res.status, errBody);
+			if (claim.key) await releaseVisitNotifySlot(claim.key);
 			return json({ error: 'Failed to send' }, { status: 500 });
 		}
 		return json({ ok: true });
 	} catch (err) {
 		console.error('Telegram visit notify error:', err);
+		if (claim.key) await releaseVisitNotifySlot(claim.key);
 		return json({ error: 'Failed to send' }, { status: 500 });
 	}
 };

@@ -37,6 +37,7 @@ const DESIGN_NAME_TO_ID: Record<string, DesignerId> = {
 	'Articulated Keychain': 'articulatedKeychain',
 	'Spotify Code Keychain': 'spotifyCodeKeychain',
 	'Spotify Keychain': 'spotifyCodeKeychain',
+	'QR Code Maker': 'qrCodeMaker',
 	'Name Puzzle': 'namePuzzle',
 	'Puzzle Pieces A–Z': 'namePuzzle',
 	'Engrave Name Plate': 'engraveNamePlate',

@@ -560,7 +560,7 @@
 		// subscription state has time to settle, giving the operator user info when
 		// available. The helper itself dedupes via sessionStorage.
 		visitNotifyTimer = window.setTimeout(() => {
-			notifyVisit({
+			void notifyVisit({
 				email: user?.email,
 				userId: user?.id,
 				subscriptionStatus,

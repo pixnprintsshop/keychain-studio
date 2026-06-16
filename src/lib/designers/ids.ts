@@ -30,6 +30,7 @@ export type DesignerId =
 	| 'motorcyclePlateBar'
 	| 'articulatedKeychain'
 	| 'spotifyCodeKeychain'
+	| 'qrCodeMaker'
 	| 'addressNumberSign'
 	| 'doorNamePlaque';
 
@@ -63,6 +64,7 @@ export const DESIGNER_IDS: readonly DesignerId[] = [
 	'motorcyclePlateBar',
 	'articulatedKeychain',
 	'spotifyCodeKeychain',
+	'qrCodeMaker',
 	'addressNumberSign',
 	'doorNamePlaque'
 ] as const;

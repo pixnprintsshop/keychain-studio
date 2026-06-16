@@ -1,11 +1,12 @@
 import type { SubscriptionStatus } from './subscription';
+import { getBrowserFingerprintHash } from './browserFingerprint';
 import { formatSubscriptionStatusForNotify } from './notifyFormat';
 import { isTelegramNotifyEnabled } from './opsInDev';
 
 /**
  * Sentinel set in `sessionStorage` after a visit notification has fired so we
  * only ping the operator once per browser session (per tab restore counts as
- * the same session).
+ * the same session). Server-side dedupe ensures repeat users never notify again.
  */
 const SESSION_KEY = 'pixnprints-visit-notified';
 
@@ -21,8 +22,9 @@ export interface VisitNotifyPayload {
  * Notify backend of a new visit (sends to Telegram). Fire-and-forget, gated by
  * `sessionStorage` so we only fire once per browser session. Country is resolved
  * server-side from request headers; the client only contributes user info.
+ * Repeat visitors are skipped server-side via `visit_notify_sent`.
  */
-export function notifyVisit(payload: VisitNotifyPayload): void {
+export async function notifyVisit(payload: VisitNotifyPayload): Promise<void> {
 	if (typeof window === 'undefined') return;
 	if (!isTelegramNotifyEnabled()) return;
 	try {
@@ -36,9 +38,12 @@ export function notifyVisit(payload: VisitNotifyPayload): void {
 	const referrer =
 		typeof document !== 'undefined' && document.referrer ? document.referrer : undefined;
 
+	const guestKey = payload.userId ? undefined : await getBrowserFingerprintHash();
+
 	const body = {
 		email: payload.email ?? undefined,
 		userId: payload.userId ?? undefined,
+		guestKey,
 		subscriptionStatus: formatSubscriptionStatusForNotify(payload.subscriptionStatus),
 		referrer,
 		view: payload.view
