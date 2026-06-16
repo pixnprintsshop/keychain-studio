@@ -7,6 +7,7 @@
 	import LoginModal from '$lib/components/LoginModal.svelte';
 	import MaintenancePage from '$lib/components/MaintenancePage.svelte';
 	import PromotionDialog from '$lib/components/PromotionDialog.svelte';
+	import SubscriptionTrialUpgradeDialog from '$lib/components/SubscriptionTrialUpgradeDialog.svelte';
 	import RatingPromptModal from '$lib/components/RatingPromptModal.svelte';
 	import SupportShareDialog from '$lib/components/SupportShareDialog.svelte';
 	import ThankYouDialog from '$lib/components/ThankYouDialog.svelte';
@@ -136,6 +137,7 @@
 	let showThankYouDialog = $state(false);
 	let showSupportShareDialog = $state(false);
 	let showPromotionDialog = $state(false);
+	let showSubscriptionTrialUpgradeDialog = $state(false);
 	let canShowShareCreditsPromo = $state(false);
 	let showRatingPromptDialog = $state(false);
 	/** Bumped when the local calendar day changes (visibility) so the daily rating prompt can re-evaluate. */
@@ -171,7 +173,24 @@
 	}
 
 	function showPricing() {
+		if (
+			subscriptionStatus?.onTrial &&
+			subscriptionTrial.loaded &&
+			!subscriptionTrial.hasCredits
+		) {
+			showSubscriptionTrialUpgradeDialog = true;
+			return;
+		}
 		goto(resolve('/pricing'));
+	}
+
+	async function handleSubscriptionTrialConverted() {
+		await refreshAccessStatus();
+		clearSubscriptionTrialState();
+	}
+
+	function openPricingFromTrialUpgrade() {
+		goto(resolve('/pricing?upgrade=trial'));
 	}
 
 	async function refreshAccessStatus() {
@@ -373,6 +392,9 @@
 	});
 	$effect(() => {
 		setDialogBlocking('promotion', showPromotionDialog);
+	});
+	$effect(() => {
+		setDialogBlocking('subscriptionTrialUpgrade', showSubscriptionTrialUpgradeDialog);
 	});
 	$effect(() => {
 		setDialogBlocking('rating', showRatingPromptDialog);
@@ -708,6 +730,17 @@
 		onClose={closePromotionDialog}
 		onShare={handleShareCreditsPromoShare}
 		onMessageUs={handleShareCreditsPromoMessage}
+	/>
+
+	<SubscriptionTrialUpgradeDialog
+		open={showSubscriptionTrialUpgradeDialog}
+		onOpenChange={(open) => {
+			showSubscriptionTrialUpgradeDialog = open;
+		}}
+		{session}
+		{subscriptionStatus}
+		onConverted={handleSubscriptionTrialConverted}
+		onViewPricing={openPricingFromTrialUpgrade}
 	/>
 
 	<RatingPromptModal

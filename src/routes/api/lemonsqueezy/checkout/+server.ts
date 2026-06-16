@@ -3,8 +3,7 @@ import type { RequestHandler } from './$types';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '$env/dynamic/private';
 import { captureServerEvent, flushServerAnalytics } from '$lib/server/analytics';
-
-const LEMONSQUEEZY_API = 'https://api.lemonsqueezy.com/v1/checkouts';
+import { getLemonSqueezyEnv, lemonSqueezyFetch, variantIdForPlan } from '$lib/server/lemonsqueezy';
 
 export const POST: RequestHandler = async ({ request }) => {
 	const authHeader = request.headers.get('Authorization');
@@ -13,7 +12,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ error: 'Sign in to subscribe' }, { status: 401 });
 	}
 
-	let body: { plan?: string };
+	let body: { plan?: string; skipTrial?: boolean };
 	try {
 		body = await request.json();
 	} catch {
@@ -25,12 +24,8 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ error: 'Invalid plan. Use "monthly" or "yearly".' }, { status: 400 });
 	}
 
-	const storeId = env.LEMONSQUEEZY_STORE_ID;
-	const apiKey = env.LEMONSQUEEZY_API_KEY;
-	const variantMonthlyId = env.LEMONSQUEEZY_VARIANT_MONTHLY_ID;
-	const variantYearlyId = env.LEMONSQUEEZY_VARIANT_YEARLY_ID;
-
-	if (!storeId || !apiKey || !variantMonthlyId || !variantYearlyId) {
+	const ls = getLemonSqueezyEnv();
+	if (!ls) {
 		console.error('Missing Lemon Squeezy env vars');
 		return json({ error: 'Checkout not configured' }, { status: 500 });
 	}
@@ -50,7 +45,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ error: 'Invalid or expired session. Please sign in again.' }, { status: 401 });
 	}
 
-	const variantId = plan === 'monthly' ? variantMonthlyId : variantYearlyId;
+	const variantId = variantIdForPlan(ls, plan);
 	const origin =
 		request.headers.get('origin') || request.url.replace(/\/api\/lemonsqueezy\/checkout.*$/, '');
 	const redirectUrl = `${origin}/?subscription=success`;
@@ -62,6 +57,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				product_options: {
 					redirect_url: redirectUrl
 				},
+				...(body.skipTrial === true ? { checkout_options: { skip_trial: true } } : {}),
 				checkout_data: {
 					custom: {
 						user_id: user.id
@@ -69,19 +65,14 @@ export const POST: RequestHandler = async ({ request }) => {
 				}
 			},
 			relationships: {
-				store: { data: { type: 'stores', id: storeId } },
+				store: { data: { type: 'stores', id: ls.storeId } },
 				variant: { data: { type: 'variants', id: variantId } }
 			}
 		}
 	};
 
-	const res = await fetch(LEMONSQUEEZY_API, {
+	const res = await lemonSqueezyFetch(ls.apiKey, '/checkouts', {
 		method: 'POST',
-		headers: {
-			Accept: 'application/vnd.api+json',
-			'Content-Type': 'application/vnd.api+json',
-			Authorization: `Bearer ${apiKey}`
-		},
 		body: JSON.stringify(payload)
 	});
 

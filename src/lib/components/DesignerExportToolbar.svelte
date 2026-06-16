@@ -2,6 +2,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { freeTrial, getFingerprintBlockedMessage } from '$lib/freeTrial.svelte';
 	import { subscriptionTrial } from '$lib/subscriptionTrial.svelte';
+	import { getStudioContext } from '$lib/studio/context.svelte';
 	import { capture } from '$lib/analytics';
 
 	interface Props {
@@ -52,7 +53,15 @@
 	const showSubscriptionTrialChip = $derived(
 		subscriptionTrial.onTrial && subscriptionTrial.hasCredits
 	);
+	const showSubscriptionTrialExhausted = $derived(
+		subscriptionTrial.onTrial && subscriptionTrial.loaded && !subscriptionTrial.hasCredits
+	);
 	const showFingerprintBlockedChip = $derived(showLockIcon && freeTrial.fingerprintBlocked);
+
+	function handlePurchaseNow() {
+		capture('subscription_trial_upgrade_clicked', { source: 'export_toolbar' });
+		getStudioContext().showPricing();
+	}
 
 	function handleSnapshot() {
 		capture('snapshot_downloaded');
@@ -100,6 +109,17 @@
 			</svg>
 			Trial — {subscriptionTrial.remaining}/{subscriptionTrial.maxPerDesign} left (this design)
 		</span>
+	{/if}
+	{#if showSubscriptionTrialExhausted}
+		<Button
+			variant="outline"
+			size="sm"
+			class="rounded-full border-violet-300 bg-violet-50/95 px-3 py-1.5 text-[11px] font-semibold text-violet-900 shadow-sm backdrop-blur hover:bg-violet-100"
+			onclick={handlePurchaseNow}
+			title="End trial and unlock unlimited exports"
+		>
+			Purchase now
+		</Button>
 	{/if}
 	{#if showFreeTrialChip}
 		<span
