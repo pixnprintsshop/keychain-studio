@@ -1,0 +1,34 @@
+---
+description: Update HomeScreen UPDATE_NOTES when changing designers
+globs: src/lib/components/**/*Designer*.svelte
+alwaysApply: false
+---
+
+# Designer release notes (`UPDATE_NOTES`)
+
+When you add or change a designer feature, update `UPDATE_NOTES` in `src/lib/components/HomeScreen.svelte`.
+
+## Why
+
+`UPDATE_NOTES` drives the **Updated** badge and popover on the home grid. Skipping it hides user-facing changes.
+
+## What to do
+
+1. Find the designer's `StyleName` id (e.g. `textOutline`, `roomSign`, `dogtag`).
+2. Add or revise its entry in `UPDATE_NOTES` — **one or two sentences**, user-facing, no implementation jargon.
+3. Do **not** list designers that only use the **New** badge (`VITE_NEW_DESIGNERS`); Updated and New badges are mutually exclusive.
+
+## Example
+
+```ts
+const UPDATE_NOTES: Partial<Record<StyleName, string>> = {
+  textOutline:
+    'Optional inset border on the base outline, color presets, and optional text-outline layer. Presets sync when signed in.'
+};
+```
+
+## Checklist (same PR / change)
+
+- [ ] Feature works in the designer
+- [ ] `UPDATE_NOTES[styleId]` added or updated
+- [ ] Copy is short and describes what the user gets

@@ -4,6 +4,10 @@
 - **Package Manager**: pnpm
 - **Add-ons**: prettier, eslint, tailwindcss, sveltekit-adapter, mcp
 
+## Designer changes
+
+When adding or changing a designer feature, always update **`UPDATE_NOTES`** in `src/lib/components/HomeScreen.svelte` (drives the home **Updated** badge popover). Keep each note to one or two user-facing sentences.
+
 ---
 
 You are able to use the Svelte MCP server, where you have access to comprehensive Svelte 5 and SvelteKit documentation. Here's how to use the available tools effectively:
