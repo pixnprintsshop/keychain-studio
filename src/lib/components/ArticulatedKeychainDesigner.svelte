@@ -30,7 +30,7 @@
 	} from '$lib/utils-3d';
 	import { notifyExportEvent } from '$lib/exportNotify';
 	import { upload3mfToSupabase } from '$lib/upload3mf';
-	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
+	import { ensureExportAccess, getExportTitle, showExportLockIcon, type SubscriptionStatus } from '$lib/subscription';
 	import { tickThenYieldToPaint } from '$lib/yield-to-paint';
 
 	interface Props {
@@ -750,7 +750,7 @@
 					onOpenWithBambuStudio={() => openWithBambuStudio()}
 					openBambuStudioLoading={openBambuStudioLoading}
 					{exportLoading}
-					showLockIcon={!user || !subscriptionStatus?.isActive}
+					showLockIcon={showExportLockIcon(user, subscriptionStatus)}
 				/>
 			</div>
 		</section>
