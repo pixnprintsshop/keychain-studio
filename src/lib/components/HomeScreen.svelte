@@ -38,6 +38,7 @@
 		type HomeFeatureDialogId
 	} from '$lib/homeFeatureDialogQueue';
 	import { getFont } from '$lib/utils-3d';
+	import { resolveDesignerId } from '$lib/designers/ids';
 
 	const STORAGE_KEY_PICKLEBALL_KEYCHAIN_FEATURE_DIALOG = 'pickleball-keychain-feature-dialog-v1';
 	const STORAGE_KEY_COMMUNITY_INVITE_DISMISSED = 'messenger-community-invite-dismissed-v1';
@@ -154,37 +155,37 @@
 	});
 
 	type StyleName =
-		| 'textOutline'
-		| 'initial'
+		| 'standaloneNameKeychain'
+		| 'layeredMonogram'
 		| 'monogramInsert'
 		| 'flower'
-		| 'basicName'
+		| 'classicNameTagKeychain'
 		| 'idNameTag'
 		| 'idNameTagV2'
 		| 'customSvg'
 		| 'charm'
 		| 'keycap'
 		| 'keycapSet'
-		| 'whistle'
-		| 'whistleV2'
+		| 'personalizedWhistleKeychain'
+		| 'multicolorWhistleKeychain'
 		| 'whistleBagTag'
 		| 'stanleyTopper'
-		| 'strawTopper'
-		| 'pencilTopper'
+		| 'strawNameClip'
+		| 'pencilNameSleeve'
 		| 'dogtag'
 		| 'bumpyText'
-		| 'bowKeychain'
+		| 'ribbonBowKeychain'
 		| 'pickleballKeychain'
 		| 'hoopTag'
 		| 'articulatedKeychain'
-		| 'spotifyKeychain'
+		| 'spotifyCodeKeychain'
 		| 'namePuzzle'
 		| 'engraveNamePlate'
 		| 'cakeTopper'
-		| 'canvasStudio'
-		| 'plateBadge'
-		| 'houseNumberPlaque'
-		| 'roomSign'
+		| 'freeformDesignCanvas'
+		| 'motorcyclePlateBar'
+		| 'addressNumberSign'
+		| 'doorNamePlaque'
 
 	interface DesignerItem {
 		id: StyleName;
@@ -231,7 +232,8 @@
 			envList
 				.split(',')
 				.map((x) => x.trim())
-				.filter(Boolean) as StyleName[]
+				.map((id) => resolveDesignerId(id))
+				.filter((id): id is StyleName => id !== null)
 		);
 	}
 	const NEW_DESIGNERS = getNewDesigners();
@@ -243,7 +245,11 @@
 		
 	};
 
-	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);
+	const BETA_DESIGNERS: Set<StyleName> = new Set([
+		'strawNameClip',
+		'pencilNameSleeve',
+		'motorcyclePlateBar'
+	]);
 	const COMING_SOON_DESIGNERS: Set<StyleName> = new Set(
 		COMING_SOON_DESIGNER_IDS as unknown as StyleName[]
 	);
@@ -260,11 +266,11 @@
 			imageAlt: 'Articulated Keychain preview'
 		},
 		{
-			id: 'whistleV2',
-			title: 'Whistle v2',
+			id: 'multicolorWhistleKeychain',
+			title: 'Multicolor Whistle Keychain',
 			description: 'Multicolor whistle (Accent, Main, Border) with raised text on top.',
 			imageSrc: '/images/whistle-v2.png',
-			imageAlt: 'Whistle v2 preview'
+			imageAlt: 'Multicolor Whistle Keychain preview'
 		},
 		{
 			id: 'whistleBagTag',
@@ -275,35 +281,35 @@
 			imageAlt: 'Whistle Bag Tag preview'
 		},
 		{
-			id: 'textOutline',
-			title: 'Text Only',
+			id: 'standaloneNameKeychain',
+			title: 'Standalone Name Keychain',
 			description: 'Floating text model for quick name plates or labels.',
 			imageSrc: '/images/text-only.png',
-			imageAlt: 'Text Only preview'
+			imageAlt: 'Standalone Name Keychain preview'
 		},
 		{
-			id: 'spotifyKeychain',
-			title: 'Spotify Keychain',
+			id: 'spotifyCodeKeychain',
+			title: 'Spotify Code Keychain',
 			description:
 				'Scannable Spotify Code on a keychain base — paste an album, track, playlist, or artist link.',
 			imageSrc: '/images/spotify-keychain.png',
-			imageAlt: 'Spotify Keychain preview'
+			imageAlt: 'Spotify Code Keychain preview'
 		},
 		{
-			id: 'canvasStudio',
-			title: 'Canvas Studio',
+			id: 'freeformDesignCanvas',
+			title: 'Freeform Design Canvas',
 			description:
 				'Free-form 2D canvas with text and built-in shapes — drag, rotate, scale, then convert to 3D.',
 			// Placeholder reuse; swap with /images/canvas-studio.png when ready.
 			imageSrc: '/images/canvas-studio.png',
-			imageAlt: 'Canvas Studio preview'
+			imageAlt: 'Freeform Design Canvas preview'
 		},
 		{
-			id: 'plateBadge',
-			title: 'Plate badge',
+			id: 'motorcyclePlateBar',
+			title: 'Motorcycle Plate Bar',
 			description: 'Motorcycle plate accessory: fixed bar with end mounting slots',
 			imageSrc: '/images/plate-badge.png',
-			imageAlt: 'Motorcycle plate accessory badge examples'
+			imageAlt: 'Motorcycle Plate Bar preview'
 		},
 		{
 			id: 'cakeTopper',
@@ -327,30 +333,30 @@
 			imageAlt: 'ID Name Tag v2 preview'
 		},
 		{
-			id: 'basicName',
-			title: 'Basic Name Tag',
+			id: 'classicNameTagKeychain',
+			title: 'Classic Name Tag Keychain',
 			description: 'Simple rectangular name tag with clean, readable text.',
 			imageSrc: '/images/nametag.png',
-			imageAlt: 'Basic Name Tag preview',
+			imageAlt: 'Classic Name Tag Keychain preview',
 			attribution:
 				'https://makerworld.com/en/models/219037-keytag-keychain-with-custom-name?from=search#profileId-251645',
 			previewImageSrc: '/images/nametag-preview.png'
 		},
 		{
-			id: 'houseNumberPlaque',
-			title: 'House Number Plaque',
+			id: 'addressNumberSign',
+			title: 'Address Number Sign',
 			description:
 				'Wall plaque with multiline raised text, optional border frame, and corner mounting holes.',
 			imageSrc: '/images/house-number-plaque.png',
-			imageAlt: 'House Number Plaque preview'
+			imageAlt: 'Address Number Sign preview'
 		},
 		{
-			id: 'roomSign',
-			title: 'Room Sign',
+			id: 'doorNamePlaque',
+			title: 'Door Name Plaque',
 			description:
 				'Decorative plaque with ornate border flourishes and centered raised room name text.',
 			imageSrc: '/images/room-sign.png',
-			imageAlt: 'Room Sign preview'
+			imageAlt: 'Door Name Plaque preview'
 		},
 		{
 			id: 'keycapSet',
@@ -376,11 +382,11 @@
 			previewImageSrc: '/images/bumpy-text-preview.png'
 		},
 		{
-			id: 'bowKeychain',
-			title: 'Bow Keychain',
+			id: 'ribbonBowKeychain',
+			title: 'Ribbon Bow Keychain',
 			description: 'Bow-shaped keychain with raised text',
 			imageSrc: '/images/bow-keychain.png',
-			imageAlt: 'Bow Keychain preview',
+			imageAlt: 'Ribbon Bow Keychain preview',
 			previewImageSrc: '/images/bow-keychain-preview.png'
 		},
 		{
@@ -409,11 +415,11 @@
 			previewImageSrc: '/images/name-puzzle-preview.png'
 		},
 		{
-			id: 'initial',
-			title: 'Text & Initial',
+			id: 'layeredMonogram',
+			title: 'Layered Monogram',
 			description: 'Large initial with smaller name text',
 			imageSrc: '/images/text+initial.png',
-			imageAlt: 'Text & Initial preview'
+			imageAlt: 'Layered Monogram preview'
 		},
 		{
 			id: 'monogramInsert',
@@ -465,11 +471,11 @@
 			imageAlt: 'Keycap Maker preview'
 		},
 		{
-			id: 'whistle',
-			title: 'Custom Whistle',
+			id: 'personalizedWhistleKeychain',
+			title: 'Personalized Whistle Keychain',
 			description: 'Functional whistle with raised text.',
 			imageSrc: '/images/whistle.png',
-			imageAlt: 'Custom Whistle preview',
+			imageAlt: 'Personalized Whistle Keychain preview',
 			attribution:
 				'https://makerworld.com/en/models/119995-loud-whistle?from=search#profileId-129140',
 			previewImageSrc: '/images/whistle-preview.png'
@@ -485,19 +491,19 @@
 				'https://makerworld.com/en/models/959060-40oz-stanley-tumbler-topper-cup-name-plate?from=search'
 		},
 		{
-			id: 'strawTopper',
-			title: 'Straw Topper',
+			id: 'strawNameClip',
+			title: 'Straw Name Clip',
 			description: 'Name topper that snaps over a tumbler straw for easy cup identification.',
 			imageSrc: '/images/straw-topper.png',
-			imageAlt: 'Preview of Straw Topper',
+			imageAlt: 'Straw Name Clip preview',
 			previewImageSrc: '/images/straw-topper-preview.png'
 		},
 		{
-			id: 'pencilTopper',
-			title: 'Pencil Topper',
+			id: 'pencilNameSleeve',
+			title: 'Pencil Name Sleeve',
 			description: 'Sleeve-style topper that slides onto a pencil and shows a name or word.',
 			imageSrc: '/images/pencil-topper.png',
-			imageAlt: 'Preview of Pencil Topper personalization',
+			imageAlt: 'Pencil Name Sleeve preview',
 			previewImageSrc: '/images/pencil-topper-preview.png'
 		}
 	];

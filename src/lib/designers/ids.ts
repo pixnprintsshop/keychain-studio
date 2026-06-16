@@ -1,82 +1,106 @@
 /** Designer route ids only — safe to import from SSR param matchers (no Three.js). */
 
 export type DesignerId =
-	| 'textOutline'
-	| 'initial'
+	| 'standaloneNameKeychain'
+	| 'layeredMonogram'
 	| 'monogramInsert'
 	| 'flower'
-	| 'basicName'
+	| 'classicNameTagKeychain'
 	| 'idNameTag'
 	| 'idNameTagV2'
 	| 'customSvg'
 	| 'charm'
 	| 'keycap'
 	| 'keycapSet'
-	| 'whistle'
-	| 'whistleV2'
+	| 'personalizedWhistleKeychain'
+	| 'multicolorWhistleKeychain'
 	| 'whistleBagTag'
 	| 'stanleyTopper'
-	| 'strawTopper'
-	| 'pencilTopper'
+	| 'strawNameClip'
+	| 'pencilNameSleeve'
 	| 'dogtag'
 	| 'bumpyText'
-	| 'bowKeychain'
+	| 'ribbonBowKeychain'
 	| 'pickleballKeychain'
 	| 'hoopTag'
 	| 'namePuzzle'
 	| 'engraveNamePlate'
 	| 'cakeTopper'
-	| 'canvasStudio'
-	| 'plateBadge'
+	| 'freeformDesignCanvas'
+	| 'motorcyclePlateBar'
 	| 'articulatedKeychain'
-	| 'spotifyKeychain'
-	| 'houseNumberPlaque'
-	| 'roomSign';
+	| 'spotifyCodeKeychain'
+	| 'addressNumberSign'
+	| 'doorNamePlaque';
 
 export const DESIGNER_IDS: readonly DesignerId[] = [
-	'textOutline',
-	'initial',
+	'standaloneNameKeychain',
+	'layeredMonogram',
 	'monogramInsert',
 	'flower',
-	'basicName',
+	'classicNameTagKeychain',
 	'idNameTag',
 	'idNameTagV2',
 	'customSvg',
 	'charm',
 	'keycap',
 	'keycapSet',
-	'whistle',
-	'whistleV2',
+	'personalizedWhistleKeychain',
+	'multicolorWhistleKeychain',
 	'whistleBagTag',
 	'stanleyTopper',
-	'strawTopper',
-	'pencilTopper',
+	'strawNameClip',
+	'pencilNameSleeve',
 	'dogtag',
 	'bumpyText',
-	'bowKeychain',
+	'ribbonBowKeychain',
 	'pickleballKeychain',
 	'hoopTag',
 	'namePuzzle',
 	'engraveNamePlate',
 	'cakeTopper',
-	'canvasStudio',
-	'plateBadge',
+	'freeformDesignCanvas',
+	'motorcyclePlateBar',
 	'articulatedKeychain',
-	'spotifyKeychain',
-	'houseNumberPlaque',
-	'roomSign'
+	'spotifyCodeKeychain',
+	'addressNumberSign',
+	'doorNamePlaque'
 ] as const;
+
+/** Previous route ids → current ids (bookmarks, favorites, preset rows). */
+export const LEGACY_DESIGNER_ID_ALIASES: Record<string, DesignerId> = {
+	textOutline: 'standaloneNameKeychain',
+	initial: 'layeredMonogram',
+	initialAndName: 'monogramInsert',
+	basicName: 'classicNameTagKeychain',
+	bowKeychain: 'ribbonBowKeychain',
+	pencilTopper: 'pencilNameSleeve',
+	houseNumberPlaque: 'addressNumberSign',
+	roomSign: 'doorNamePlaque',
+	strawTopper: 'strawNameClip',
+	whistle: 'personalizedWhistleKeychain',
+	whistleV2: 'multicolorWhistleKeychain',
+	plateBadge: 'motorcyclePlateBar',
+	canvasStudio: 'freeformDesignCanvas',
+	spotifyKeychain: 'spotifyCodeKeychain'
+};
 
 export function isDesignerId(value: string): value is DesignerId {
 	return (DESIGNER_IDS as readonly string[]).includes(value);
+}
+
+export function resolveDesignerId(value: string): DesignerId | null {
+	if (isDesignerId(value)) return value;
+	return LEGACY_DESIGNER_ID_ALIASES[value] ?? null;
 }
 
 export function designerPath(id: DesignerId): string {
 	return `/${id}`;
 }
 
-/** First path segment when it is a designer route (e.g. `/basicName` → `basicName`). */
+/** First path segment when it is a designer route (legacy aliases resolve to current ids). */
 export function designerIdFromPathname(pathname: string): DesignerId | null {
 	const segment = pathname.replace(/^\//, '').split('/').filter(Boolean)[0];
-	return segment && isDesignerId(segment) ? segment : null;
+	if (!segment) return null;
+	return resolveDesignerId(segment);
 }

@@ -75,7 +75,7 @@
 	}: Props = $props();
 
 	const STORAGE_KEY = 'keychain-room-sign-settings';
-	const DESIGN_NAME = 'Room Sign';
+	const DESIGN_NAME = 'Door Name Plaque';
 	const SLUG = 'room-sign';
 	/** Vertical gap between base and decor so faces do not touch (avoids coplanar / non-manifold). */
 	const LAYER_GAP = 0.001;
@@ -592,7 +592,7 @@
 					(user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
 				subscriptionStatus,
 				designName: DESIGN_NAME,
-				designerId: 'roomSign',
+				designerId: 'doorNamePlaque',
 				format: 'stl'
 			});
 			onShowThankYou();
@@ -625,7 +625,7 @@
 					(user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
 				subscriptionStatus,
 				designName: DESIGN_NAME,
-				designerId: 'roomSign',
+				designerId: 'doorNamePlaque',
 				format: '3mf'
 			});
 			onShowThankYou();
@@ -653,7 +653,7 @@
 					(user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
 				subscriptionStatus,
 				designName: DESIGN_NAME,
-				designerId: 'roomSign',
+				designerId: 'doorNamePlaque',
 				format: 'bambu_studio'
 			});
 			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;

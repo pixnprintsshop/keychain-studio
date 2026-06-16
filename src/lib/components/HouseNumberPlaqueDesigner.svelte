@@ -62,7 +62,7 @@
 	}: Props = $props();
 
 	const STORAGE_KEY = 'keychain-house-number-plaque-settings';
-	const DESIGN_NAME = 'House Number Plaque';
+	const DESIGN_NAME = 'Address Number Sign';
 	const SLUG = 'house-number-plaque';
 
 	const LAYER_GAP = 0.001;
@@ -1214,7 +1214,7 @@
 					(user?.user_metadata?.name as string),
 				subscriptionStatus,
 				designName: DESIGN_NAME,
-				designerId: 'houseNumberPlaque',
+				designerId: 'addressNumberSign',
 				format: 'stl'
 			});
 			onShowThankYou();
@@ -1248,7 +1248,7 @@
 					(user?.user_metadata?.name as string),
 				subscriptionStatus,
 				designName: DESIGN_NAME,
-				designerId: 'houseNumberPlaque',
+				designerId: 'addressNumberSign',
 				format: '3mf'
 			});
 			onShowThankYou();
@@ -1280,7 +1280,7 @@
 					(user?.user_metadata?.name as string),
 				subscriptionStatus,
 				designName: DESIGN_NAME,
-				designerId: 'houseNumberPlaque',
+				designerId: 'addressNumberSign',
 				format: 'bambu_studio'
 			});
 			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;

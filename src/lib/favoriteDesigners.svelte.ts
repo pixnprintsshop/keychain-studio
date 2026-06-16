@@ -1,4 +1,4 @@
-import { isDesignerId, type DesignerId } from '$lib/designers/ids';
+import { isDesignerId, resolveDesignerId, type DesignerId } from '$lib/designers/ids';
 import { supabase } from '$lib/supabase';
 
 const STORAGE_KEY = 'pixnprints-favorite-designers';
@@ -21,9 +21,11 @@ function parseDesignerIds(raw: unknown): DesignerId[] {
 	const seen = new Set<DesignerId>();
 	const out: DesignerId[] = [];
 	for (const entry of raw) {
-		if (typeof entry !== 'string' || !isDesignerId(entry) || seen.has(entry)) continue;
-		seen.add(entry);
-		out.push(entry);
+		if (typeof entry !== 'string') continue;
+		const resolved = resolveDesignerId(entry);
+		if (!resolved || seen.has(resolved)) continue;
+		seen.add(resolved);
+		out.push(resolved);
 	}
 	return out;
 }

@@ -203,7 +203,7 @@ export function clearLocalHouseNumberPlaquePresets(): void {
 export async function fetchUserHouseNumberPlaquePresets(
 	userId: string
 ): Promise<HouseNumberPlaqueColorPreset[] | null> {
-	const remote = await fetchUserDesignerPresets(userId, 'houseNumberPlaque');
+	const remote = await fetchUserDesignerPresets(userId, 'addressNumberSign');
 	if (remote === null) {
 		return null;
 	}
@@ -217,7 +217,7 @@ export async function saveUserHouseNumberPlaquePresets(
 	userId: string,
 	presets: HouseNumberPlaqueColorPreset[]
 ): Promise<{ success: true } | { success: false; error: string }> {
-	return saveUserDesignerPresets(userId, 'houseNumberPlaque', presets);
+	return saveUserDesignerPresets(userId, 'addressNumberSign', presets);
 }
 
 export async function loadUserHouseNumberPlaquePresets(
@@ -225,7 +225,7 @@ export async function loadUserHouseNumberPlaquePresets(
 ): Promise<HouseNumberPlaqueColorPreset[]> {
 	return loadUserDesignerPresetsWithLocalMigration({
 		userId,
-		designerId: 'houseNumberPlaque',
+		designerId: 'addressNumberSign',
 		parse: parseHouseNumberPlaqueColorPreset,
 		loadLocal: loadLocalHouseNumberPlaquePresets,
 		clearLocal: clearLocalHouseNumberPlaquePresets
@@ -238,7 +238,7 @@ export async function persistHouseNumberPlaqueCustomPresets(
 ): Promise<{ success: true } | { success: false; error: string }> {
 	return persistDesignerCustomPresets(
 		userId,
-		'houseNumberPlaque',
+		'addressNumberSign',
 		presets,
 		saveLocalHouseNumberPlaquePresets
 	);

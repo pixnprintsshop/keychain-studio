@@ -110,7 +110,7 @@ export function saveLocalRoomSignPresets(presets: RoomSignColorPreset[]): void {
 export async function loadUserRoomSignPresets(userId: string): Promise<RoomSignColorPreset[]> {
 	return loadUserDesignerPresetsWithLocalMigration({
 		userId,
-		designerId: 'roomSign',
+		designerId: 'doorNamePlaque',
 		parse: parseRoomSignColorPreset,
 		loadLocal: loadLocalRoomSignPresets,
 		clearLocal: () => localStorage.removeItem(ROOM_SIGN_CUSTOM_PRESETS_LOCAL_KEY)
@@ -121,12 +121,12 @@ export async function persistRoomSignCustomPresets(
 	userId: string,
 	presets: RoomSignColorPreset[]
 ): Promise<{ success: true } | { success: false; error: string }> {
-	return persistDesignerCustomPresets(userId, 'roomSign', presets, saveLocalRoomSignPresets);
+	return persistDesignerCustomPresets(userId, 'doorNamePlaque', presets, saveLocalRoomSignPresets);
 }
 
 export async function saveUserRoomSignPresets(
 	userId: string,
 	presets: RoomSignColorPreset[]
 ): Promise<{ success: true } | { success: false; error: string }> {
-	return saveUserDesignerPresets(userId, 'roomSign', presets);
+	return saveUserDesignerPresets(userId, 'doorNamePlaque', presets);
 }

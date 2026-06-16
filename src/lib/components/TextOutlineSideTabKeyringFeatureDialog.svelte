@@ -52,7 +52,7 @@
 					<div class="relative aspect-11/10 overflow-hidden bg-slate-50">
 						<img
 							src="/images/text-outline-side-tab-keyring-feature.png"
-							alt="Text Only keychain with a side-tab keyring on the left"
+							alt="Standalone Name Keychain with a side-tab keyring on the left"
 							class="size-full object-cover object-center"
 							width="1024"
 							height="933"
@@ -85,7 +85,7 @@
 						Side-tab keyring
 					</Dialog.Title>
 					<Dialog.Description class="text-xs leading-relaxed text-slate-600 sm:text-sm">
-						A new keyring style for Text Only keychains: a left-center tab with a round hole,
+						A new keyring style for Standalone Name Keychains: a left-center tab with a round hole,
 						merged into the outline base. The original round corner ring is still available.
 					</Dialog.Description>
 				</Dialog.Header>

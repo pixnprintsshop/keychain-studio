@@ -1244,7 +1244,7 @@
                 email: user?.email,
                 name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
                 subscriptionStatus,
-                designName: "Basic Name Tag",
+                designName: "Classic Name Tag Keychain",
                 format: "stl"
             });
         onShowThankYou();
@@ -1275,7 +1275,7 @@
                 email: user?.email,
                 name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
                 subscriptionStatus,
-                designName: "Basic Name Tag",
+                designName: "Classic Name Tag Keychain",
                 format: "3mf"
             });
         onShowThankYou();
@@ -1303,7 +1303,7 @@
                 email: user?.email,
                 name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
                 subscriptionStatus,
-                designName: "Basic Name Tag",
+                designName: "Classic Name Tag Keychain",
                 format: "bambu_studio"
             });
             window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
@@ -1469,7 +1469,7 @@
             class="flex min-h-0 w-full max-w-[360px] min-w-[320px] shrink-0 flex-col rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_12px_30px_rgba(15,23,42,0.07)]">
             <div class="flex shrink-0 items-center justify-between p-4">
                 <h1 class="text-lg font-semibold tracking-tight text-slate-900">
-                    Basic Name Tag
+                    Classic Name Tag Keychain
                 </h1>
                 <Button variant="outline" size="sm" onclick={onBack}>
                     Back

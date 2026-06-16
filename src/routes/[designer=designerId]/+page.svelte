@@ -1,8 +1,18 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import DesignerRoutePage from '$lib/components/DesignerRoutePage.svelte';
-	import type { DesignerId } from '$lib/designers';
+	import { designerPath, resolveDesignerId, type DesignerId } from '$lib/designers/ids';
 
-	let { params }: { params: { designer: DesignerId } } = $props();
+	let { params }: { params: { designer: string } } = $props();
+
+	const designerId = $derived(resolveDesignerId(params.designer) as DesignerId | null);
+
+	$effect(() => {
+		if (!designerId || params.designer === designerId) return;
+		void goto(designerPath(designerId), { replaceState: true, noScroll: true });
+	});
 </script>
 
-<DesignerRoutePage designerId={params.designer} />
+{#if designerId}
+	<DesignerRoutePage {designerId} />
+{/if}

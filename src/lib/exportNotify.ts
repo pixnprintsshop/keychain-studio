@@ -11,7 +11,7 @@ export interface ExportNotifyPayload {
 	name: string | undefined;
 	subscriptionStatus: SubscriptionStatus | null;
 	designName: string;
-	/** Route designer id (e.g. `basicName`). Resolved from designName when omitted. */
+	/** Route designer id (e.g. `classicNameTagKeychain`). Resolved from designName when omitted. */
 	designerId?: DesignerId | null;
 	format: 'stl' | '3mf' | 'bambu_studio';
 }

@@ -41,7 +41,7 @@
 			>
 				<img
 					src={heroSrc}
-					alt="Text Only keychain preview showing inset border rims on the text and text-outline layers"
+					alt="Standalone Name Keychain preview showing inset border rims on the text and text-outline layers"
 					class="block h-auto w-full bg-white object-cover"
 					width="680"
 					height="520"
