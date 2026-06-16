@@ -6,7 +6,7 @@
 	import { exportTo3MF } from '$lib/export-to-3mf';
 	import { notifyExportEvent } from '$lib/exportNotify';
 	import { runOpenScad } from '$lib/openscad';
-	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
+	import { ensureExportAccess, getExportTitle, showExportLockIcon, type SubscriptionStatus } from '$lib/subscription';
 	import { upload3mfToSupabase } from '$lib/upload3mf';
 	import {
 		centerGeometryXY,
@@ -1649,7 +1649,7 @@ ${slotBlock}
 						'Export STL (single mesh) or 3MF (multipart) for 3D print'
 					)}
 					{exportLoading}
-					showLockIcon={!user || !subscriptionStatus?.isActive}
+					showLockIcon={showExportLockIcon(user, subscriptionStatus)}
 				/>
 				{#if exportError}
 					<p

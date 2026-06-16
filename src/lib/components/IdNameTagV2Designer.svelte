@@ -24,7 +24,7 @@
 	import border2StlUrl from '$lib/assets/stl/idnametag/border2.stl?url';
 	import border3StlUrl from '$lib/assets/stl/idnametag/border3.stl?url';
 	import border4StlUrl from '$lib/assets/stl/idnametag/border4.stl?url';
-	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
+	import { ensureExportAccess, getExportTitle, showExportLockIcon, type SubscriptionStatus } from '$lib/subscription';
 	import { upload3mfToSupabase } from '$lib/upload3mf';
 	import {
 		centerGeometryXY,
@@ -2662,7 +2662,7 @@
 						'Export STL (single mesh) or 3MF (multipart) for 3D print'
 					)}
 					{exportLoading}
-					showLockIcon={!session || !user || !subscriptionStatus?.isActive}
+					showLockIcon={showExportLockIcon(user, subscriptionStatus)}
 				/>
 				{#if exportError}
 					<p

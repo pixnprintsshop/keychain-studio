@@ -30,7 +30,7 @@
 	import type { PaletteColor } from '$lib/colorPalette';
 	import LoadingModal from './LoadingModal.svelte';
 	import SvgInfoModal from './SvgInfoModal.svelte';
-	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
+	import { ensureExportAccess, getExportTitle, showExportLockIcon, type SubscriptionStatus } from '$lib/subscription';
 	import { tickThenYieldToPaint } from '$lib/yield-to-paint';
 
 interface Props {
@@ -1570,7 +1570,7 @@ difference() {
 					exportDisabled={!optimizedSvg || processing || exportLoading}
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF (multipart) for 3D print')}
 					{exportLoading}
-					showLockIcon={!user || !subscriptionStatus?.isActive}
+					showLockIcon={showExportLockIcon(user, subscriptionStatus)}
 				/>
 			</div>
 		</section>

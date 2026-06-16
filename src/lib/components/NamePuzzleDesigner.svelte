@@ -10,7 +10,7 @@
 		scheduleSaveNamePuzzleSettings
 	} from '$lib/namePuzzleSettings';
 	import { runOpenScad } from '$lib/openscad';
-	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
+	import { ensureExportAccess, getExportTitle, showExportLockIcon, type SubscriptionStatus } from '$lib/subscription';
 	import { upload3mfToSupabase } from '$lib/upload3mf';
 	import {
 		centerGeometryXY,
@@ -1270,7 +1270,7 @@ difference() {
 						export3MF()}
 					onOpenWithBambuStudio={() => void openWithBambuStudio()}
 					{openBambuStudioLoading}
-					showLockIcon={!user || !subscriptionStatus?.isActive}
+					showLockIcon={showExportLockIcon(user, subscriptionStatus)}
 				/>
 			</div>
 		</section>

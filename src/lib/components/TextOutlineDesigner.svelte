@@ -35,7 +35,7 @@
 	import { Slider } from '$lib/components/ui/slider';
 	import ColorPalettePicker from './ColorPalettePicker.svelte';
 	import { snapColorToPalette, type PaletteColor } from '$lib/colorPalette';
-	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
+	import { ensureExportAccess, getExportTitle, showExportLockIcon, type SubscriptionStatus } from '$lib/subscription';
 	import { tickThenYieldToPaint } from '$lib/yield-to-paint';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import {
@@ -3834,7 +3834,7 @@
 					{openBambuStudioLoading}
 					exportDisabled={false}
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF (multipart)')}
-					showLockIcon={!user || !subscriptionStatus?.isActive}
+					showLockIcon={showExportLockIcon(user, subscriptionStatus)}
 				/>
 			</div>
 		</section>

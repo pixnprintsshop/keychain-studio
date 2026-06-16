@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { freeTrial, getFingerprintBlockedMessage } from '$lib/freeTrial.svelte';
+	import { subscriptionTrial } from '$lib/subscriptionTrial.svelte';
 	import { capture } from '$lib/analytics';
 
 	interface Props {
@@ -34,13 +35,22 @@
 		openBambuStudioLoading = false,
 	}: Props = $props();
 
-	/** True only when the caller indicates "not entitled" AND free-trial credits are exhausted. */
+	/** True only when export is blocked (exhausted credits or device cap). */
 	const lockedForReal = $derived(
-		showLockIcon && (freeTrial.credits === 0 || freeTrial.fingerprintBlocked)
+		showLockIcon &&
+			(subscriptionTrial.onTrial
+				? !subscriptionTrial.hasCredits
+				: freeTrial.credits === 0 || freeTrial.fingerprintBlocked)
 	);
-	/** Show the free-trial chip while the visitor is on the trial path. */
+	/** Show the free-trial chip while the visitor is on the unsigned-in credit path. */
 	const showFreeTrialChip = $derived(
-		showLockIcon && freeTrial.credits > 0 && !freeTrial.fingerprintBlocked
+		showLockIcon &&
+			!subscriptionTrial.onTrial &&
+			freeTrial.credits > 0 &&
+			!freeTrial.fingerprintBlocked
+	);
+	const showSubscriptionTrialChip = $derived(
+		subscriptionTrial.onTrial && subscriptionTrial.hasCredits
 	);
 	const showFingerprintBlockedChip = $derived(showLockIcon && freeTrial.fingerprintBlocked);
 
@@ -74,6 +84,21 @@
 			title={getFingerprintBlockedMessage()}
 		>
 			Device trial limit (2 accounts)
+		</span>
+	{/if}
+	{#if showSubscriptionTrialChip}
+		<span
+			class="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50/95 px-3 py-1.5 text-[11px] font-medium text-violet-800 shadow-sm backdrop-blur"
+			title={`Subscription trial: ${subscriptionTrial.remaining} of ${subscriptionTrial.maxPerDesign} downloads remaining for this design`}
+		>
+			<svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+				<path
+					fill-rule="evenodd"
+					d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 3a1 1 0 011 1v3.586l2.707 2.707a1 1 0 01-1.414 1.414l-3-3A1 1 0 019 10V6a1 1 0 011-1z"
+					clip-rule="evenodd"
+				/>
+			</svg>
+			Trial — {subscriptionTrial.remaining}/{subscriptionTrial.maxPerDesign} left (this design)
 		</span>
 	{/if}
 	{#if showFreeTrialChip}

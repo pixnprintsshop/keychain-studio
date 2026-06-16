@@ -13,7 +13,7 @@
 		validateSpotifyCodeLayout,
 		type SpotifyCodeLayout
 	} from '$lib/spotifyKeychain';
-	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
+	import { ensureExportAccess, getExportTitle, showExportLockIcon, type SubscriptionStatus } from '$lib/subscription';
 	import { upload3mfToSupabase } from '$lib/upload3mf';
 	import {
 		disposeObject3D,
@@ -869,7 +869,7 @@
 					onOpenWithBambuStudio={() => openWithBambuStudio()}
 					openBambuStudioLoading={openBambuStudioLoading}
 					{exportLoading}
-					showLockIcon={!user || !subscriptionStatus?.isActive}
+					showLockIcon={showExportLockIcon(user, subscriptionStatus)}
 				/>
 			</div>
 		</section>

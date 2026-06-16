@@ -2,6 +2,7 @@ import { resolveDesignerIdForExport } from './designerExportNames';
 import { recordExport } from './exportStats.svelte';
 import { isTelegramNotifyEnabled } from './opsInDev';
 import { freeTrial } from './freeTrial.svelte';
+import { subscriptionTrial } from './subscriptionTrial.svelte';
 import type { SubscriptionStatus } from './subscription';
 import type { DesignerId } from './designers/ids';
 
@@ -23,18 +24,29 @@ function resolveExportAccess(subscriptionStatus: SubscriptionStatus | null): {
 	accessVia: ExportAccessVia;
 	freeTrialRemaining?: number;
 	freeTrialTotal?: number;
+	subscriptionTrialRemaining?: number;
+	subscriptionTrialTotal?: number;
 } {
 	if (!subscriptionStatus) {
 		return { statusLabel: 'none', accessVia: 'none' };
 	}
 	if (subscriptionStatus.isActive) {
+		if (subscriptionStatus.onTrial) {
+			const remaining = subscriptionTrial.remaining;
+			const total = subscriptionTrial.maxPerDesign;
+			return {
+				statusLabel: `subscription trial (${remaining} of ${total} remaining for this design)`,
+				accessVia: 'subscription',
+				subscriptionTrialRemaining: remaining,
+				subscriptionTrialTotal: total
+			};
+		}
 		if (subscriptionStatus.source === 'subscription') {
-			const trial = subscriptionStatus.onTrial ? ' [on trial]' : '';
 			const pending = subscriptionStatus.cancelledPendingEnd
 				? ' [cancelled, access until period end]'
 				: '';
 			return {
-				statusLabel: `subscription (${subscriptionStatus.plan ?? '—'})${trial}${pending}`,
+				statusLabel: `subscription (${subscriptionStatus.plan ?? '—'})${pending}`,
 				accessVia: 'subscription'
 			};
 		}
@@ -73,6 +85,8 @@ export function notifyExportEvent(payload: ExportNotifyPayload): void {
 		accessVia: access.accessVia,
 		freeTrialRemaining: access.freeTrialRemaining,
 		freeTrialTotal: access.freeTrialTotal,
+		subscriptionTrialRemaining: access.subscriptionTrialRemaining,
+		subscriptionTrialTotal: access.subscriptionTrialTotal,
 		onTrial: subscriptionStatus?.onTrial ?? false,
 		designName,
 		format

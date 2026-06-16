@@ -11,7 +11,7 @@
 	import netSvgRaw from '$lib/assets/svg/basketball/net.svg?raw';
 	import { exportTo3MF } from '$lib/export-to-3mf';
 	import { notifyExportEvent } from '$lib/exportNotify';
-	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
+	import { ensureExportAccess, getExportTitle, showExportLockIcon, type SubscriptionStatus } from '$lib/subscription';
 	import { upload3mfToSupabase } from '$lib/upload3mf';
 	import {
 		buildOffsetFontTextShapes,
@@ -1555,7 +1555,7 @@
 					exportDisabled={!modelReady || geometryLoading || !!modelLoadError}
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF')}
 					{exportLoading}
-					showLockIcon={!user || !subscriptionStatus?.isActive} />
+					showLockIcon={showExportLockIcon(user, subscriptionStatus)} />
 				{#if exportError}
 					<p
 						class="max-w-[200px] rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 shadow-lg">

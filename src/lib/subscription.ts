@@ -1,8 +1,13 @@
+import { getCurrentDesignerId } from './currentDesigner.svelte';
 import {
 	freeTrial,
 	getFingerprintBlockedMessage,
 	tryConsumeFreeTrialCredit
 } from './freeTrial.svelte';
+import {
+	subscriptionTrial,
+	tryConsumeSubscriptionTrialExport
+} from './subscriptionTrial.svelte';
 import { supabase } from './supabase';
 
 const LICENSE_CACHE_KEY_PREFIX = 'pixnprints-license-';
@@ -148,15 +153,40 @@ export async function getSubscriptionStatus(userId: string | null): Promise<Subs
 	return { isActive: false };
 }
 
+/** Paid license or active (non-trial) subscription — unlimited exports. */
+export function hasUnlimitedExportAccess(
+	subscriptionStatus: SubscriptionStatus | null | undefined
+): boolean {
+	return Boolean(subscriptionStatus?.isActive && !subscriptionStatus.onTrial);
+}
+
+/** Whether export toolbar should show the locked / trial-chip state. */
+export function showExportLockIcon(
+	user: { id: string } | null,
+	subscriptionStatus: SubscriptionStatus | null
+): boolean {
+	if (!user) return true;
+	if (hasUnlimitedExportAccess(subscriptionStatus)) return false;
+	if (subscriptionStatus?.onTrial) return !subscriptionTrial.hasCredits;
+	return true;
+}
+
 /** Returns the export button title based on user, subscription, and free-trial state. */
 export function getExportTitle(
 	user: { id: string } | null,
 	subscriptionStatus: SubscriptionStatus | null,
 	activeTitle: string = 'Export STL or 3MF'
 ): string {
-	if (subscriptionStatus?.isActive) return activeTitle;
+	if (hasUnlimitedExportAccess(subscriptionStatus)) return activeTitle;
 	if (subscriptionStatus?.licenseExpired) return 'License expired';
 	if (!user) return 'Sign in to start free trial';
+	if (subscriptionStatus?.onTrial) {
+		if (subscriptionTrial.hasCredits) {
+			const left = subscriptionTrial.remaining;
+			return `Trial — ${left} download${left === 1 ? '' : 's'} left (this design)`;
+		}
+		return 'Subscribe to continue exporting';
+	}
 	if (freeTrial.fingerprintBlocked) return getFingerprintBlockedMessage();
 	if (freeTrial.credits > 0) {
 		const left = freeTrial.credits;
@@ -169,10 +199,10 @@ export function getExportTitle(
  * Guards STL/3MF/Bambu export paths.
  *
  * Resolution order:
- *  1. Active subscription/license → allow.
- *  2. No signed-in user → call `onRequestLogin` (login is required *before* the trial),
- *     return `false`.
- *  3. Try to consume one server-side trial credit. If the RPC reports the cap was
+ *  1. Active paid subscription/license (not LS trial) → allow.
+ *  2. No signed-in user → call `onRequestLogin`, return `false`.
+ *  3. LS subscription trial (`on_trial`) → consume per-designer server credit.
+ *  4. Try to consume one server-side free-trial credit. If the RPC reports the cap was
  *     not yet hit, allow the export; otherwise call `onShowPricing` and return `false`.
  *
  * Use at the start of export handlers: `if (!(await ensureExportAccess(...))) return;`.
@@ -183,10 +213,22 @@ export async function ensureExportAccess(
 	onShowPricing?: () => void,
 	onRequestLogin?: () => void
 ): Promise<boolean> {
-	if (subscriptionStatus?.isActive) return true;
+	if (hasUnlimitedExportAccess(subscriptionStatus)) return true;
 
 	if (!user) {
 		onRequestLogin?.();
+		return false;
+	}
+
+	if (subscriptionStatus?.onTrial) {
+		const designerId = getCurrentDesignerId();
+		if (!designerId) {
+			onShowPricing?.();
+			return false;
+		}
+		const result = await tryConsumeSubscriptionTrialExport(designerId);
+		if (result.allowed) return true;
+		onShowPricing?.();
 		return false;
 	}
 

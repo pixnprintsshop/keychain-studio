@@ -32,7 +32,7 @@
     import type { PaletteColor } from "$lib/colorPalette";
     import LoadingModal from "./LoadingModal.svelte";
     import SvgInfoModal from "./SvgInfoModal.svelte";
-    import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from "$lib/subscription";
+    import { ensureExportAccess, getExportTitle, showExportLockIcon, type SubscriptionStatus } from "$lib/subscription";
     import { tickThenYieldToPaint } from "$lib/yield-to-paint";
 
     interface Props {
@@ -1091,7 +1091,7 @@
                     onOpenWithBambuStudio={() => void openWithBambuStudio()}
                     openBambuStudioLoading={openBambuStudioLoading}
                     {exportLoading}
-                    showLockIcon={!user || !subscriptionStatus?.isActive} />
+                    showLockIcon={showExportLockIcon(user, subscriptionStatus)} />
             </div>
         </section>
     </div>

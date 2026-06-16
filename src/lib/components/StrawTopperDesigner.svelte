@@ -30,7 +30,7 @@
 	import type { PaletteColor } from '$lib/colorPalette';
 	import FontSelect from './FontSelect.svelte';
 	import LoadingModal from './LoadingModal.svelte';
-	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
+	import { ensureExportAccess, getExportTitle, showExportLockIcon, type SubscriptionStatus } from '$lib/subscription';
 	import { tickThenYieldToPaint } from '$lib/yield-to-paint';
 
 	interface Props {
@@ -1131,7 +1131,7 @@ difference() {
 					exportDisabled={!textContent?.trim() || exportLoading}
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF (multipart) for 3D print')}
 					{exportLoading}
-					showLockIcon={!user || !subscriptionStatus?.isActive}
+					showLockIcon={showExportLockIcon(user, subscriptionStatus)}
 				/>
 			</div>
 		</section>

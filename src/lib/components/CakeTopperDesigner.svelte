@@ -5,7 +5,7 @@
 	import { Slider } from '$lib/components/ui/slider';
 	import { exportTo3MF } from '$lib/export-to-3mf';
 	import { notifyExportEvent } from '$lib/exportNotify';
-	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
+	import { ensureExportAccess, getExportTitle, showExportLockIcon, type SubscriptionStatus } from '$lib/subscription';
 	import { upload3mfToSupabase } from '$lib/upload3mf';
 	import {
 		disposeObject3D,
@@ -1269,7 +1269,7 @@
 					{openBambuStudioLoading}
 					exportDisabled={false}
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF (multipart)')}
-					showLockIcon={!user || !subscriptionStatus?.isActive}
+					showLockIcon={showExportLockIcon(user, subscriptionStatus)}
 				/>
 			</div>
 		</section>

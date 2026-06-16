@@ -2,14 +2,28 @@
 	import DesignerLoadingScreen from '$lib/components/DesignerLoadingScreen.svelte';
 	import DesktopRequiredView from '$lib/components/DesktopRequiredView.svelte';
 	import { Button } from '$lib/components/ui/button';
+	import { setCurrentDesignerId } from '$lib/currentDesigner.svelte';
 	import { loadDesignerComponent } from '$lib/designers/components';
 	import type { DesignerId } from '$lib/designers/ids';
 	import { getStudioContext } from '$lib/studio/context.svelte';
+	import { loadSubscriptionTrialForDesigner } from '$lib/subscriptionTrial.svelte';
+	import { onDestroy } from 'svelte';
 
 	let { designerId }: { designerId: DesignerId } = $props();
 
 	const studio = getStudioContext();
 	const designerModule = $derived(loadDesignerComponent(designerId));
+
+	$effect(() => {
+		setCurrentDesignerId(designerId);
+		if (studio.subscriptionStatus?.onTrial) {
+			void loadSubscriptionTrialForDesigner(designerId);
+		}
+	});
+
+	onDestroy(() => {
+		setCurrentDesignerId(null);
+	});
 </script>
 
 {#if studio.isMobile}

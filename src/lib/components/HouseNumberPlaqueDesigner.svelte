@@ -28,7 +28,7 @@
 	import { Slider } from '$lib/components/ui/slider';
 	import ColorPalettePicker from './ColorPalettePicker.svelte';
 	import { snapColorToPalette, type PaletteColor } from '$lib/colorPalette';
-	import { ensureExportAccess, getExportTitle, type SubscriptionStatus } from '$lib/subscription';
+	import { ensureExportAccess, getExportTitle, showExportLockIcon, type SubscriptionStatus } from '$lib/subscription';
 	import { tickThenYieldToPaint } from '$lib/yield-to-paint';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import {
@@ -1989,7 +1989,7 @@
 						'Export STL (single mesh) or 3MF (multipart) for 3D print'
 					)}
 					{exportLoading}
-					showLockIcon={!user || !subscriptionStatus?.isActive} />
+					showLockIcon={showExportLockIcon(user, subscriptionStatus)} />
 				{#if exportError}
 					<p
 						class="absolute bottom-14 right-4 max-w-[200px] rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 shadow-lg"

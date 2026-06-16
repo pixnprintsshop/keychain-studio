@@ -30,6 +30,8 @@ export const POST: RequestHandler = async ({ request }) => {
 		accessVia,
 		freeTrialRemaining,
 		freeTrialTotal,
+		subscriptionTrialRemaining,
+		subscriptionTrialTotal,
 		onTrial,
 		designName,
 		format
@@ -40,6 +42,8 @@ export const POST: RequestHandler = async ({ request }) => {
 		accessVia?: string;
 		freeTrialRemaining?: number;
 		freeTrialTotal?: number;
+		subscriptionTrialRemaining?: number;
+		subscriptionTrialTotal?: number;
 		onTrial?: boolean;
 		designName?: string;
 		format?: string;
@@ -58,7 +62,15 @@ export const POST: RequestHandler = async ({ request }) => {
 					`🎁 Free download credit: ${freeTrialRemaining} of ${freeTrialTotal} remaining (after this export)`
 				]
 			: []),
-		...(onTrial ? ['⚠️ On trial'] : []),
+		...(onTrial &&
+		typeof subscriptionTrialRemaining === 'number' &&
+		typeof subscriptionTrialTotal === 'number'
+			? [
+					`🎁 Subscription trial: ${subscriptionTrialRemaining} of ${subscriptionTrialTotal} remaining for this design (after this export)`
+				]
+			: onTrial
+				? ['⚠️ On trial']
+				: []),
 		`📦 Design: ${designName ?? '—'}`,
 		`📄 Format: ${format ?? '—'}`
 	];

@@ -28,6 +28,11 @@
 		getSubscriptionStatus,
 		type SubscriptionStatus
 	} from '$lib/subscription';
+	import {
+		clearSubscriptionTrialState,
+		loadSubscriptionTrialForDesigner,
+		subscriptionTrial
+	} from '$lib/subscriptionTrial.svelte';
 	import { favoriteDesigners, loadFavoriteDesigners } from '$lib/favoriteDesigners.svelte';
 	import { loadExportStats } from '$lib/exportStats.svelte';
 	import {
@@ -241,6 +246,17 @@
 	$effect(() => {
 		const uid = user?.id ?? null;
 		void loadFreeTrialForUser(uid);
+		if (!uid) clearSubscriptionTrialState();
+	});
+
+	// Per-designer LS subscription trial credits when on a designer route.
+	$effect(() => {
+		if (!subscriptionStatus?.onTrial) {
+			clearSubscriptionTrialState();
+			return;
+		}
+		const designerId = designerIdFromPathname(page.url.pathname);
+		if (designerId) void loadSubscriptionTrialForDesigner(designerId);
 	});
 
 	// Favorite designers (home grid sort order).
@@ -768,12 +784,22 @@
 			</div>
 			{#if subscriptionStatus}
 				{#if subscriptionStatus?.isActive}
-					<a
-						href={resolve('/subscription')}
-						class="ml-2 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-800 transition hover:bg-emerald-100 focus:ring-2 focus:ring-emerald-500/50 focus:outline-none"
-					>
-						{subscriptionStatus?.source === 'license' ? 'Licensed' : 'Subscribed'}
-					</a>
+					{#if subscriptionStatus.onTrial}
+						<a
+							href={resolve('/subscription')}
+							class="ml-2 inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-medium text-violet-800 transition hover:bg-violet-100 focus:ring-2 focus:ring-violet-500/50 focus:outline-none"
+							title={`Subscription trial: ${subscriptionTrial.remaining} of ${subscriptionTrial.maxPerDesign} downloads left for this design`}
+						>
+							Trial — {subscriptionTrial.remaining}/{subscriptionTrial.maxPerDesign} left
+						</a>
+					{:else}
+						<a
+							href={resolve('/subscription')}
+							class="ml-2 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-800 transition hover:bg-emerald-100 focus:ring-2 focus:ring-emerald-500/50 focus:outline-none"
+						>
+							{subscriptionStatus?.source === 'license' ? 'Licensed' : 'Subscribed'}
+						</a>
+					{/if}
 				{:else if subscriptionStatus?.licenseExpired}
 					<span
 						class="ml-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-medium text-amber-800"
@@ -910,13 +936,23 @@
 								</span>
 								{#if subscriptionStatus}
 									{#if subscriptionStatus?.isActive}
-										<a
-											href={resolve('/subscription')}
-											class="text-[11px] font-medium text-emerald-700 hover:underline"
-											onclick={() => (menuOpen = false)}
-										>
-											{subscriptionStatus?.source === 'license' ? 'Licensed' : 'Subscribed'}
-										</a>
+										{#if subscriptionStatus.onTrial}
+											<a
+												href={resolve('/subscription')}
+												class="text-[11px] font-medium text-violet-700 hover:underline"
+												onclick={() => (menuOpen = false)}
+											>
+												Trial — {subscriptionTrial.remaining}/{subscriptionTrial.maxPerDesign} left
+											</a>
+										{:else}
+											<a
+												href={resolve('/subscription')}
+												class="text-[11px] font-medium text-emerald-700 hover:underline"
+												onclick={() => (menuOpen = false)}
+											>
+												{subscriptionStatus?.source === 'license' ? 'Licensed' : 'Subscribed'}
+											</a>
+										{/if}
 									{:else if subscriptionStatus?.licenseExpired}
 										<span class="text-[11px] font-medium text-amber-700">License expired</span>
 									{:else if !subscriptionStatus?.isActive}
@@ -935,7 +971,13 @@
 								{/if}
 							</div>
 						</div>
-						{#if !subscriptionStatus?.isActive && freeTrial.fingerprintBlocked}
+						{#if subscriptionStatus?.onTrial}
+							<div
+								class="flex items-center justify-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-800"
+							>
+								Trial — {subscriptionTrial.remaining}/{subscriptionTrial.maxPerDesign} left (this design)
+							</div>
+						{:else if !subscriptionStatus?.isActive && freeTrial.fingerprintBlocked}
 							<div
 								class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs font-medium text-amber-900"
 								title={getFingerprintBlockedMessage()}
