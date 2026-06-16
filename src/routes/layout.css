@@ -282,6 +282,13 @@
 	font-style: normal;
 }
 
+@font-face {
+	font-family: 'Daffiys';
+	src: url('/fonts/Daffiys-Regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+}
+
 @layer base {
 	* {
 		@apply border-border outline-ring/50;

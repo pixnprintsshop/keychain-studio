@@ -24,6 +24,7 @@ import pacificoJson from './assets/fonts/Pacifico_Regular.json';
 import lobsterTwoJson from './assets/fonts/Lobster Two_Regular.json';
 import roadsideSansJson from './assets/fonts/Roadside Sans_Regular.json';
 import trainOneJson from './assets/fonts/Train One_Regular.json';
+import daffiysJson from './assets/fonts/Daffiys_Regular.json';
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -205,6 +206,13 @@ export const FONT_OPTIONS: FontOption[] = [
 		label: 'Train One (Regular)',
 		json: trainOneJson,
 		fontFamily: 'Train One',
+		isNew: true
+	},
+	{
+		key: 'Daffiys_Regular',
+		label: 'Daffiys (Regular)',
+		json: daffiysJson,
+		fontFamily: 'Daffiys',
 		isNew: true
 	}
 ];
