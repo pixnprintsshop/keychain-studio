@@ -50,7 +50,6 @@
 	import DesignerExportToolbar from './DesignerExportToolbar.svelte';
 	import DesignerModelDimensionsHud from './DesignerModelDimensionsHud.svelte';
 	import FontSelect from './FontSelect.svelte';
-	import IdNameTagV2DualLaceFeatureDialog from './IdNameTagV2DualLaceFeatureDialog.svelte';
 	import { Button } from './ui/button';
 	import { Slider } from './ui/slider';
 
@@ -77,7 +76,6 @@
 	}: Props = $props();
 
 	const STORAGE_KEY = 'keychain-idnametag-v2-settings';
-	const STORAGE_KEY_DUAL_LACE_FEATURE_DIALOG = 'idnametag-v2-dual-lace-feature-dialog-v1';
 	const DESIGN_NAME = 'ID Name Tag v2';
 	const SLUG = 'id-name-tag-v2';
 	const TEXT_MAX_WIDTH_RATIO = 0.9;
@@ -381,8 +379,6 @@
 	let textOutlineDepth = $state(initial.textOutlineDepth);
 	let textOutlineColor = $state(initial.textOutlineColor);
 	let activeTextSide = $state<'front' | 'back'>('front');
-	let dualLaceFeatureDialogOpen = $state(false);
-
 	let activePresetId = $state<string | null>(null);
 	let customPresets = $state<IdNameTagV2ColorPreset[]>([]);
 	let presetSyncError = $state<string | null>(null);
@@ -639,37 +635,6 @@
 	let loadToken = 0;
 	let mountGeneration = 0;
 	let loadedBaseKey: string | null = null;
-
-	function markDualLaceFeatureDialogSeen() {
-		try {
-			localStorage.setItem(STORAGE_KEY_DUAL_LACE_FEATURE_DIALOG, '1');
-		} catch {
-			// Local storage can be unavailable in private browsing contexts.
-		}
-	}
-
-	function onDualLaceFeatureDialogOpenChange(open: boolean) {
-		dualLaceFeatureDialogOpen = open;
-		if (!open) markDualLaceFeatureDialogSeen();
-	}
-
-	function tryDualLaceFeatureFromDialog() {
-		laceHolderStyle = 'dual';
-		void tick().then(() => {
-			document
-				.getElementById('idnametag-v2-lace-holder')
-				?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-		});
-	}
-
-	function maybeShowDualLaceFeatureDialog() {
-		try {
-			if (localStorage.getItem(STORAGE_KEY_DUAL_LACE_FEATURE_DIALOG) === '1') return;
-		} catch {
-			return;
-		}
-		dualLaceFeatureDialogOpen = true;
-	}
 
 	function frameCameraToBottomView(
 		box: THREE.Box3,
@@ -1936,10 +1901,6 @@
 		};
 		renderFrame();
 
-		setTimeout(() => {
-			maybeShowDualLaceFeatureDialog();
-		}, 0);
-
 		return () => {
 			ro?.disconnect();
 			ro = null;
@@ -2769,10 +2730,4 @@
 			</Dialog.Content>
 		</Dialog.Root>
 	{/if}
-
-	<IdNameTagV2DualLaceFeatureDialog
-		open={dualLaceFeatureDialogOpen}
-		onOpenChange={onDualLaceFeatureDialogOpenChange}
-		onTryIt={tryDualLaceFeatureFromDialog}
-	/>
 </main>

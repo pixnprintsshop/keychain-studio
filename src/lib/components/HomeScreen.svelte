@@ -14,9 +14,7 @@
 		isSubscriberOnlyDesigner,
 		type SubscriptionStatus
 	} from '$lib/subscription';
-	import FavoriteDesignersFeatureDialog from '$lib/components/FavoriteDesignersFeatureDialog.svelte';
 	import NewFontsFeatureDialog from '$lib/components/NewFontsFeatureDialog.svelte';
-	import HoopTagFeatureDialog from '$lib/components/HoopTagFeatureDialog.svelte';
 	import PickleballKeychainFeatureDialog from '$lib/components/PickleballKeychainFeatureDialog.svelte';
 	import FloatingGlobalExportCounter from '$lib/components/FloatingGlobalExportCounter.svelte';
 	import FloatingRecentExportsFeed from '$lib/components/FloatingRecentExportsFeed.svelte';
@@ -43,33 +41,16 @@
 	import { getNewFontsDialogFingerprint } from '$lib/newFonts';
 	import { getFont } from '$lib/utils-3d';
 
-	const STORAGE_KEY_FAVORITE_FEATURE_DIALOG = 'favorite-designers-feature-dialog-v1';
 	const STORAGE_KEY_NEW_FONTS_FEATURE_DIALOG = 'new-fonts-feature-dialog-v1';
-	const STORAGE_KEY_HOOPTAG_FEATURE_DIALOG = 'hoop-tag-feature-dialog-v1';
 	const STORAGE_KEY_PICKLEBALL_KEYCHAIN_FEATURE_DIALOG = 'pickleball-keychain-feature-dialog-v1';
 	const STORAGE_KEY_COMMUNITY_INVITE_DISMISSED = 'messenger-community-invite-dismissed-v1';
 	const STORAGE_KEY_COMMUNITY_INVITE_DIALOG = 'messenger-community-invite-dialog-v1';
 
 	let comingSoonInterestSent = $state<Set<StyleName>>(new Set());
 	let comingSoonInterestSending = $state<StyleName | null>(null);
-	let favoriteFeatureDialogOpen = $state(false);
 	let newFontsFeatureDialogOpen = $state(false);
-	let hoopTagFeatureDialogOpen = $state(false);
 	let pickleballKeychainFeatureDialogOpen = $state(false);
 	let showCommunityInviteAlert = $state(false);
-
-	function markFavoriteFeatureDialogSeen() {
-		try {
-			localStorage.setItem(STORAGE_KEY_FAVORITE_FEATURE_DIALOG, '1');
-		} catch {
-			// Local storage can be unavailable in private browsing contexts.
-		}
-	}
-
-	function onFavoriteFeatureDialogOpenChange(open: boolean) {
-		favoriteFeatureDialogOpen = open;
-		if (!open) markFavoriteFeatureDialogSeen();
-	}
 
 	function isCommunityInviteDismissed(): boolean {
 		try {
@@ -119,35 +100,6 @@
 		}
 	}
 
-	function isFavoriteFeatureDialogSeen(): boolean {
-		try {
-			return localStorage.getItem(STORAGE_KEY_FAVORITE_FEATURE_DIALOG) === '1';
-		} catch {
-			return true;
-		}
-	}
-
-	function markHoopTagFeatureDialogSeen() {
-		try {
-			localStorage.setItem(STORAGE_KEY_HOOPTAG_FEATURE_DIALOG, '1');
-		} catch {
-			// Local storage can be unavailable in private browsing contexts.
-		}
-	}
-
-	function onHoopTagFeatureDialogOpenChange(open: boolean) {
-		hoopTagFeatureDialogOpen = open;
-		if (!open) markHoopTagFeatureDialogSeen();
-	}
-
-	function isHoopTagFeatureDialogSeen(): boolean {
-		try {
-			return localStorage.getItem(STORAGE_KEY_HOOPTAG_FEATURE_DIALOG) === '1';
-		} catch {
-			return true;
-		}
-	}
-
 	function markPickleballKeychainFeatureDialogSeen() {
 		try {
 			localStorage.setItem(STORAGE_KEY_PICKLEBALL_KEYCHAIN_FEATURE_DIALOG, '1');
@@ -171,36 +123,28 @@
 
 	function isAnyHomeDialogVisible(): boolean {
 		return (
-			hoopTagFeatureDialogOpen ||
 			pickleballKeychainFeatureDialogOpen ||
 			newFontsFeatureDialogOpen ||
-			favoriteFeatureDialogOpen ||
 			pendingBetaDesigner !== null ||
 			pendingSubscriberDesigner !== null
 		);
 	}
 
 	function openHomeFeatureDialog(id: HomeFeatureDialogId) {
-		if (id === 'hoopTag') hoopTagFeatureDialogOpen = true;
-		else if (id === 'pickleballKeychain') pickleballKeychainFeatureDialogOpen = true;
-		else if (id === 'newFonts') newFontsFeatureDialogOpen = true;
-		else favoriteFeatureDialogOpen = true;
+		if (id === 'pickleballKeychain') pickleballKeychainFeatureDialogOpen = true;
+		else newFontsFeatureDialogOpen = true;
 	}
 
 	/** Show at most one welcome/feature dialog per home visit; postpone if another modal is open. */
 	function showHomeFeatureDialogs() {
-		const shouldShowHoopTag = !isHoopTagFeatureDialogSeen();
 		const shouldShowPickleballKeychain = !isPickleballKeychainFeatureDialogSeen();
 		const shouldShowNewFonts =
 			getNewFontsDialogFingerprint().length > 0 && !isNewFontsFeatureDialogSeen();
-		const shouldShowFavorite = !isFavoriteFeatureDialogSeen();
 		const pending = getPendingHomeFeatureDialog();
 		const next = resolveNextHomeFeatureDialog({
 			pending,
-			shouldShowHoopTag,
 			shouldShowPickleballKeychain,
-			shouldShowNewFonts,
-			shouldShowFavorite
+			shouldShowNewFonts
 		});
 
 		if (!next) {
@@ -228,20 +172,12 @@
 		showHomeFeatureDialogs();
 	});
 
-	function tryFavoriteFeatureFromDialog() {
-		document.getElementById('designer-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-	}
-
 	function tryNewFontsFromDialog() {
 		onSelect('textOutline');
 	}
 
 	function tryPickleballKeychainFromDialog() {
 		onSelect('pickleballKeychain');
-	}
-
-	function tryHoopTagFromDialog() {
-		onSelect('hoopTag');
 	}
 
 	// Preload font so Name Puzzle designer opens faster; restore interest flags from session.
@@ -286,7 +222,7 @@
 		| 'canvasStudio'
 		| 'plateBadge'
 		| 'houseNumberPlaque'
-		| 'roomSign';
+		| 'roomSign'
 
 	interface DesignerItem {
 		id: StyleName;
@@ -351,7 +287,7 @@
 		// whistleV2:
 		// 	'Color preset gallery for Accent, Main, and Border — import starters or save your own. Presets sync to your account when signed in.',
 		idNameTagV2:
-			'Back print view uses a fixed underside preview with bottom lighting. Also: center or dual lace loops, optional text-outline layer, and color presets that sync when signed in.',
+			'Back print (underside text) is available on invite — contact support for early access. Also: dual lace loops, text-outline layer, and synced color presets.',
 		whistle:
 			'Custom Whistle text position X/Y sliders and settings now persist across visits.',
 		dogtag:
@@ -359,7 +295,7 @@
 		namePuzzle:
 			'Letters with descenders (like Q) no longer shrink or shift the rest of the name — only the base grows to fit the tail.',
 		plateBadge:
-			'Multiline text — press Enter for a new line. The layout view shows a full preview of the plate base.',
+			'Multiline text — press Enter for a new line. The layout view shows a full preview of the plate base.'
 	};
 
 	const BETA_DESIGNERS: Set<StyleName> = new Set(['strawTopper', 'pencilTopper', 'plateBadge']);
@@ -1322,12 +1258,6 @@
 	</div>
 </div>
 
-<HoopTagFeatureDialog
-	open={hoopTagFeatureDialogOpen}
-	onOpenChange={onHoopTagFeatureDialogOpenChange}
-	onTryIt={tryHoopTagFromDialog}
-/>
-
 <PickleballKeychainFeatureDialog
 	open={pickleballKeychainFeatureDialogOpen}
 	onOpenChange={onPickleballKeychainFeatureDialogOpenChange}
@@ -1339,10 +1269,4 @@
 	onOpenChange={onNewFontsFeatureDialogOpenChange}
 	onTryIt={tryNewFontsFromDialog}
 	{subscriptionStatus}
-/>
-
-<FavoriteDesignersFeatureDialog
-	open={favoriteFeatureDialogOpen}
-	onOpenChange={onFavoriteFeatureDialogOpenChange}
-	onTryIt={tryFavoriteFeatureFromDialog}
 />
