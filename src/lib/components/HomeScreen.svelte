@@ -338,8 +338,6 @@
 			description: 'Simple rectangular name tag with clean, readable text.',
 			imageSrc: '/images/nametag.png',
 			imageAlt: 'Classic Name Tag Keychain preview',
-			attribution:
-				'https://makerworld.com/en/models/219037-keytag-keychain-with-custom-name?from=search#profileId-251645',
 			previewImageSrc: '/images/nametag-preview.png'
 		},
 		{
@@ -435,8 +433,6 @@
 			description: 'Flower-shaped keychain with a single letter in the center.',
 			imageSrc: '/images/flower+initial.png',
 			imageAlt: 'Flower & Initial preview',
-			attribution:
-				'https://makerworld.com/en/models/513050-flower-initial-keychains?from=search#profileId-429132',
 			previewImageSrc: '/images/flower+initial-preview.png'
 		},
 		{
@@ -445,9 +441,7 @@
 			description: 'Pet tag layout with name for collars.',
 			imageSrc: '/images/dogtag.png',
 			imageAlt: 'Pet Dog Tag preview',
-			previewImageSrc: '/images/dogtag-preview.png',
-			attribution:
-				'https://makerworld.com/en/models/1111790-dog-tag-name-tag-keychain?from=search#profileId-1108483'
+			previewImageSrc: '/images/dogtag-preview.png'
 		},
 		// {
 		// 	id: 'customSvg',
@@ -476,8 +470,6 @@
 			description: 'Functional whistle with raised text.',
 			imageSrc: '/images/whistle.png',
 			imageAlt: 'Whistle Keychain preview',
-			attribution:
-				'https://makerworld.com/en/models/119995-loud-whistle?from=search#profileId-129140',
 			previewImageSrc: '/images/whistle-preview.png'
 		},
 		{
@@ -487,8 +479,6 @@
 			imageSrc: '/images/stanley-topper.png',
 			imageAlt: 'Stanley Topper preview',
 			previewImageSrc: '/images/stanley-topper-preview.png',
-			attribution:
-				'https://makerworld.com/en/models/959060-40oz-stanley-tumbler-topper-cup-name-plate?from=search'
 		},
 		{
 			id: 'strawNameClip',
@@ -1115,34 +1105,6 @@
 							<p class="mt-1 text-[10px] font-medium text-slate-400 sm:text-xs">
 								{formatExportCount(getDesignerExportCount(designer.id))} exports
 							</p>
-						{/if}
-						{#if designer.attribution}
-							<!-- svelte-ignore a11y_click_events_have_key_events -->
-							<a
-								href={designer.attribution}
-								target="_blank"
-								rel="noopener noreferrer"
-								class="mt-1 inline-flex items-center gap-0.5 rounded text-[10px] text-slate-400 hover:text-slate-600 focus:ring-2 focus:ring-indigo-500/30 focus:ring-offset-1 focus:outline-none sm:mt-2 sm:gap-1 sm:text-xs"
-								onclick={(e) => e.stopPropagation()}
-								title="View source / credit"
-							>
-								<span>Source</span>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="size-3 shrink-0"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="2"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									aria-hidden="true"
-								>
-									<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-									<polyline points="15 3 21 3 21 9" />
-									<line x1="10" y1="14" x2="21" y2="3" />
-								</svg>
-							</a>
 						{/if}
 					</div>
 				</div>
