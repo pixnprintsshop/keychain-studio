@@ -11,6 +11,8 @@
  */
 
 import { getBrowserFingerprintHash } from './browserFingerprint';
+import { getSession } from './auth';
+import { COMMUNITY_JOIN_BONUS_CREDITS } from './messengerCommunity';
 import { supabase } from './supabase';
 
 const DEFAULT_FREE_TRIAL_CREDITS = 10;
@@ -35,9 +37,12 @@ export const FREE_TRIAL_INITIAL_CREDITS: number = (() => {
 /** Share promo: credits granted manually after user posts and messages support. */
 export const SHARE_PROMO_BONUS_CREDITS = 20;
 
+export { COMMUNITY_JOIN_BONUS_CREDITS } from './messengerCommunity';
+
 let userId = $state<string | null>(null);
 let used = $state<number>(0);
 let bonusCredits = $state<number>(0);
+let communityBonusClaimed = $state<boolean>(false);
 let effectiveMax = $state<number>(FREE_TRIAL_INITIAL_CREDITS);
 let fingerprintAllowed = $state(true);
 let fingerprintLinkedAccounts = $state(0);
@@ -65,6 +70,9 @@ export const freeTrial = {
 	},
 	get bonusCredits(): number {
 		return bonusCredits;
+	},
+	get communityBonusClaimed(): boolean {
+		return communityBonusClaimed;
 	},
 	get loaded(): boolean {
 		return loaded;
@@ -103,13 +111,17 @@ function applyFingerprintFields(row: Record<string, unknown> | undefined) {
  * Pass `null` (e.g. on sign-out) to clear local state. Safe to call on every
  * auth change; the RPC is small and side-effect free.
  */
-export async function loadFreeTrialForUser(uid: string | null): Promise<void> {
-	if (uid === userId && loaded) return;
+export async function loadFreeTrialForUser(
+	uid: string | null,
+	options?: { force?: boolean }
+): Promise<void> {
+	if (uid === userId && loaded && !options?.force) return;
 
 	if (uid === null) {
 		userId = null;
 		used = 0;
 		bonusCredits = 0;
+		communityBonusClaimed = false;
 		effectiveMax = FREE_TRIAL_INITIAL_CREDITS;
 		fingerprintAllowed = true;
 		fingerprintLinkedAccounts = 0;
@@ -131,6 +143,7 @@ export async function loadFreeTrialForUser(uid: string | null): Promise<void> {
 			if (legacy.error) throw error;
 			used = typeof legacy.data === 'number' ? Math.max(0, legacy.data) : 0;
 			bonusCredits = 0;
+			communityBonusClaimed = false;
 			effectiveMax = FREE_TRIAL_INITIAL_CREDITS;
 			fingerprintAllowed = true;
 			fingerprintLinkedAccounts = 0;
@@ -138,6 +151,7 @@ export async function loadFreeTrialForUser(uid: string | null): Promise<void> {
 			const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | undefined;
 			used = typeof row?.used === 'number' ? Math.max(0, row.used) : 0;
 			bonusCredits = typeof row?.bonus_credits === 'number' ? Math.max(0, row.bonus_credits) : 0;
+			communityBonusClaimed = row?.community_bonus_claimed === true;
 			effectiveMax =
 				typeof row?.effective_max === 'number'
 					? Math.max(FREE_TRIAL_INITIAL_CREDITS, row.effective_max)
@@ -148,10 +162,67 @@ export async function loadFreeTrialForUser(uid: string | null): Promise<void> {
 		console.error('[freeTrial] failed to load trial usage:', e);
 		used = FREE_TRIAL_INITIAL_CREDITS;
 		bonusCredits = 0;
+		communityBonusClaimed = false;
 		effectiveMax = FREE_TRIAL_INITIAL_CREDITS;
 		fingerprintAllowed = true;
 	} finally {
 		loaded = true;
+	}
+}
+
+export interface CommunityBonusClaimResult {
+	granted: boolean;
+	bonusCredits: number;
+	error?:
+		| 'invalid_code'
+		| 'already_claimed'
+		| 'not_signed_in'
+		| 'code_required'
+		| 'not_configured'
+		| 'server_error'
+		| 'unknown';
+}
+
+/**
+ * Redeem the pinned Messenger community code for a one-time download credit bonus.
+ */
+export async function claimCommunityJoinBonus(code: string): Promise<CommunityBonusClaimResult> {
+	if (!userId) return { granted: false, bonusCredits: 0, error: 'not_signed_in' };
+
+	const trimmed = code.trim();
+	if (!trimmed) return { granted: false, bonusCredits: 0, error: 'code_required' };
+
+	try {
+		const session = await getSession();
+		if (!session?.access_token) {
+			return { granted: false, bonusCredits: 0, error: 'not_signed_in' };
+		}
+
+		const res = await fetch('/api/community/claim', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${session.access_token}`
+			},
+			body: JSON.stringify({ code: trimmed })
+		});
+
+		const data = (await res.json()) as {
+			granted?: boolean;
+			bonus_credits?: number;
+			error?: CommunityBonusClaimResult['error'];
+		};
+
+		if (data.granted) {
+			await loadFreeTrialForUser(userId, { force: true });
+			return { granted: true, bonusCredits: freeTrial.bonusCredits };
+		}
+
+		const error = data.error ?? (res.ok ? 'unknown' : 'server_error');
+		return { granted: false, bonusCredits: freeTrial.bonusCredits, error };
+	} catch (e) {
+		console.error('[freeTrial] failed to claim community bonus:', e);
+		return { granted: false, bonusCredits: freeTrial.bonusCredits, error: 'unknown' };
 	}
 }
 

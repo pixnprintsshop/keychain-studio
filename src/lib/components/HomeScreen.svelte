@@ -14,7 +14,6 @@
 		isSubscriberOnlyDesigner,
 		type SubscriptionStatus
 	} from '$lib/subscription';
-	import PickleballKeychainFeatureDialog from '$lib/components/PickleballKeychainFeatureDialog.svelte';
 	import FloatingGlobalExportCounter from '$lib/components/FloatingGlobalExportCounter.svelte';
 	import FloatingRecentExportsFeed from '$lib/components/FloatingRecentExportsFeed.svelte';
 	import { exportStats, formatExportCount, getDesignerExportCount } from '$lib/exportStats.svelte';
@@ -24,39 +23,54 @@
 		toggleFavoriteDesigner
 	} from '$lib/favoriteDesigners.svelte';
 	import { notifyFavoriteAction } from '$lib/favoriteNotify';
-	import { MESSENGER_COMMUNITY_URL } from '$lib/messengerCommunity';
+	import CommunityInviteDialog from '$lib/components/CommunityInviteDialog.svelte';
+	import { capture } from '$lib/analytics';
+	import { claimCommunityJoinBonus, freeTrial } from '$lib/freeTrial.svelte';
+	import {
+		COMMUNITY_JOIN_BONUS_CREDITS,
+		getCommunityClaimErrorMessage,
+		MESSENGER_COMMUNITY_URL
+	} from '$lib/messengerCommunity';
 	import {
 		getDialogBlockingRevision,
 		isAnyDialogBlocking,
 		setDialogBlocking
 	} from '$lib/dialogCoordinator.svelte';
-	import {
-		clearPendingHomeFeatureDialog,
-		getPendingHomeFeatureDialog,
-		resolveNextHomeFeatureDialog,
-		setPendingHomeFeatureDialog,
-		type HomeFeatureDialogId
-	} from '$lib/homeFeatureDialogQueue';
 	import { getFont } from '$lib/utils-3d';
 	import { resolveDesignerId } from '$lib/designers/ids';
 
-	const STORAGE_KEY_PICKLEBALL_KEYCHAIN_FEATURE_DIALOG = 'pickleball-keychain-feature-dialog-v1';
 	const STORAGE_KEY_COMMUNITY_INVITE_DISMISSED = 'messenger-community-invite-dismissed-v1';
 	const STORAGE_KEY_COMMUNITY_INVITE_DIALOG = 'messenger-community-invite-dialog-v1';
 
 	let comingSoonInterestSent = $state<Set<StyleName>>(new Set());
 	let comingSoonInterestSending = $state<StyleName | null>(null);
-	let pickleballKeychainFeatureDialogOpen = $state(false);
 	let showCommunityInviteAlert = $state(false);
+	let communityInviteDialogOpen = $state(false);
+	let communityClaiming = $state(false);
+	let communityClaimedInDialog = $state(false);
+	let communityClaimError = $state<string | null>(null);
 
-	function isCommunityInviteDismissed(): boolean {
+	function isCommunityBannerDismissed(): boolean {
 		try {
-			return (
-				localStorage.getItem(STORAGE_KEY_COMMUNITY_INVITE_DISMISSED) === '1' ||
-				localStorage.getItem(STORAGE_KEY_COMMUNITY_INVITE_DIALOG) === '1'
-			);
+			return localStorage.getItem(STORAGE_KEY_COMMUNITY_INVITE_DISMISSED) === '1';
 		} catch {
 			return false;
+		}
+	}
+
+	function isCommunityInviteDialogSeen(): boolean {
+		try {
+			return localStorage.getItem(STORAGE_KEY_COMMUNITY_INVITE_DIALOG) === '1';
+		} catch {
+			return false;
+		}
+	}
+
+	function markCommunityInviteDialogSeen() {
+		try {
+			localStorage.setItem(STORAGE_KEY_COMMUNITY_INVITE_DIALOG, '1');
+		} catch {
+			// Local storage can be unavailable in private browsing contexts.
 		}
 	}
 
@@ -69,78 +83,79 @@
 		}
 	}
 
-	function markPickleballKeychainFeatureDialogSeen() {
-		try {
-			localStorage.setItem(STORAGE_KEY_PICKLEBALL_KEYCHAIN_FEATURE_DIALOG, '1');
-		} catch {
-			// Local storage can be unavailable in private browsing contexts.
+	function closeCommunityInviteDialog() {
+		communityInviteDialogOpen = false;
+		communityClaimError = null;
+		markCommunityInviteDialogSeen();
+		capture('community_invite_dismissed', {
+			signed_in: Boolean(user?.id),
+			claimed: communityClaimedInDialog
+		});
+		if (!communityClaimedInDialog) {
+			showCommunityInviteAlert = showCommunityPromo && !isCommunityBannerDismissed();
 		}
 	}
 
-	function onPickleballKeychainFeatureDialogOpenChange(open: boolean) {
-		pickleballKeychainFeatureDialogOpen = open;
-		if (!open) markPickleballKeychainFeatureDialogSeen();
+	async function handleCommunityClaim(code: string) {
+		if (!user?.id) {
+			communityInviteDialogOpen = false;
+			communityClaimError = null;
+			onRequestLogin?.();
+			return;
+		}
+		communityClaimError = null;
+		communityClaiming = true;
+		capture('community_invite_claim_submitted');
+		try {
+			const result = await claimCommunityJoinBonus(code);
+			if (result.granted) {
+				communityClaimedInDialog = true;
+				showCommunityInviteAlert = false;
+				markCommunityInviteDialogSeen();
+				capture('community_invite_bonus_claimed', {
+					bonus_credits: COMMUNITY_JOIN_BONUS_CREDITS
+				});
+			} else if (freeTrial.communityBonusClaimed) {
+				communityClaimedInDialog = true;
+				showCommunityInviteAlert = false;
+			} else {
+				communityClaimError = getCommunityClaimErrorMessage(result.error);
+			}
+		} finally {
+			communityClaiming = false;
+		}
 	}
 
-	function isPickleballKeychainFeatureDialogSeen(): boolean {
-		try {
-			return localStorage.getItem(STORAGE_KEY_PICKLEBALL_KEYCHAIN_FEATURE_DIALOG) === '1';
-		} catch {
-			return true;
-		}
+	function handleCommunityOpenMessenger() {
+		capture('community_invite_join_clicked');
+		window.open(MESSENGER_COMMUNITY_URL, '_blank', 'noopener,noreferrer');
+	}
+
+	function openCommunityInviteFromBanner() {
+		communityClaimedInDialog = false;
+		communityClaimError = null;
+		communityInviteDialogOpen = true;
+		capture('community_invite_banner_clicked');
+	}
+
+	function handleCommunitySignIn() {
+		capture('community_invite_sign_in_clicked');
+		communityInviteDialogOpen = false;
+		communityClaimError = null;
+		onRequestLogin?.();
 	}
 
 	function isAnyHomeDialogVisible(): boolean {
 		return (
-			pickleballKeychainFeatureDialogOpen ||
+			communityInviteDialogOpen ||
 			pendingBetaDesigner !== null ||
 			pendingSubscriberDesigner !== null
 		);
 	}
 
-	function openHomeFeatureDialog(id: HomeFeatureDialogId) {
-		if (id === 'pickleballKeychain') pickleballKeychainFeatureDialogOpen = true;
-	}
-
-	/** Show at most one welcome/feature dialog per home visit; postpone if another modal is open. */
-	function showHomeFeatureDialogs() {
-		const shouldShowPickleballKeychain = !isPickleballKeychainFeatureDialogSeen();
-		const pending = getPendingHomeFeatureDialog();
-		const next = resolveNextHomeFeatureDialog({
-			pending,
-			shouldShowHoopTag: false,
-			shouldShowPickleballKeychain,
-			shouldShowFavorite: false
-		});
-
-		if (!next) {
-			clearPendingHomeFeatureDialog();
-			return;
-		}
-
-		if (isAnyHomeDialogVisible() || isAnyDialogBlocking()) {
-			setPendingHomeFeatureDialog(next);
-			return;
-		}
-
-		clearPendingHomeFeatureDialog();
-		openHomeFeatureDialog(next);
-	}
-
 	$effect(() => {
 		setDialogBlocking('home', isAnyHomeDialogVisible());
 	});
-
-	$effect(() => {
-		getDialogBlockingRevision();
-		if (!getPendingHomeFeatureDialog()) return;
-		if (isAnyDialogBlocking()) return;
-		showHomeFeatureDialogs();
-	});
-
-	function tryPickleballKeychainFromDialog() {
-		onSelect('pickleballKeychain');
-	}
 
 	// Preload font so Name Puzzle designer opens faster; restore interest flags from session.
 	onMount(() => {
@@ -150,8 +165,6 @@
 			if (isComingSoonInterestRecorded(id)) sent.add(id as StyleName);
 		}
 		comingSoonInterestSent = sent;
-		showHomeFeatureDialogs();
-		showCommunityInviteAlert = !isCommunityInviteDismissed();
 	});
 
 	type StyleName =
@@ -525,6 +538,44 @@
 
 	const hasAccess = $derived(hasPaidAccess(user, subscriptionStatus));
 
+	const showCommunityPromo = $derived(
+		Boolean(
+			!hasAccess &&
+				(!user?.id ||
+					(subscriptionStatus !== null &&
+						freeTrial.loaded &&
+						!freeTrial.communityBonusClaimed))
+		)
+	);
+
+	$effect(() => {
+		setDialogBlocking('communityInvite', communityInviteDialogOpen);
+	});
+
+	$effect(() => {
+		getDialogBlockingRevision();
+		if (!showCommunityPromo) {
+			showCommunityInviteAlert = false;
+			return;
+		}
+		showCommunityInviteAlert = !isCommunityBannerDismissed();
+	});
+
+	$effect(() => {
+		getDialogBlockingRevision();
+		if (!showCommunityPromo || isCommunityInviteDialogSeen()) return;
+		if (isAnyHomeDialogVisible() || isAnyDialogBlocking()) return;
+		const id = window.setTimeout(() => {
+			if (!showCommunityPromo || isCommunityInviteDialogSeen()) return;
+			if (isAnyHomeDialogVisible() || isAnyDialogBlocking()) return;
+			communityClaimedInDialog = false;
+			communityClaimError = null;
+			communityInviteDialogOpen = true;
+			capture('community_invite_shown', { signed_in: Boolean(user?.id) });
+		}, 2500);
+		return () => window.clearTimeout(id);
+	});
+
 	function isUnderMaintenance(style: StyleName): boolean {
 		return DESIGNERS_UNDER_MAINTENANCE.has(style);
 	}
@@ -798,16 +849,22 @@
 					<div class="min-w-0 flex-1">
 						<p class="font-medium text-sky-950">Join the Print Studio community</p>
 						<p class="mt-1 text-sm leading-relaxed text-sky-900/90">
-							Get updates, printing tips, and support in our official Messenger group.
+							{#if user?.id}
+								Join our Messenger group and redeem the pinned code for
+								<span class="font-semibold">{COMMUNITY_JOIN_BONUS_CREDITS} free download credits</span>
+								— plus updates, printing tips, and support.
+							{:else}
+								Sign in, join our Messenger group, and redeem the pinned code for
+								<span class="font-semibold">{COMMUNITY_JOIN_BONUS_CREDITS} free download credits</span>
+								— plus updates, printing tips, and support.
+							{/if}
 						</p>
 						<Button
-							href={MESSENGER_COMMUNITY_URL}
-							target="_blank"
-							rel="noopener noreferrer"
 							size="sm"
 							class="mt-2.5 bg-sky-600 hover:bg-sky-700"
+							onclick={openCommunityInviteFromBanner}
 						>
-							Join on Messenger
+							{user?.id ? `Claim ${COMMUNITY_JOIN_BONUS_CREDITS} credits` : 'Learn more'}
 						</Button>
 					</div>
 					<Button
@@ -1188,8 +1245,14 @@
 	</div>
 </div>
 
-<PickleballKeychainFeatureDialog
-	open={pickleballKeychainFeatureDialogOpen}
-	onOpenChange={onPickleballKeychainFeatureDialogOpenChange}
-	onTryIt={tryPickleballKeychainFromDialog}
+<CommunityInviteDialog
+	open={communityInviteDialogOpen}
+	isSignedIn={Boolean(user?.id)}
+	claiming={communityClaiming}
+	claimed={communityClaimedInDialog}
+	claimError={communityClaimError}
+	onClose={closeCommunityInviteDialog}
+	onOpenMessenger={handleCommunityOpenMessenger}
+	onClaim={handleCommunityClaim}
+	onSignIn={handleCommunitySignIn}
 />
