@@ -166,7 +166,7 @@
 		| 'charm'
 		| 'keycap'
 		| 'keycapSet'
-		| 'personalizedWhistleKeychain'
+		| 'whistleKeychain'
 		| 'multicolorWhistleKeychain'
 		| 'whistleBagTag'
 		| 'stanleyTopper'
@@ -471,11 +471,11 @@
 			imageAlt: 'Keycap Maker preview'
 		},
 		{
-			id: 'personalizedWhistleKeychain',
-			title: 'Personalized Whistle Keychain',
+			id: 'whistleKeychain',
+			title: 'Whistle Keychain',
 			description: 'Functional whistle with raised text.',
 			imageSrc: '/images/whistle.png',
-			imageAlt: 'Personalized Whistle Keychain preview',
+			imageAlt: 'Whistle Keychain preview',
 			attribution:
 				'https://makerworld.com/en/models/119995-loud-whistle?from=search#profileId-129140',
 			previewImageSrc: '/images/whistle-preview.png'

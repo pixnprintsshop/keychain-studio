@@ -28,7 +28,7 @@ const LOADERS: Record<DesignerId, () => Promise<DesignerModule>> = {
 	charm: () => import('$lib/components/CharmDesigner.svelte'),
 	keycap: () => import('$lib/components/KeycapDesigner.svelte'),
 	keycapSet: () => import('$lib/components/KeycapSetMakerDesigner.svelte'),
-	personalizedWhistleKeychain: () => import('$lib/components/WhistleDesigner.svelte'),
+	whistleKeychain: () => import('$lib/components/WhistleDesigner.svelte'),
 	multicolorWhistleKeychain: () => import('$lib/components/WhistleV2Designer.svelte'),
 	whistleBagTag: () => import('$lib/components/WhistleBagTagDesigner.svelte'),
 	stanleyTopper: () => import('$lib/components/StanleyTopperDesigner.svelte'),

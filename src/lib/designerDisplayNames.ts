@@ -14,7 +14,7 @@ const DESIGNER_DISPLAY_NAMES: Record<DesignerId, string> = {
 	charm: 'Chunky Charm',
 	keycap: 'Keycap Maker',
 	keycapSet: 'Keycap Set Maker',
-	personalizedWhistleKeychain: 'Personalized Whistle Keychain',
+	whistleKeychain: 'Personalized Whistle Keychain',
 	multicolorWhistleKeychain: 'Multicolor Whistle Keychain',
 	whistleBagTag: 'Whistle Bag Tag',
 	stanleyTopper: 'Stanley Topper',

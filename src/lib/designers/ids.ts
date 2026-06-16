@@ -12,7 +12,7 @@ export type DesignerId =
 	| 'charm'
 	| 'keycap'
 	| 'keycapSet'
-	| 'personalizedWhistleKeychain'
+	| 'whistleKeychain'
 	| 'multicolorWhistleKeychain'
 	| 'whistleBagTag'
 	| 'stanleyTopper'
@@ -45,7 +45,7 @@ export const DESIGNER_IDS: readonly DesignerId[] = [
 	'charm',
 	'keycap',
 	'keycapSet',
-	'personalizedWhistleKeychain',
+	'whistleKeychain',
 	'multicolorWhistleKeychain',
 	'whistleBagTag',
 	'stanleyTopper',
@@ -78,7 +78,7 @@ export const LEGACY_DESIGNER_ID_ALIASES: Record<string, DesignerId> = {
 	houseNumberPlaque: 'addressNumberSign',
 	roomSign: 'doorNamePlaque',
 	strawTopper: 'strawNameClip',
-	whistle: 'personalizedWhistleKeychain',
+	whistle: 'whistleKeychain',
 	whistleV2: 'multicolorWhistleKeychain',
 	plateBadge: 'motorcyclePlateBar',
 	canvasStudio: 'freeformDesignCanvas',
