@@ -29,7 +29,6 @@
 	import { upload3mfToSupabase } from '$lib/upload3mf';
 	import DesignerExportToolbar from './DesignerExportToolbar.svelte';
 	import DesignerModelDimensionsHud from './DesignerModelDimensionsHud.svelte';
-	import TextOutlineRimFeatureDialog from './TextOutlineRimFeatureDialog.svelte';
 	import TextOutlineSideTabKeyringFeatureDialog from './TextOutlineSideTabKeyringFeatureDialog.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Slider } from '$lib/components/ui/slider';
@@ -80,7 +79,6 @@
 	const STORAGE_KEY_SINGLE_LINES = 'keychain-outline-single-lines';
 	const STORAGE_KEY_SINGLE_LINE_SPACING = 'keychain-outline-single-line-spacing';
 	const STORAGE_KEY_KEYCHAIN_ITEMS = 'keychain-outline-keychain-items';
-	const STORAGE_KEY_RIM_FEATURE_DIALOG = 'text-outline-rim-feature-dialog-v1';
 	const STORAGE_KEY_SIDE_TAB_KEYRING_FEATURE_DIALOG =
 		'text-outline-side-tab-keyring-feature-dialog-v1';
 
@@ -687,7 +685,6 @@
 	let presetEditorTextOutline = $state('#ffffff');
 	let presetEditorText = $state('#2d2d2d');
 	let presetEditorTextOutlineEnabled = $state(true);
-	let rimFeatureDialogOpen = $state(false);
 	let sideTabKeyringFeatureDialogOpen = $state(false);
 
 	function snapPresetColors(outline: string, border: string, textOutline: string, text: string) {
@@ -830,44 +827,6 @@
 		if (!open) closePresetEditor();
 	}
 
-	function markRimFeatureDialogSeen() {
-		try {
-			localStorage.setItem(STORAGE_KEY_RIM_FEATURE_DIALOG, '1');
-		} catch {
-			// Local storage can be unavailable in private browsing contexts.
-		}
-	}
-
-	function onRimFeatureDialogOpenChange(open: boolean) {
-		rimFeatureDialogOpen = open;
-		if (!open) markRimFeatureDialogSeen();
-	}
-
-	function tryRimFeatureFromDialog() {
-		if (hasSelectedItem) {
-			updateSelectedItemSettings({ borderEnabled: true });
-		}
-		void tick().then(() => {
-			document
-				.getElementById('text-outline-border-settings')
-				?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-		});
-	}
-
-	function isRimFeatureDialogSeen(): boolean {
-		try {
-			return localStorage.getItem(STORAGE_KEY_RIM_FEATURE_DIALOG) === '1';
-		} catch {
-			return true;
-		}
-	}
-
-	function maybeShowRimFeatureDialog(): boolean {
-		if (isRimFeatureDialogSeen()) return false;
-		rimFeatureDialogOpen = true;
-		return true;
-	}
-
 	function markSideTabKeyringFeatureDialogSeen() {
 		try {
 			localStorage.setItem(STORAGE_KEY_SIDE_TAB_KEYRING_FEATURE_DIALOG, '1');
@@ -905,7 +864,6 @@
 	}
 
 	function maybeShowTextOutlineFeatureDialogs() {
-		if (maybeShowRimFeatureDialog()) return;
 		maybeShowSideTabKeyringFeatureDialog();
 	}
 
@@ -3920,12 +3878,6 @@
 			</Dialog.Content>
 		</Dialog.Root>
 	{/if}
-
-	<TextOutlineRimFeatureDialog
-		open={rimFeatureDialogOpen}
-		onOpenChange={onRimFeatureDialogOpenChange}
-		onTryIt={tryRimFeatureFromDialog}
-	/>
 
 	<TextOutlineSideTabKeyringFeatureDialog
 		open={sideTabKeyringFeatureDialogOpen}

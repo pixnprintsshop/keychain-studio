@@ -1,21 +1,23 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import type { User } from '@supabase/supabase-js';
-	import { Button } from '$lib/components/ui/button';
-	import * as Dialog from '$lib/components/ui/dialog';
+	import { capture } from '$lib/analytics';
 	import { COMING_SOON_DESIGNER_IDS } from '$lib/comingSoonDesigners';
 	import {
 		isComingSoonInterestRecorded,
 		markComingSoonInterestRecorded,
 		notifyComingSoonInterest
 	} from '$lib/comingSoonInterestNotify';
-	import {
-		hasPaidAccess,
-		isSubscriberOnlyDesigner,
-		type SubscriptionStatus
-	} from '$lib/subscription';
+	import CommunityInviteDialog from '$lib/components/CommunityInviteDialog.svelte';
 	import FloatingGlobalExportCounter from '$lib/components/FloatingGlobalExportCounter.svelte';
 	import FloatingRecentExportsFeed from '$lib/components/FloatingRecentExportsFeed.svelte';
+	import { Button } from '$lib/components/ui/button';
+	import * as Dialog from '$lib/components/ui/dialog';
+	import { resolveDesignerId } from '$lib/designers/ids';
+	import { getDesignerDisplayName } from '$lib/designerDisplayNames';
+	import {
+		getDialogBlockingRevision,
+		isAnyDialogBlocking,
+		setDialogBlocking
+	} from '$lib/dialogCoordinator.svelte';
 	import { exportStats, formatExportCount, getDesignerExportCount } from '$lib/exportStats.svelte';
 	import {
 		favoriteSortIndex,
@@ -23,8 +25,6 @@
 		toggleFavoriteDesigner
 	} from '$lib/favoriteDesigners.svelte';
 	import { notifyFavoriteAction } from '$lib/favoriteNotify';
-	import CommunityInviteDialog from '$lib/components/CommunityInviteDialog.svelte';
-	import { capture } from '$lib/analytics';
 	import { claimCommunityJoinBonus, freeTrial } from '$lib/freeTrial.svelte';
 	import {
 		COMMUNITY_JOIN_BONUS_CREDITS,
@@ -32,12 +32,13 @@
 		MESSENGER_COMMUNITY_URL
 	} from '$lib/messengerCommunity';
 	import {
-		getDialogBlockingRevision,
-		isAnyDialogBlocking,
-		setDialogBlocking
-	} from '$lib/dialogCoordinator.svelte';
+		hasPaidAccess,
+		isSubscriberOnlyDesigner,
+		type SubscriptionStatus
+	} from '$lib/subscription';
 	import { getFont } from '$lib/utils-3d';
-	import { resolveDesignerId } from '$lib/designers/ids';
+	import type { User } from '@supabase/supabase-js';
+	import { onMount } from 'svelte';
 
 	const STORAGE_KEY_COMMUNITY_INVITE_DISMISSED = 'messenger-community-invite-dismissed-v1';
 	const STORAGE_KEY_COMMUNITY_INVITE_DIALOG = 'messenger-community-invite-dialog-v1';
@@ -168,30 +169,30 @@
 	});
 
 	type StyleName =
-		| 'standaloneNameKeychain'
+		| 'standaloneName'
 		| 'layeredMonogram'
 		| 'monogramInsert'
-		| 'flower'
-		| 'classicNameTagKeychain'
+		| 'floralInitial'
+		| 'classicNameTag'
 		| 'idNameTag'
 		| 'idNameTagV2'
 		| 'customSvg'
-		| 'charm'
-		| 'keycap'
-		| 'keycapSet'
-		| 'whistleKeychain'
-		| 'multicolorWhistleKeychain'
+		| 'chunkyCharm'
+		| 'keycapMaker'
+		| 'keycapSetMaker'
+		| 'classicWhistle'
+		| 'multicolorWhistle'
 		| 'whistleBagTag'
 		| 'stanleyTopper'
 		| 'strawNameClip'
 		| 'pencilNameSleeve'
 		| 'dogtag'
 		| 'bumpyText'
-		| 'ribbonBowKeychain'
-		| 'pickleballKeychain'
+		| 'ribbonBow'
+		| 'pickleball'
 		| 'hoopTag'
-		| 'articulatedKeychain'
-		| 'spotifyCodeKeychain'
+		| 'articulated'
+		| 'spotifyCode'
 		| 'qrCodeMaker'
 		| 'namePuzzle'
 		| 'engraveNamePlate'
@@ -210,6 +211,8 @@
 		previewImageSrc?: string;
 		attribution?: string;
 	}
+
+	type DesignerCatalogItem = Omit<DesignerItem, 'title'>;
 
 	/**
 	 * Designers temporarily disabled (under maintenance).
@@ -270,255 +273,209 @@
 	let pendingBetaDesigner: StyleName | null = $state(null);
 	let pendingSubscriberDesigner: StyleName | null = $state(null);
 
-	const DESIGNERS: DesignerItem[] = [
+	const DESIGNER_CATALOG: DesignerCatalogItem[] = [
 		{
-			id: 'articulatedKeychain',
-			title: 'Articulated Keychain',
-			description:
-				'Linked letter bases from start, mid, and end segments — type a name to build the chain.',
+			id: 'articulated',
+			description: 'Flexible keychain where each letter of your name links together.',
 			imageSrc: '/images/articulated-keychain.png',
 			imageAlt: 'Articulated Keychain preview'
 		},
 		{
-			id: 'multicolorWhistleKeychain',
-			title: 'Multicolor Whistle Keychain',
-			description: 'Multicolor whistle (Accent, Main, Border) with raised text on top.',
+			id: 'multicolorWhistle',
+			description: 'Working whistle in up to three colors, with your name on top.',
 			imageSrc: '/images/whistle-v2.png',
 			imageAlt: 'Multicolor Whistle Keychain preview'
 		},
 		{
 			id: 'whistleBagTag',
-			title: 'Whistle Bag Tag',
-			description:
-				'Bag tag whistle body with base, border rim, and multiline raised text (border matches text color).',
+			description: 'Whistle bag tag with your name — great for backpacks and luggage.',
 			imageSrc: '/images/whistle-bag-tag.png',
 			imageAlt: 'Whistle Bag Tag preview'
 		},
 		{
-			id: 'standaloneNameKeychain',
-			title: 'Standalone Name Keychain',
-			description: 'Floating text model for quick name plates or labels.',
+			id: 'standaloneName',
+			description: 'Your words in 3D only — great for labels, gifts, or quick prints.',
 			imageSrc: '/images/text-only.png',
 			imageAlt: 'Standalone Name Keychain preview'
 		},
 		{
 			id: 'qrCodeMaker',
-			title: 'QR Code Maker',
-			description:
-				'Turn any URL or text into a scannable QR code with optional label and keyring.',
+			description: 'Scannable QR keychain for a link, message, Wi‑Fi, or contact info.',
 			imageSrc: '/images/qr-code-maker.png',
 			imageAlt: 'QR Code Maker preview'
 		},
 		{
-			id: 'spotifyCodeKeychain',
-			title: 'Spotify Code Keychain',
-			description:
-				'Scannable Spotify Code on a keychain base — paste an album, track, playlist, or artist link.',
+			id: 'spotifyCode',
+			description: 'Paste a Spotify link and get a scannable song code keychain.',
 			imageSrc: '/images/spotify-keychain.png',
 			imageAlt: 'Spotify Code Keychain preview'
 		},
 		{
 			id: 'freeformDesignCanvas',
-			title: 'Freeform Design Canvas',
-			description:
-				'Free-form 2D canvas with text and built-in shapes — drag, rotate, scale, then convert to 3D.',
-			// Placeholder reuse; swap with /images/canvas-studio.png when ready.
+			description: 'Arrange text and shapes on a canvas, then turn it into a 3D print.',
 			imageSrc: '/images/canvas-studio.png',
 			imageAlt: 'Freeform Design Canvas preview'
 		},
 		{
 			id: 'motorcyclePlateBar',
-			title: 'Motorcycle Plate Bar',
-			description: 'Motorcycle plate accessory: fixed bar with end mounting slots',
+			description: 'Custom bar accessory for motorcycle plates — add your text.',
 			imageSrc: '/images/plate-badge.png',
 			imageAlt: 'Motorcycle Plate Bar preview'
 		},
 		{
 			id: 'cakeTopper',
-			title: 'Cake Topper',
-			description: 'Multi-line cake topper with adjustable spacing and 1 or 2 long sticks.',
+			description: 'Birthday topper with your message — pick one or two sticks.',
 			imageSrc: '/images/cake-topper.png',
 			imageAlt: 'Cake Topper preview'
 		},
 		{
 			id: 'idNameTag',
-			title: 'ID Name Tag',
-			description: 'Name tag with customizable text and colors.',
+			description: 'Badge-style name tag you can customize with text and colors.',
 			imageSrc: '/images/id-name-tag.png',
 			imageAlt: 'ID Name Tag preview'
 		},
 		{
 			id: 'idNameTagV2',
-			title: 'ID Name Tag v2',
-			description: 'Fixed STL name tag styles with selectable base and border pairs.',
+			description: 'Pick a ready-made tag shape, then add your name and colors.',
 			imageSrc: '/images/id-name-tag-v2.png',
 			imageAlt: 'ID Name Tag v2 preview'
 		},
 		{
-			id: 'classicNameTagKeychain',
-			title: 'Classic Name Tag Keychain',
-			description: 'Simple rectangular name tag with clean, readable text.',
+			id: 'classicNameTag',
+			description: 'Simple flat tag with multiple lines of clear, readable text.',
 			imageSrc: '/images/nametag.png',
-			imageAlt: 'Classic Name Tag Keychain preview',
+			imageAlt: 'Classic Name Tag preview',
 			previewImageSrc: '/images/nametag-preview.png'
 		},
 		{
 			id: 'addressNumberSign',
-			title: 'Address Number Sign',
-			description:
-				'Wall plaque with multiline raised text, optional border frame, and corner mounting holes.',
+			description: 'House or unit number sign with optional frame and screw holes.',
 			imageSrc: '/images/house-number-plaque.png',
 			imageAlt: 'Address Number Sign preview'
 		},
 		{
 			id: 'doorNamePlaque',
-			title: 'Door Name Plaque',
-			description:
-				'Decorative plaque with ornate border flourishes and centered raised room name text.',
+			description: 'Decorative door or room sign with raised name and fancy border.',
 			imageSrc: '/images/room-sign.png',
 			imageAlt: 'Door Name Plaque preview'
 		},
 		{
-			id: 'keycapSet',
-			title: 'Keycap Set Maker',
-			description: 'Type your own legends (default A–Z and 0–9)',
+			id: 'keycapSetMaker',
+			description: 'Type custom letters and symbols for a full keyboard keycap set.',
 			imageSrc: '/images/keycap-set-maker.png',
 			imageAlt: 'Keycap Set Maker preview'
 		},
 		{
 			id: 'engraveNamePlate',
-			title: 'Engrave Name Plate',
-			description: 'Contour plate from your text with an engraved pocket and optional keyring tab.',
+			description: 'Raised border with recessed name — fill in color on a second piece.',
 			imageSrc: '/images/engrave-name-plate.png',
 			imageAlt: 'Engrave Name Plate preview'
 		},
 		{
 			id: 'bumpyText',
-			title: 'Bumpy Text',
-			description:
-				'Text-only model where each letter has a different thickness for a playful look.',
+			description: 'Fun 3D name where each letter sticks out a different height.',
 			imageSrc: '/images/bumpy-text.png',
 			imageAlt: 'Bumpy Text preview',
 			previewImageSrc: '/images/bumpy-text-preview.png'
 		},
 		{
-			id: 'ribbonBowKeychain',
-			title: 'Ribbon Bow Keychain',
-			description: 'Bow-shaped keychain with raised text',
+			id: 'ribbonBow',
+			description: 'Bow-shaped keychain with your name — sweet for bags and keys.',
 			imageSrc: '/images/bow-keychain.png',
-			imageAlt: 'Ribbon Bow Keychain preview',
+			imageAlt: 'Ribbon Bow preview',
 			previewImageSrc: '/images/bow-keychain-preview.png'
 		},
 		{
-			id: 'pickleballKeychain',
-			title: 'Pickleball keychain',
-			description:
-				'Paddle and ball keychain with a center icon, base rim, and decor details — optional keyring tab.',
+			id: 'pickleball',
+			description: 'Pickleball paddle keychain with your name and optional ring tab.',
 			imageSrc: '/images/pickleball-keychain-feature-dialog.png',
-			imageAlt: 'Pickleball keychain preview'
+			imageAlt: 'Pickleball preview'
 		},
 		{
 			id: 'hoopTag',
-			title: 'HoopTag',
-			description:
-				'Basketball backboard and net keychain with multi-color artwork, offset base rim, and keyring hole.',
+			description: 'Mini basketball hoop keychain with your name and team colors.',
 			imageSrc: '/images/hoop-tag.png',
 			imageAlt: 'HoopTag basketball keychain preview'
 		},
 		{
 			id: 'namePuzzle',
-			title: 'Baby / Toddler Name Puzzle',
-			description:
-				'Rectangular puzzle base with letter cutouts. Letters fit into slots as removable pieces.',
+			description: 'Letters pop in and out of a board — kids spell the name as they play.',
 			imageSrc: '/images/name-puzzle.png',
 			imageAlt: 'Name Puzzle preview',
 			previewImageSrc: '/images/name-puzzle-preview.png'
 		},
 		{
 			id: 'layeredMonogram',
-			title: 'Layered Monogram',
-			description: 'Large initial with smaller name text',
+			description: 'Big initial with your full name tucked alongside it.',
 			imageSrc: '/images/text+initial.png',
 			imageAlt: 'Layered Monogram preview'
 		},
 		{
 			id: 'monogramInsert',
-			title: 'Monogram Insert',
-			description:
-				'Large initial with an embedded name pocket and a separate name insert — two-part print.',
+			description: 'Large letter plus a separate name piece for a two-color look.',
 			imageSrc: '/images/monogram-insert.png',
 			imageAlt: 'Monogram Insert preview'
 		},
 		{
-			id: 'flower',
-			title: 'Flower + Initial',
-			description: 'Flower-shaped keychain with a single letter in the center.',
+			id: 'floralInitial',
+			description: 'Flower-shaped keychain with your initial in the center.',
 			imageSrc: '/images/flower+initial.png',
 			imageAlt: 'Flower & Initial preview',
 			previewImageSrc: '/images/flower+initial-preview.png'
 		},
 		{
 			id: 'dogtag',
-			title: 'Dog Tag',
-			description: 'Pet tag layout with name for collars.',
+			description: 'Classic pet tag shape — add your dog or cat\'s name.',
 			imageSrc: '/images/dogtag.png',
 			imageAlt: 'Pet Dog Tag preview',
 			previewImageSrc: '/images/dogtag-preview.png'
 		},
-		// {
-		// 	id: 'customSvg',
-		// 	title: 'Custom SVG',
-		// 	description: 'Import an SVG logo or artwork and turn it into a printable keychain.',
-		// 	imageSrc: '/images/custom-svg.png',
-		// 	imageAlt: 'Custom SVG Designer preview'
-		// },
 		{
-			id: 'charm',
-			title: 'Chunky Charm',
-			description: 'Thicker charm with a built-in hole for string, cord, or chain.',
+			id: 'chunkyCharm',
+			description: 'Turn your picture or logo into a thick charm for cord or chain.',
 			imageSrc: '/images/charm.png',
 			imageAlt: 'Chunky Charm preview'
 		},
 		{
-			id: 'keycap',
-			title: 'Keycap Maker',
-			description: 'Add a centered icon or symbol on top of an existing keycap STL.',
+			id: 'keycapMaker',
+			description: 'Add a small icon or logo on top of a single keycap.',
 			imageSrc: '/images/keycap-maker.png',
 			imageAlt: 'Keycap Maker preview'
 		},
 		{
-			id: 'whistleKeychain',
-			title: 'Whistle Keychain',
-			description: 'Functional whistle with raised text.',
+			id: 'classicWhistle',
+			description: 'Simple working whistle keychain personalized with your name.',
 			imageSrc: '/images/whistle.png',
 			imageAlt: 'Whistle Keychain preview',
 			previewImageSrc: '/images/whistle-preview.png'
 		},
 		{
 			id: 'stanleyTopper',
-			title: 'Stanley Topper',
-			description: 'Name plate topper designed to sit on a 40oz Stanley-style tumbler.',
+			description: 'Name topper sized for big tumblers like a 40oz Stanley cup.',
 			imageSrc: '/images/stanley-topper.png',
 			imageAlt: 'Stanley Topper preview',
 			previewImageSrc: '/images/stanley-topper-preview.png',
 		},
 		{
 			id: 'strawNameClip',
-			title: 'Straw Name Clip',
-			description: 'Name topper that snaps over a tumbler straw for easy cup identification.',
+			description: 'Clips onto a straw so everyone knows whose drink is whose.',
 			imageSrc: '/images/straw-topper.png',
 			imageAlt: 'Straw Name Clip preview',
 			previewImageSrc: '/images/straw-topper-preview.png'
 		},
 		{
 			id: 'pencilNameSleeve',
-			title: 'Pencil Name Sleeve',
-			description: 'Sleeve-style topper that slides onto a pencil and shows a name or word.',
+			description: 'Name sleeve that slides onto a pencil for school or gifts.',
 			imageSrc: '/images/pencil-topper.png',
 			imageAlt: 'Pencil Name Sleeve preview',
 			previewImageSrc: '/images/pencil-topper-preview.png'
 		}
 	];
+
+	const DESIGNERS: DesignerItem[] = DESIGNER_CATALOG.map((entry) => ({
+		...entry,
+		title: getDesignerDisplayName(entry.id)
+	}));
 
 	interface Props {
 		onSelect: (style: StyleName) => void;

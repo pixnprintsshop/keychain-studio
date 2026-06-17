@@ -742,7 +742,7 @@
 			<div bind:this={hostEl} class="absolute inset-0"></div>
 			<div class="absolute bottom-4 right-4">
 				<DesignerExportToolbar
-					onSnapshot={() => downloadSnapshot(renderer, scene, camera, 'articulated-keychain')}
+					onSnapshot={() => downloadSnapshot(renderer, scene, camera, 'articulated')}
 					onExport={() => exportStl()}
 					exportDisabled={!sceneReady || !sanitizeText(textContent) || exportLoading}
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF')}
