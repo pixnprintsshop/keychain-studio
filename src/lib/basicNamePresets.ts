@@ -236,7 +236,7 @@ export function clearLocalBasicNamePresets(): void {
 export async function fetchUserBasicNamePresets(
 	userId: string
 ): Promise<BasicNameColorPreset[] | null> {
-	const remote = await fetchUserDesignerPresets(userId, 'classicNameTagKeychain');
+	const remote = await fetchUserDesignerPresets(userId, 'classicNameTag');
 	if (remote === null) {
 		return null;
 	}
@@ -250,13 +250,13 @@ export async function saveUserBasicNamePresets(
 	userId: string,
 	presets: BasicNameColorPreset[]
 ): Promise<{ success: true } | { success: false; error: string }> {
-	return saveUserDesignerPresets(userId, 'classicNameTagKeychain', presets);
+	return saveUserDesignerPresets(userId, 'classicNameTag', presets);
 }
 
 export async function loadUserBasicNamePresets(userId: string): Promise<BasicNameColorPreset[]> {
 	return loadUserDesignerPresetsWithLocalMigration({
 		userId,
-		designerId: 'classicNameTagKeychain',
+		designerId: 'classicNameTag',
 		parse: parseBasicNameColorPreset,
 		loadLocal: loadLocalBasicNamePresets,
 		clearLocal: clearLocalBasicNamePresets
@@ -267,5 +267,5 @@ export async function persistBasicNameCustomPresets(
 	userId: string | null | undefined,
 	presets: BasicNameColorPreset[]
 ): Promise<{ success: true } | { success: false; error: string }> {
-	return persistDesignerCustomPresets(userId, 'classicNameTagKeychain', presets, saveLocalBasicNamePresets);
+	return persistDesignerCustomPresets(userId, 'classicNameTag', presets, saveLocalBasicNamePresets);
 }

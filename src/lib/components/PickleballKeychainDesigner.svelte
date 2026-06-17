@@ -67,7 +67,7 @@
 	const LEGACY_STORAGE_KEY = 'pickleball-keychain-settings';
 	/** Vertical gap between stacked layers so faces do not touch (avoids coplanar / non-manifold). */
 	const LAYER_GAP = 0.001;
-	const DESIGN_NAME = 'Pickleball keychain';
+	const DESIGN_NAME = 'Pickleball';
 	/** Overall scale 1.0 → this silhouette height (mm); default scale targets 50 mm. */
 	const HEIGHT_AT_SCALE_1_MM = 55;
 	const DEFAULT_OVERALL_SCALE = 50 / HEIGHT_AT_SCALE_1_MM;

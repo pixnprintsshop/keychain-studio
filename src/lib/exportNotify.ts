@@ -11,7 +11,7 @@ export interface ExportNotifyPayload {
 	name: string | undefined;
 	subscriptionStatus: SubscriptionStatus | null;
 	designName: string;
-	/** Route designer id (e.g. `classicNameTagKeychain`). Resolved from designName when omitted. */
+	/** Route designer id (e.g. `standaloneName`). Resolved from route context and designName when omitted. */
 	designerId?: DesignerId | null;
 	format: 'stl' | '3mf' | 'bambu_studio';
 }
@@ -77,6 +77,7 @@ function resolveExportAccess(subscriptionStatus: SubscriptionStatus | null): {
  */
 export function notifyExportEvent(payload: ExportNotifyPayload): void {
 	const { email, name, subscriptionStatus, designName, format } = payload;
+	const designerId = resolveDesignerIdForExport(designName, payload.designerId);
 	const access = resolveExportAccess(subscriptionStatus);
 	const body = {
 		email: email ?? undefined,
@@ -89,10 +90,11 @@ export function notifyExportEvent(payload: ExportNotifyPayload): void {
 		subscriptionTrialTotal: access.subscriptionTrialTotal,
 		onTrial: subscriptionStatus?.onTrial ?? false,
 		designName,
+		designerId: designerId ?? undefined,
 		format
 	};
 
-	recordExport(resolveDesignerIdForExport(designName, payload.designerId), format);
+	recordExport(designerId, format);
 
 	if (!isTelegramNotifyEnabled()) return;
 

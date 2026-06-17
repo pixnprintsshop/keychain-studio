@@ -4,9 +4,9 @@ import { supabase } from './supabase';
 /** Designers that store custom color presets in `user_designer_presets`. */
 export type DesignerPresetDesignerId = Extract<
 	DesignerId,
-	| 'multicolorWhistleKeychain'
-	| 'standaloneNameKeychain'
-	| 'classicNameTagKeychain'
+	| 'multicolorWhistle'
+	| 'standaloneName'
+	| 'classicNameTag'
 	| 'idNameTagV2'
 	| 'whistleBagTag'
 	| 'dogtag'
@@ -14,41 +14,22 @@ export type DesignerPresetDesignerId = Extract<
 	| 'doorNamePlaque'
 >;
 
-const LEGACY_PRESET_DESIGNER_IDS: Partial<Record<DesignerPresetDesignerId, string>> = {
-	standaloneNameKeychain: 'textOutline',
-	classicNameTagKeychain: 'basicName',
-	multicolorWhistleKeychain: 'whistleV2',
-	addressNumberSign: 'houseNumberPlaque',
-	doorNamePlaque: 'roomSign'
-};
-
 export const USER_DESIGNER_PRESETS_TABLE = 'user_designer_presets';
 
 export async function fetchUserDesignerPresets(
 	userId: string,
 	designerId: DesignerPresetDesignerId
 ): Promise<unknown[] | null> {
-	const query = async (id: string) =>
-		supabase
-			.from(USER_DESIGNER_PRESETS_TABLE)
-			.select('presets')
-			.eq('user_id', userId)
-			.eq('designer_id', id)
-			.maybeSingle();
-
-	let { data, error } = await query(designerId);
+	const { data, error } = await supabase
+		.from(USER_DESIGNER_PRESETS_TABLE)
+		.select('presets')
+		.eq('user_id', userId)
+		.eq('designer_id', designerId)
+		.maybeSingle();
 
 	if (error) {
 		console.error(`Failed to fetch ${designerId} presets:`, error);
 		return null;
-	}
-
-	const legacyId = LEGACY_PRESET_DESIGNER_IDS[designerId];
-	if ((!data?.presets || !Array.isArray(data.presets) || data.presets.length === 0) && legacyId) {
-		const legacy = await query(legacyId);
-		if (!legacy.error && legacy.data?.presets) {
-			data = legacy.data;
-		}
 	}
 
 	if (!data?.presets || !Array.isArray(data.presets)) {

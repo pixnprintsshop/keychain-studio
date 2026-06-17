@@ -255,7 +255,7 @@ export function clearLocalTextOutlinePresets(): void {
 export async function fetchUserTextOutlinePresets(
 	userId: string
 ): Promise<TextOutlineColorPreset[] | null> {
-	const remote = await fetchUserDesignerPresets(userId, 'standaloneNameKeychain');
+	const remote = await fetchUserDesignerPresets(userId, 'standaloneName');
 	if (remote === null) {
 		return null;
 	}
@@ -269,13 +269,13 @@ export async function saveUserTextOutlinePresets(
 	userId: string,
 	presets: TextOutlineColorPreset[]
 ): Promise<{ success: true } | { success: false; error: string }> {
-	return saveUserDesignerPresets(userId, 'standaloneNameKeychain', presets);
+	return saveUserDesignerPresets(userId, 'standaloneName', presets);
 }
 
 export async function loadUserTextOutlinePresets(userId: string): Promise<TextOutlineColorPreset[]> {
 	return loadUserDesignerPresetsWithLocalMigration({
 		userId,
-		designerId: 'standaloneNameKeychain',
+		designerId: 'standaloneName',
 		parse: parseTextOutlineColorPreset,
 		loadLocal: loadLocalTextOutlinePresets,
 		clearLocal: clearLocalTextOutlinePresets
@@ -286,5 +286,5 @@ export async function persistTextOutlineCustomPresets(
 	userId: string | null | undefined,
 	presets: TextOutlineColorPreset[]
 ): Promise<{ success: true } | { success: false; error: string }> {
-	return persistDesignerCustomPresets(userId, 'standaloneNameKeychain', presets, saveLocalTextOutlinePresets);
+	return persistDesignerCustomPresets(userId, 'standaloneName', presets, saveLocalTextOutlinePresets);
 }

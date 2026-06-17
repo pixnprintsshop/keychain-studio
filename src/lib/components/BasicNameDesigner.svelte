@@ -1244,7 +1244,7 @@
                 email: user?.email,
                 name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
                 subscriptionStatus,
-                designName: "Classic Name Tag Keychain",
+                designName: "Classic Name Tag",
                 format: "stl"
             });
         onShowThankYou();
@@ -1275,7 +1275,7 @@
                 email: user?.email,
                 name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
                 subscriptionStatus,
-                designName: "Classic Name Tag Keychain",
+                designName: "Classic Name Tag",
                 format: "3mf"
             });
         onShowThankYou();
@@ -1303,7 +1303,7 @@
                 email: user?.email,
                 name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
                 subscriptionStatus,
-                designName: "Classic Name Tag Keychain",
+                designName: "Classic Name Tag",
                 format: "bambu_studio"
             });
             window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;

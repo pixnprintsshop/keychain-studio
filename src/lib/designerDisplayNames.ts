@@ -37,11 +37,20 @@ const DESIGNER_DISPLAY_NAMES: Record<DesignerId, string> = {
 	doorNamePlaque: 'Door Name Plaque'
 };
 
+const DISPLAY_NAME_TO_ID = Object.fromEntries(
+	Object.entries(DESIGNER_DISPLAY_NAMES).map(([id, name]) => [name, id])
+) as Record<string, DesignerId>;
+
 export function getDesignerDisplayName(designerId: string | null | undefined): string {
 	if (designerId && isDesignerId(designerId)) {
 		return DESIGNER_DISPLAY_NAMES[designerId];
 	}
 	return 'A design';
+}
+
+export function getDesignerIdFromDisplayName(name: string): DesignerId | null {
+	const id = DISPLAY_NAME_TO_ID[name.trim()];
+	return id ?? null;
 }
 
 export type ExportFormat = 'stl' | '3mf' | 'bambu_studio';

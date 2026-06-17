@@ -34,6 +34,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		subscriptionTrialTotal,
 		onTrial,
 		designName,
+		designerId,
 		format
 	} = (data ?? {}) as {
 		email?: string;
@@ -46,6 +47,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		subscriptionTrialTotal?: number;
 		onTrial?: boolean;
 		designName?: string;
+		designerId?: string;
 		format?: string;
 	};
 
@@ -72,6 +74,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				? ['⚠️ On trial']
 				: []),
 		`📦 Design: ${designName ?? '—'}`,
+		...(designerId ? [`🆔 Designer: ${designerId}`] : []),
 		`📄 Format: ${format ?? '—'}`
 	];
 

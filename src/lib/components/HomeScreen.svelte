@@ -11,7 +11,7 @@
 	import FloatingRecentExportsFeed from '$lib/components/FloatingRecentExportsFeed.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
-	import { resolveDesignerId } from '$lib/designers/ids';
+	import { isDesignerId } from '$lib/designers/ids';
 	import { getDesignerDisplayName } from '$lib/designerDisplayNames';
 	import {
 		getDialogBlockingRevision,
@@ -249,8 +249,7 @@
 			envList
 				.split(',')
 				.map((x) => x.trim())
-				.map((id) => resolveDesignerId(id))
-				.filter((id): id is StyleName => id !== null)
+				.filter((id): id is StyleName => isDesignerId(id))
 		);
 	}
 	const NEW_DESIGNERS = getNewDesigners();

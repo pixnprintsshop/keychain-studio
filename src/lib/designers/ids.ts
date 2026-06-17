@@ -74,15 +74,14 @@ export function isDesignerId(value: string): value is DesignerId {
 }
 
 export function resolveDesignerId(value: string): DesignerId | null {
-	if (isDesignerId(value)) return value;
-	return null;
+	return isDesignerId(value) ? value : null;
 }
 
 export function designerPath(id: DesignerId): string {
 	return `/${id}`;
 }
 
-/** First path segment when it is a designer route (legacy aliases resolve to current ids). */
+/** First path segment when it is a designer route. */
 export function designerIdFromPathname(pathname: string): DesignerId | null {
 	const segment = pathname.replace(/^\//, '').split('/').filter(Boolean)[0];
 	if (!segment) return null;

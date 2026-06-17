@@ -727,7 +727,7 @@ difference() {
 						name:
 							(user as any)?.user_metadata?.full_name ?? (user as any)?.user_metadata?.name ?? '',
 						subscriptionStatus,
-						designName: 'Puzzle Pieces A–Z',
+						designName: 'Name Puzzle',
 						format: 'stl'
 					});
 				} finally {
@@ -781,7 +781,7 @@ difference() {
 						name:
 							(user as any)?.user_metadata?.full_name ?? (user as any)?.user_metadata?.name ?? '',
 						subscriptionStatus,
-						designName: 'Puzzle Pieces A–Z',
+						designName: 'Name Puzzle',
 						format: '3mf'
 					});
 				} finally {

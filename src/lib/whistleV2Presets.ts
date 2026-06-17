@@ -127,7 +127,7 @@ export function clearLocalWhistleV2Presets(): void {
 export async function fetchUserWhistleV2Presets(
 	userId: string
 ): Promise<WhistleV2ColorPreset[] | null> {
-	const remote = await fetchUserDesignerPresets(userId, 'multicolorWhistleKeychain');
+	const remote = await fetchUserDesignerPresets(userId, 'multicolorWhistle');
 	if (remote === null) {
 		return null;
 	}
@@ -141,14 +141,14 @@ export async function saveUserWhistleV2Presets(
 	userId: string,
 	presets: WhistleV2ColorPreset[]
 ): Promise<{ success: true } | { success: false; error: string }> {
-	return saveUserDesignerPresets(userId, 'multicolorWhistleKeychain', presets);
+	return saveUserDesignerPresets(userId, 'multicolorWhistle', presets);
 }
 
 /** Load presets for a signed-in user; migrates local-only presets to the account once. */
 export async function loadUserWhistleV2Presets(userId: string): Promise<WhistleV2ColorPreset[]> {
 	return loadUserDesignerPresetsWithLocalMigration({
 		userId,
-		designerId: 'multicolorWhistleKeychain',
+		designerId: 'multicolorWhistle',
 		parse: parseWhistleV2ColorPreset,
 		loadLocal: loadLocalWhistleV2Presets,
 		clearLocal: clearLocalWhistleV2Presets
@@ -159,5 +159,5 @@ export async function persistWhistleV2CustomPresets(
 	userId: string | null | undefined,
 	presets: WhistleV2ColorPreset[]
 ): Promise<{ success: true } | { success: false; error: string }> {
-	return persistDesignerCustomPresets(userId, 'multicolorWhistleKeychain', presets, saveLocalWhistleV2Presets);
+	return persistDesignerCustomPresets(userId, 'multicolorWhistle', presets, saveLocalWhistleV2Presets);
 }

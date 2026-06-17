@@ -343,7 +343,7 @@
                 email: user?.email,
                 name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
                 subscriptionStatus,
-                designName: "Personalized Whistle Keychain",
+                designName: "Personalized Whistle",
                 format: "stl"
             });
             onShowThankYou();
@@ -387,7 +387,7 @@
             email: user?.email,
             name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
             subscriptionStatus,
-            designName: "Personalized Whistle Keychain",
+            designName: "Personalized Whistle",
             format: "3mf"
         });
         onShowThankYou();
@@ -428,7 +428,7 @@
                 email: user?.email,
                 name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
                 subscriptionStatus,
-                designName: "Personalized Whistle Keychain",
+                designName: "Personalized Whistle",
                 format: "bambu_studio"
             });
             window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;

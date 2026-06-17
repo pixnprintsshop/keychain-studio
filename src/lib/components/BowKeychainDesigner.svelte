@@ -467,7 +467,7 @@
                 email: user?.email,
                 name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
                 subscriptionStatus,
-                designName: "Ribbon Bow Keychain",
+                designName: "Ribbon Bow",
                 format: "stl"
             });
             onShowThankYou();
@@ -586,7 +586,7 @@
                 email: user?.email,
                 name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
                 subscriptionStatus,
-                designName: "Ribbon Bow Keychain",
+                designName: "Ribbon Bow",
                 format: "3mf"
             });
             onShowThankYou();
@@ -679,7 +679,7 @@
                 email: user?.email,
                 name: (user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
                 subscriptionStatus,
-                designName: "Ribbon Bow Keychain",
+                designName: "Ribbon Bow",
                 format: "bambu_studio"
             });
             window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;

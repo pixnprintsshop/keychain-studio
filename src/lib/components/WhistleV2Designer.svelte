@@ -812,7 +812,7 @@
 				name:
 					(user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
 				subscriptionStatus,
-				designName: 'Multicolor Whistle Keychain',
+				designName: 'Multicolor Whistle',
 				format: 'stl'
 			});
 			onShowThankYou();
@@ -844,7 +844,7 @@
 				name:
 					(user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
 				subscriptionStatus,
-				designName: 'Multicolor Whistle Keychain',
+				designName: 'Multicolor Whistle',
 				format: '3mf'
 			});
 			onShowThankYou();
@@ -871,7 +871,7 @@
 				name:
 					(user?.user_metadata?.full_name as string) ?? (user?.user_metadata?.name as string),
 				subscriptionStatus,
-				designName: 'Multicolor Whistle Keychain',
+				designName: 'Multicolor Whistle',
 				format: 'bambu_studio'
 			});
 			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
