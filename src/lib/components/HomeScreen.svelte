@@ -387,7 +387,7 @@
 		},
 		{
 			id: 'pickleball',
-			description: 'Pickleball paddle keychain with your name and optional ring tab.',
+			description: 'Pickleball paddle keychain.',
 			imageSrc: '/images/pickleball-keychain-feature-dialog.png',
 			imageAlt: 'Pickleball preview'
 		},
