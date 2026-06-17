@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
 	import type { Session, User } from '@supabase/supabase-js';
 	import ClipperLib from 'clipper-lib';
 	import { onDestroy, onMount } from 'svelte';
@@ -144,7 +145,7 @@ let { user, session, subscriptionStatus, palette, onBack, onRequestLogin, onShow
 	let showSvgInfoModal = $state(true);
 	let exportError = $state<string | null>(null);
 	let exportLoading = $state(false);
-	let openBambuStudioLoading = $state(false);
+	let openWithSlicerLoading = $state(false);
 	const CLIPPER_SCALE = 1000;
 	const DETAIL_AREA_RATIO = 0.08;
 	let sizeMm = $state(20);
@@ -1127,10 +1128,10 @@ difference() {
 		}
 	}
 
-	async function openWithBambuStudio() {
+	async function openWithSlicer(slicer: OpenWithSlicerId) {
 		if (!optimizedSvg?.trim()) return;
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
-		openBambuStudioLoading = true;
+		openWithSlicerLoading = true;
 		await tickThenYieldToPaint();
 		try {
 			const baseGeo = await buildOpenScadBaseGeometry();
@@ -1169,11 +1170,11 @@ difference() {
 				designName: "Chunky Charm",
 				format: "bambu_studio"
 			});
-			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+			openInSlicer(publicUrl, slicer);
 		} catch (err) {
 			console.error('Open with Bambu Studio failed:', err);
 		} finally {
-			openBambuStudioLoading = false;
+			openWithSlicerLoading = false;
 		}
 	}
 
@@ -1565,8 +1566,8 @@ difference() {
 					onSnapshot={() => downloadSnapshot(renderer, scene, camera, 'charm-designer')}
 					onExport={() => exportStl()}
 					onExport3MF={() => export3MF()}
-					onOpenWithBambuStudio={() => openWithBambuStudio()}
-					openBambuStudioLoading={openBambuStudioLoading}
+					onOpenWithSlicer={openWithSlicer}
+					openWithSlicerLoading={openWithSlicerLoading}
 					exportDisabled={!optimizedSvg || processing || exportLoading}
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF (multipart) for 3D print')}
 					{exportLoading}

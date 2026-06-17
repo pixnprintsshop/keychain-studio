@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
 	import { type PaletteColor } from '$lib/colorPalette';
 	import FontSelect from '$lib/components/FontSelect.svelte';
 	import RoomSignStyleSelect from '$lib/components/RoomSignStyleSelect.svelte';
@@ -225,7 +226,7 @@
 
 	let exportError = $state<string | null>(null);
 	let exportLoading = $state(false);
-	let openBambuStudioLoading = $state(false);
+	let openWithSlicerLoading = $state(false);
 
 	let activePresetId = $state<string | null>(null);
 	let customPresets = $state<RoomSignColorPreset[]>([]);
@@ -636,10 +637,10 @@
 		}
 	}
 
-	async function openWithBambuStudio() {
+	async function openWithSlicer(slicer: OpenWithSlicerId) {
 		if (!group) return;
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
-		openBambuStudioLoading = true;
+		openWithSlicerLoading = true;
 		await tickThenYieldToPaint();
 		try {
 			const exportGroup = buildExportGroup();
@@ -656,11 +657,11 @@
 				designerId: 'doorNamePlaque',
 				format: 'bambu_studio'
 			});
-			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+			openInSlicer(publicUrl, slicer);
 		} catch (err) {
 			console.error('Open with Bambu Studio failed:', err);
 		} finally {
-			openBambuStudioLoading = false;
+			openWithSlicerLoading = false;
 		}
 	}
 
@@ -1265,8 +1266,8 @@
 					onSnapshot={() => downloadSnapshot(renderer, scene, camera, SLUG)}
 					onExport={() => exportStl()}
 					onExport3MF={() => export3MF()}
-					onOpenWithBambuStudio={() => openWithBambuStudio()}
-					{openBambuStudioLoading}
+					onOpenWithSlicer={openWithSlicer}
+					{openWithSlicerLoading}
 					exportDisabled={exportLoading || !!loadError || !baseGeoUnit}
 					exportTitle={getExportTitle(
 						user,

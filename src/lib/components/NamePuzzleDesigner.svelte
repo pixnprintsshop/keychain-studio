@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
 	import type { PaletteColor } from '$lib/colorPalette';
 	import { Button } from '$lib/components/ui/button';
 	import { Slider } from '$lib/components/ui/slider';
@@ -92,7 +93,7 @@
 	let pieceColor = $state(initial.pieceColor);
 	let exportError = $state<string | null>(null);
 	let exportLoading = $state(false);
-	let openBambuStudioLoading = $state(false);
+	let openWithSlicerLoading = $state(false);
 	let isReady = $state(false);
 	let sceneLoading = $state(false);
 	let previewMode = $state<'base' | 'pieces'>(initial.previewMode);
@@ -815,9 +816,9 @@ difference() {
 		}
 	}
 
-	async function openWithBambuStudio() {
+	async function openWithSlicer(slicer: OpenWithSlicerId) {
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
-		openBambuStudioLoading = true;
+		openWithSlicerLoading = true;
 		exportError = null;
 		await tickThenYieldToPaint();
 		try {
@@ -828,7 +829,7 @@ difference() {
 					const blob = await exportTo3MF(piecesGroup);
 					if (!blob || blob.size === 0) throw new Error('Export produced no geometry');
 					const publicUrl = await upload3mfToSupabase(blob, 'name-puzzle-pieces');
-					window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+					openInSlicer(publicUrl, slicer);
 				} finally {
 					disposeObject3D(piecesGroup);
 				}
@@ -844,12 +845,12 @@ difference() {
 			if (!blob || blob.size === 0) throw new Error('Export produced no geometry');
 			baseGeo.dispose();
 			const publicUrl = await upload3mfToSupabase(blob, 'name-puzzle');
-			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+			openInSlicer(publicUrl, slicer);
 			onShowThankYou();
 		} catch (e) {
 			exportError = e instanceof Error ? e.message : 'Upload failed';
 		} finally {
-			openBambuStudioLoading = false;
+			openWithSlicerLoading = false;
 		}
 	}
 
@@ -1268,8 +1269,8 @@ difference() {
 					{exportLoading}
 					onExport3MF={() =>
 						export3MF()}
-					onOpenWithBambuStudio={() => void openWithBambuStudio()}
-					{openBambuStudioLoading}
+					onOpenWithSlicer={openWithSlicer}
+					{openWithSlicerLoading}
 					showLockIcon={showExportLockIcon(user, subscriptionStatus)}
 				/>
 			</div>

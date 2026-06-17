@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
 	import type { Session, User } from '@supabase/supabase-js';
 	import ClipperLib from 'clipper-lib';
 	import { onDestroy, onMount, tick } from 'svelte';
@@ -1255,7 +1256,7 @@
 	let rafId = 0;
 	let ro: ResizeObserver | null = null;
 	let didInitFrame = false;
-	let openBambuStudioLoading = $state(false);
+	let openWithSlicerLoading = $state(false);
 	let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
 	let selectionOutline: THREE.Box3Helper | null = null;
 	let meshRebuildRaf = 0;
@@ -1563,11 +1564,11 @@
 		onShowThankYou();
 	}
 
-	async function openWithBambuStudio() {
+	async function openWithSlicer(slicer: OpenWithSlicerId) {
 		if (!group || !scene) return;
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin)))
 			return;
-		openBambuStudioLoading = true;
+		openWithSlicerLoading = true;
 		await tickThenYieldToPaint();
 		try {
 			rebuildMeshes({ exportQuality: true });
@@ -1583,11 +1584,11 @@
 				designName: 'Standalone Name',
 				format: 'bambu_studio'
 			});
-			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+			openInSlicer(publicUrl, slicer);
 		} catch (err) {
 			console.error('Open with Bambu Studio failed:', err);
 		} finally {
-			openBambuStudioLoading = false;
+			openWithSlicerLoading = false;
 		}
 	}
 
@@ -3788,8 +3789,8 @@
 					onSnapshot={() => downloadCleanSnapshot()}
 					onExport={() => exportSTL()}
 					onExport3MF={() => export3MF()}
-					onOpenWithBambuStudio={() => openWithBambuStudio()}
-					{openBambuStudioLoading}
+					onOpenWithSlicer={openWithSlicer}
+					{openWithSlicerLoading}
 					exportDisabled={false}
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF (multipart)')}
 					showLockIcon={showExportLockIcon(user, subscriptionStatus)}

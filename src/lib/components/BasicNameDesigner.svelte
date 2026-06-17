@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
     import { onDestroy, onMount } from "svelte";
     import type { User, Session } from "@supabase/supabase-js";
     import * as THREE from "three";
@@ -465,7 +466,7 @@
     let didInitFrame = false;
     let exportLoading = $state(false);
     let exportError = $state<string | null>(null);
-    let openBambuStudioLoading = $state(false);
+    let openWithSlicerLoading = $state(false);
     let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
 
     function resize() {
@@ -1286,10 +1287,10 @@
         }
     }
 
-    async function openWithBambuStudio() {
+    async function openWithSlicer(slicer: OpenWithSlicerId) {
         if (!group || !scene) return;
         if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
-        openBambuStudioLoading = true;
+        openWithSlicerLoading = true;
         await tickThenYieldToPaint();
         try {
             rebuildMeshes();
@@ -1306,11 +1307,11 @@
                 designName: "Classic Name Tag",
                 format: "bambu_studio"
             });
-            window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+            openInSlicer(publicUrl, slicer);
         } catch (err) {
             console.error('Open with Bambu Studio failed:', err);
         } finally {
-            openBambuStudioLoading = false;
+            openWithSlicerLoading = false;
         }
     }
 
@@ -2016,8 +2017,8 @@
                         )}
                     onExport={() => exportSTL()}
                     onExport3MF={() => export3MF()}
-                    onOpenWithBambuStudio={() => openWithBambuStudio()}
-                    openBambuStudioLoading={openBambuStudioLoading}
+                    onOpenWithSlicer={openWithSlicer}
+                    openWithSlicerLoading={openWithSlicerLoading}
                     exportDisabled={exportLoading}
                     exportTitle={getExportTitle(user, subscriptionStatus, "Export STL (single mesh) or 3MF (multipart) for 3D print")}
                     {exportLoading}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
 	import { snapColorToPalette, type PaletteColor } from '$lib/colorPalette';
 	import { exportTo3MF } from '$lib/export-to-3mf';
 	import ClipperLib from 'clipper-lib';
@@ -619,7 +620,7 @@
 	let sceneReady = $state(false);
 	let exportLoading = $state(false);
 	let exportError = $state<string | null>(null);
-	let openBambuStudioLoading = $state(false);
+	let openWithSlicerLoading = $state(false);
 	let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
 	let loadError = $state<string | null>(null);
 	let basePlanSize = $state<{ x: number; y: number } | null>(null);
@@ -1736,10 +1737,10 @@
 		}
 	}
 
-	async function openWithBambuStudio() {
+	async function openWithSlicer(slicer: OpenWithSlicerId) {
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin)))
 			return;
-		openBambuStudioLoading = true;
+		openWithSlicerLoading = true;
 		await tickThenYieldToPaint();
 		try {
 			const exportGroup = buildExportGroup({ liftTextOutOfEmbed: true });
@@ -1754,12 +1755,12 @@
 				designName: DESIGN_NAME,
 				format: 'bambu_studio'
 			});
-			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+			openInSlicer(publicUrl, slicer);
 		} catch (error) {
 			console.error('Open with Bambu Studio failed:', error);
 			exportError = error instanceof Error ? error.message : 'Open with Bambu Studio failed';
 		} finally {
-			openBambuStudioLoading = false;
+			openWithSlicerLoading = false;
 		}
 	}
 
@@ -2628,8 +2629,8 @@
 					onSnapshot={() => downloadSnapshot(renderer, scene, camera, SLUG)}
 					onExport={() => exportSTL()}
 					onExport3MF={() => export3MF()}
-					onOpenWithBambuStudio={() => openWithBambuStudio()}
-					{openBambuStudioLoading}
+					onOpenWithSlicer={openWithSlicer}
+					{openWithSlicerLoading}
 					exportDisabled={!baseSourceGeometry || !borderSourceGeometry || exportLoading}
 					exportTitle={getExportTitle(
 						user,

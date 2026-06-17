@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
 	import type { Session, User } from '@supabase/supabase-js';
 	import { onDestroy, onMount } from 'svelte';
 	import * as THREE from 'three';
@@ -259,7 +260,7 @@
 
 	let exportError = $state<string | null>(null);
 	let exportLoading = $state(false);
-	let openBambuStudioLoading = $state(false);
+	let openWithSlicerLoading = $state(false);
 
 	/** Plain (non-reactive) — auto net/text only when base color changes. */
 	let previousBaseColor = initial.baseColor;
@@ -1061,13 +1062,13 @@
 		}
 	}
 
-	async function openWithBambuStudio() {
+	async function openWithSlicer(slicer: OpenWithSlicerId) {
 		if (!modelReady || modelLoadError) return;
 		const meshes = collectExportMeshes();
 		if (meshes.length === 0) return;
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin)))
 			return;
-		openBambuStudioLoading = true;
+		openWithSlicerLoading = true;
 		await tickThenYieldToPaint();
 		let exportGroup: THREE.Group | null = null;
 		try {
@@ -1087,12 +1088,12 @@
 				designName: DESIGN_NAME,
 				format: 'bambu_studio'
 			});
-			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+			openInSlicer(publicUrl, slicer);
 		} catch (err) {
 			console.error('Open with Bambu Studio failed:', err);
 		} finally {
 			if (exportGroup) disposeObject3D(exportGroup);
-			openBambuStudioLoading = false;
+			openWithSlicerLoading = false;
 		}
 	}
 
@@ -1550,8 +1551,8 @@
 					}}
 					onExport={() => exportSTL()}
 					onExport3MF={() => export3MF()}
-					onOpenWithBambuStudio={() => openWithBambuStudio()}
-					{openBambuStudioLoading}
+					onOpenWithSlicer={openWithSlicer}
+					{openWithSlicerLoading}
 					exportDisabled={!modelReady || geometryLoading || !!modelLoadError}
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF')}
 					{exportLoading}

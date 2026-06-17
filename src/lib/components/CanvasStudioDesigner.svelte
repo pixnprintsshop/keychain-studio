@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
 	import type { Session, User } from '@supabase/supabase-js';
 	import ClipperLib from 'clipper-lib';
 	import Konva from 'konva';
@@ -939,7 +940,7 @@
 	let didInitFrame = false;
 	let rebuildPending = false;
 	let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
-	let openBambuStudioLoading = $state(false);
+	let openWithSlicerLoading = $state(false);
 	let exportLoading = $state(false);
 	/** Fat-line outline for selection (`LineSegments2` = real pixel width on screen). */
 	let threeSelectionOutline: LineSegments2 | null = null;
@@ -1676,10 +1677,10 @@ difference() {
 		}
 	}
 
-	async function openWithBambuStudio() {
+	async function openWithSlicer(slicer: OpenWithSlicerId) {
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin)))
 			return;
-		openBambuStudioLoading = true;
+		openWithSlicerLoading = true;
 		await tickThenYieldToPaint();
 		try {
 			const exportGroup = await buildExportGroup();
@@ -1693,11 +1694,11 @@ difference() {
 				designName: 'Freeform Design Canvas',
 				format: 'bambu_studio'
 			});
-			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+			openInSlicer(publicUrl, slicer);
 		} catch (err) {
 			console.error('Canvas Studio: open with Bambu Studio failed', err);
 		} finally {
-			openBambuStudioLoading = false;
+			openWithSlicerLoading = false;
 		}
 	}
 
@@ -2458,8 +2459,8 @@ difference() {
 						onSnapshot={handleSnapshot}
 						onExport={exportSTL}
 						onExport3MF={export3MF}
-						onOpenWithBambuStudio={openWithBambuStudio}
-						{openBambuStudioLoading}
+						onOpenWithSlicer={openWithSlicer}
+						{openWithSlicerLoading}
 						{exportLoading}
 						exportDisabled={false}
 						exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF')}

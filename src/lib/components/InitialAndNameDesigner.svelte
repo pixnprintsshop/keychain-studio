@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
 	import { type PaletteColor } from '$lib/colorPalette';
 	import { Button } from '$lib/components/ui/button';
 	import { Slider } from '$lib/components/ui/slider';
@@ -202,7 +203,7 @@
 	let sceneReady = $state(false);
 	let exportLoading = $state(false);
 	let exportError = $state<string | null>(null);
-	let openBambuStudioLoading = $state(false);
+	let openWithSlicerLoading = $state(false);
 	let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
 	let previewLoading = $state(true);
 	let previewReady = $state(false);
@@ -572,10 +573,10 @@
 		});
 	}
 
-	async function openWithBambuStudio() {
+	async function openWithSlicer(slicer: OpenWithSlicerId) {
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin)))
 			return;
-		openBambuStudioLoading = true;
+		openWithSlicerLoading = true;
 		exportError = null;
 		await tickThenYieldToPaint();
 		try {
@@ -584,7 +585,7 @@
 			const blob = await exportTo3MF(exportRoot);
 			disposeObject3D(exportRoot);
 			const publicUrl = await upload3mfToSupabase(blob, SLUG);
-			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+			openInSlicer(publicUrl, slicer);
 			notifyExportEvent({
 				email: user?.email,
 				name: user?.user_metadata?.full_name as string | undefined,
@@ -597,7 +598,7 @@
 		} catch (e) {
 			exportError = e instanceof Error ? e.message : 'Bambu export failed';
 		} finally {
-			openBambuStudioLoading = false;
+			openWithSlicerLoading = false;
 		}
 	}
 
@@ -852,8 +853,8 @@
 					onSnapshot={() => downloadSnapshot(renderer, scene, camera, SLUG)}
 					onExport={() => exportSTL()}
 					onExport3MF={() => export3MF()}
-					onOpenWithBambuStudio={() => openWithBambuStudio()}
-					{openBambuStudioLoading}
+					onOpenWithSlicer={openWithSlicer}
+					{openWithSlicerLoading}
 					exportDisabled={exportLoading || previewLoading}
 					exportTitle={getExportTitle(
 						user,

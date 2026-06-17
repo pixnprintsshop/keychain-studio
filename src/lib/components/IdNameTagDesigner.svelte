@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
 	import type { PaletteColor } from '$lib/colorPalette';
 	import FontSelect from '$lib/components/FontSelect.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -232,7 +233,7 @@
 	let didInitFrame = false;
 	let exportLoading = $state(false);
 	let exportError = $state<string | null>(null);
-	let openBambuStudioLoading = $state(false);
+	let openWithSlicerLoading = $state(false);
 	let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
 
 	function resize() {
@@ -1126,10 +1127,10 @@ ${slotBlock}
 		}
 	}
 
-	async function openWithBambuStudio() {
+	async function openWithSlicer(slicer: OpenWithSlicerId) {
 		if (!group || !scene) return;
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
-		openBambuStudioLoading = true;
+		openWithSlicerLoading = true;
 		await tickThenYieldToPaint();
 		try {
 			const exportGroup = await buildExportGroup();
@@ -1146,11 +1147,11 @@ ${slotBlock}
 				designName: 'ID Name Tag',
 				format: 'bambu_studio'
 			});
-			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+			openInSlicer(publicUrl, slicer);
 		} catch (err) {
 			console.error('Open with Bambu Studio failed:', err);
 		} finally {
-			openBambuStudioLoading = false;
+			openWithSlicerLoading = false;
 		}
 	}
 
@@ -1639,9 +1640,8 @@ ${slotBlock}
 						exportSTL()}
 					onExport3MF={() =>
 						export3MF()}
-					onOpenWithBambuStudio={() =>
-						openWithBambuStudio()}
-					{openBambuStudioLoading}
+					onOpenWithSlicer={openWithSlicer}
+					{openWithSlicerLoading}
 					exportDisabled={exportLoading}
 					exportTitle={getExportTitle(
 						user,

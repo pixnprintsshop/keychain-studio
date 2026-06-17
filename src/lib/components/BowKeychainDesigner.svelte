@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
     import type { Session, User } from "@supabase/supabase-js";
     import ClipperLib from "clipper-lib";
     import { onDestroy, onMount } from "svelte";
@@ -138,7 +139,7 @@
 
     let exportError = $state<string | null>(null);
     let exportLoading = $state(false);
-    let openBambuStudioLoading = $state(false);
+    let openWithSlicerLoading = $state(false);
 
     function resize() {
         if (!renderer || !camera || !hostEl) return;
@@ -597,10 +598,10 @@
         }
     }
 
-    async function openWithBambuStudio() {
+    async function openWithSlicer(slicer: OpenWithSlicerId) {
         if (!group || group.children.length === 0) return;
         if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
-        openBambuStudioLoading = true;
+        openWithSlicerLoading = true;
         await tickThenYieldToPaint();
         try {
             group.updateWorldMatrix(true, true);
@@ -682,11 +683,11 @@
                 designName: "Ribbon Bow",
                 format: "bambu_studio"
             });
-            window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+            openInSlicer(publicUrl, slicer);
         } catch (err) {
             console.error('Open with Bambu Studio failed:', err);
         } finally {
-            openBambuStudioLoading = false;
+            openWithSlicerLoading = false;
         }
     }
 
@@ -1250,8 +1251,8 @@
                     }}
                     onExport={() => exportSTL()}
                     onExport3MF={() => export3MF()}
-                    onOpenWithBambuStudio={() => openWithBambuStudio()}
-                    openBambuStudioLoading={openBambuStudioLoading}
+                    onOpenWithSlicer={openWithSlicer}
+                    openWithSlicerLoading={openWithSlicerLoading}
                     exportDisabled={false}
                     exportTitle={getExportTitle(user, subscriptionStatus, "Export STL or 3MF")}
                     {exportLoading}

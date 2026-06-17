@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
 	import type { PaletteColor } from '$lib/colorPalette';
 	import FontSelect from '$lib/components/FontSelect.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -222,7 +223,7 @@
 	let rafId = 0;
 	let ro: ResizeObserver | null = null;
 	let didInitFrame = false;
-	let openBambuStudioLoading = $state(false);
+	let openWithSlicerLoading = $state(false);
 	let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
 
 	function resize() {
@@ -796,10 +797,10 @@
 		onShowThankYou();
 	}
 
-	async function openWithBambuStudio() {
+	async function openWithSlicer(slicer: OpenWithSlicerId) {
 		if (!group || !scene) return;
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
-		openBambuStudioLoading = true;
+		openWithSlicerLoading = true;
 		await tickThenYieldToPaint();
 		try {
 			rebuildMeshes();
@@ -823,11 +824,11 @@
 				designName: 'Cake Topper',
 				format: 'bambu_studio'
 			});
-			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+			openInSlicer(publicUrl, slicer);
 		} catch (err) {
 			console.error('Open with Bambu Studio failed:', err);
 		} finally {
-			openBambuStudioLoading = false;
+			openWithSlicerLoading = false;
 		}
 	}
 
@@ -1265,8 +1266,8 @@
 						downloadSnapshot(renderer, scene, camera, 'cake-topper')}
 					onExport={() => exportSTL()}
 					onExport3MF={() => export3MF()}
-					onOpenWithBambuStudio={() => openWithBambuStudio()}
-					{openBambuStudioLoading}
+					onOpenWithSlicer={openWithSlicer}
+					{openWithSlicerLoading}
 					exportDisabled={false}
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF (multipart)')}
 					showLockIcon={showExportLockIcon(user, subscriptionStatus)}

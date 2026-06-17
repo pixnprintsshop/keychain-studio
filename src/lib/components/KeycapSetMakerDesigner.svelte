@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
 	import defaultKeycapStlUrl from '$lib/assets/stl/keycap.stl?url';
 	import borderStlUrl from '$lib/assets/stl/border.stl?url';
 	import FontSelect from '$lib/components/FontSelect.svelte';
@@ -229,7 +230,7 @@
 	let keycapFileName = $state('');
 	let exportError = $state<string | null>(null);
 	let exportLoading = $state(false);
-	let openBambuStudioLoading = $state(false);
+	let openWithSlicerLoading = $state(false);
 	let logoDepth = $state(initialLogoDepth);
 	let logoScale = $state(initialLogoScale);
 	let keycapColor = $state(initialKeycapColor);
@@ -752,10 +753,10 @@
 		}
 	}
 
-	async function openWithBambuStudio() {
+	async function openWithSlicer(slicer: OpenWithSlicerId) {
 		if (!group || !scene) return;
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
-		openBambuStudioLoading = true;
+		openWithSlicerLoading = true;
 		await tickThenYieldToPaint();
 		try {
 			rebuildMeshes();
@@ -778,11 +779,11 @@
 				designName: 'Keycap Set Maker',
 				format: 'bambu_studio'
 			});
-			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+			openInSlicer(publicUrl, slicer);
 		} catch (err) {
 			console.error('Open with Bambu Studio failed:', err);
 		} finally {
-			openBambuStudioLoading = false;
+			openWithSlicerLoading = false;
 		}
 	}
 
@@ -1079,9 +1080,8 @@
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL')}
 					onExport3MF={() =>
 						export3MF()}
-					onOpenWithBambuStudio={() =>
-						openWithBambuStudio()}
-					openBambuStudioLoading={openBambuStudioLoading}
+					onOpenWithSlicer={openWithSlicer}
+					openWithSlicerLoading={openWithSlicerLoading}
 					{exportLoading}
 					showLockIcon={showExportLockIcon(user, subscriptionStatus)}
 				/>

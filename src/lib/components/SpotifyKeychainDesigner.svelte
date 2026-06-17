@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
 	import spotifyBaseObjUrl from '$lib/assets/stl/spotify/base.obj?url';
 	import type { PaletteColor } from '$lib/colorPalette';
 	import { Button } from '$lib/components/ui/button';
@@ -108,7 +109,7 @@
 
 	let exportError = $state<string | null>(null);
 	let exportLoading = $state(false);
-	let openBambuStudioLoading = $state(false);
+	let openWithSlicerLoading = $state(false);
 
 	const parsedUriPreview = $derived(parseSpotifyUri(spotifyUrl));
 	const hasPreviewCode = $derived((codeLayout?.bars.length ?? 0) > 0);
@@ -605,11 +606,11 @@
 		}
 	}
 
-	async function openWithBambuStudio() {
+	async function openWithSlicer(slicer: OpenWithSlicerId) {
 		if (!group) return;
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		if (!codeLayout) return;
-		openBambuStudioLoading = true;
+		openWithSlicerLoading = true;
 		await tickThenYieldToPaint();
 		try {
 			const exportGroup = buildExportGroup();
@@ -625,11 +626,11 @@
 				designName: 'Spotify Code',
 				format: 'bambu_studio'
 			});
-			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+			openInSlicer(publicUrl, slicer);
 		} catch (err) {
 			console.error('Open with Bambu Studio failed:', err);
 		} finally {
-			openBambuStudioLoading = false;
+			openWithSlicerLoading = false;
 		}
 	}
 
@@ -866,8 +867,8 @@
 					exportDisabled={!sceneReady || !hasPreviewCode || exportLoading}
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF')}
 					onExport3MF={() => export3MF()}
-					onOpenWithBambuStudio={() => openWithBambuStudio()}
-					openBambuStudioLoading={openBambuStudioLoading}
+					onOpenWithSlicer={openWithSlicer}
+					openWithSlicerLoading={openWithSlicerLoading}
 					{exportLoading}
 					showLockIcon={showExportLockIcon(user, subscriptionStatus)}
 				/>

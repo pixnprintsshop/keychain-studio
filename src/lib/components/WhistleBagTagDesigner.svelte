@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
 	import type { Session, User } from '@supabase/supabase-js';
 	import { onDestroy, onMount } from 'svelte';
 	import * as THREE from 'three';
@@ -463,7 +464,7 @@
 
 	let exportError = $state<string | null>(null);
 	let exportLoading = $state(false);
-	let openBambuStudioLoading = $state(false);
+	let openWithSlicerLoading = $state(false);
 
 	function resize() {
 		if (!renderer || !camera || !hostEl) return;
@@ -1381,10 +1382,10 @@
 		}
 	}
 
-	async function openWithBambuStudio() {
+	async function openWithSlicer(slicer: OpenWithSlicerId) {
 		if (!group) return;
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
-		openBambuStudioLoading = true;
+		openWithSlicerLoading = true;
 		await tickThenYieldToPaint();
 		try {
 			const exportGroup = buildExportGroup();
@@ -1400,11 +1401,11 @@
 				designName: DESIGN_NAME,
 				format: 'bambu_studio'
 			});
-			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+			openInSlicer(publicUrl, slicer);
 		} catch (err) {
 			console.error('Open with Bambu Studio failed:', err);
 		} finally {
-			openBambuStudioLoading = false;
+			openWithSlicerLoading = false;
 		}
 	}
 
@@ -1909,8 +1910,8 @@
 					exportDisabled={!sceneReady || exportLoading}
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF')}
 					onExport3MF={() => export3MF()}
-					onOpenWithBambuStudio={() => openWithBambuStudio()}
-					openBambuStudioLoading={openBambuStudioLoading}
+					onOpenWithSlicer={openWithSlicer}
+					openWithSlicerLoading={openWithSlicerLoading}
 					{exportLoading}
 					showLockIcon={showExportLockIcon(user, subscriptionStatus)}
 				/>

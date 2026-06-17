@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
 	import type { PaletteColor } from '$lib/colorPalette';
 	import FontSelect from '$lib/components/FontSelect.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -286,7 +287,7 @@
 	let buildError = $state<string | null>(null);
 	let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
 	let exportLoading = $state(false);
-	let openBambuStudioLoading = $state(false);
+	let openWithSlicerLoading = $state(false);
 	let wifiPasswordVisible = $state(false);
 
 	const settings = $derived<QrCodeMakerSettings>({
@@ -585,11 +586,11 @@
 		}
 	}
 
-	async function openWithBambuStudio() {
+	async function openWithSlicer(slicer: OpenWithSlicerId) {
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
 		const exportGroup = buildExportGroup();
 		if (!exportGroup) return;
-		openBambuStudioLoading = true;
+		openWithSlicerLoading = true;
 		try {
 			const blob = await exportTo3MF(exportGroup);
 			if (!blob || blob.size === 0) return;
@@ -602,12 +603,12 @@
 				designerId: 'qrCodeMaker',
 				format: 'bambu_studio'
 			});
-			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+			openInSlicer(publicUrl, slicer);
 			onShowThankYou();
 		} catch (e) {
 			console.error('Bambu Studio open failed:', e);
 		} finally {
-			openBambuStudioLoading = false;
+			openWithSlicerLoading = false;
 			disposeObject3D(exportGroup);
 		}
 	}
@@ -1173,10 +1174,10 @@
 						downloadSnapshot(renderer, scene, camera, 'qr-code-maker')}
 					onExport={exportStl}
 					onExport3MF={export3mf}
-					onOpenWithBambuStudio={openWithBambuStudio}
+					onOpenWithSlicer={openWithSlicer}
 					exportDisabled={exportDisabled}
 					exportLoading={exportLoading}
-					openBambuStudioLoading={openBambuStudioLoading}
+					openWithSlicerLoading={openWithSlicerLoading}
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF')}
 					showLockIcon={showExportLockIcon(user, subscriptionStatus)}
 				/>

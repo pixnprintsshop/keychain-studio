@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
+	import * as Popover from '$lib/components/ui/popover';
 	import { freeTrial, getFingerprintBlockedMessage } from '$lib/freeTrial.svelte';
 	import { subscriptionTrial } from '$lib/subscriptionTrial.svelte';
 	import { getStudioContext } from '$lib/studio/context.svelte';
 	import { capture } from '$lib/analytics';
+	import type { OpenWithSlicerId } from '$lib/openInSlicer';
 
 	interface Props {
 		onSnapshot: () => void;
@@ -18,10 +20,10 @@
 		showLockIcon?: boolean;
 		/** Optional: when provided, show a second "Export 3MF" button for multipart 3MF export (base, border, text). */
 		onExport3MF?: () => void;
-		/** Optional: when provided, show "Open with Bambu Studio" button (uploads 3MF and opens via deeplink). */
-		onOpenWithBambuStudio?: () => void;
-		/** When true, "Open with Bambu Studio" shows loading state. */
-		openBambuStudioLoading?: boolean;
+		/** Optional: uploads 3MF and opens via the chosen slicer deeplink. */
+		onOpenWithSlicer?: (slicer: OpenWithSlicerId) => void;
+		/** When true, "Open With" shows loading state. */
+		openWithSlicerLoading?: boolean;
 	}
 
 	let {
@@ -32,9 +34,11 @@
 		exportLoading = false,
 		showLockIcon = false,
 		onExport3MF,
-		onOpenWithBambuStudio,
-		openBambuStudioLoading = false,
+		onOpenWithSlicer,
+		openWithSlicerLoading = false,
 	}: Props = $props();
+
+	let openWithMenuOpen = $state(false);
 
 	/** True only when export is blocked (exhausted credits or device cap). */
 	const lockedForReal = $derived(
@@ -58,6 +62,10 @@
 	);
 	const showFingerprintBlockedChip = $derived(showLockIcon && freeTrial.fingerprintBlocked);
 
+	const openWithDisabled = $derived(
+		exportDisabled || exportLoading || openWithSlicerLoading
+	);
+
 	function handlePurchaseNow() {
 		capture('subscription_trial_upgrade_clicked', { source: 'export_toolbar' });
 		getStudioContext().showPricing();
@@ -78,11 +86,15 @@
 		onExport3MF?.();
 	}
 
-	function handleOpenWithBambuStudio() {
-		if (!exportDisabled && !openBambuStudioLoading) {
+	function handleOpenWithSlicer(slicer: OpenWithSlicerId) {
+		if (openWithDisabled) return;
+		openWithMenuOpen = false;
+		if (slicer === 'bambu_studio') {
 			capture('design_opened_bambu_studio');
+		} else {
+			capture('design_opened_orca_slicer');
 		}
-		onOpenWithBambuStudio?.();
+		onOpenWithSlicer?.(slicer);
 	}
 </script>
 
@@ -158,7 +170,7 @@
 		class="rounded-full bg-white/90 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
 		onclick={handleExportSTL}
 		aria-label="Download STL"
-		disabled={exportDisabled || exportLoading || openBambuStudioLoading}
+		disabled={openWithDisabled}
 		title={exportTitle}
 	>
 		{#if lockedForReal}
@@ -185,7 +197,7 @@
 			class="rounded-full bg-white/90 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
 			onclick={handleExport3MF}
 			aria-label="Download 3MF (multipart)"
-			disabled={exportDisabled || exportLoading || openBambuStudioLoading}
+			disabled={openWithDisabled}
 			title="Export 3MF with separate parts (base, border, text) for multi-material printing"
 		>
 			{#if exportLoading}
@@ -195,20 +207,56 @@
 			{/if}
 		</Button>
 	{/if}
-	{#if onOpenWithBambuStudio}
-		<Button
-			variant="outline"
-			class="rounded-full bg-[#08BF08] hover:bg-[#08BF08]/90 hover:text-white text-white shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
-			onclick={handleOpenWithBambuStudio}
-			aria-label="Open with Bambu Studio"
-			disabled={exportDisabled || exportLoading || openBambuStudioLoading}
-			title="Upload 3MF and open in Bambu Studio"
-		>
-			{#if openBambuStudioLoading}
-				Opening…
-			{:else}
-				Open with Bambu Studio
-			{/if}
-		</Button>
+	{#if onOpenWithSlicer}
+		<Popover.Root bind:open={openWithMenuOpen}>
+			<Popover.Trigger>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="outline"
+						class="rounded-full border-slate-700 bg-slate-800 text-white shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:border-slate-600 hover:bg-slate-700 hover:text-white hover:shadow-xl disabled:opacity-50"
+						aria-label="Open With"
+						disabled={openWithDisabled}
+						title="Upload 3MF and open in Bambu Studio or Orca Slicer"
+					>
+						{#if openWithSlicerLoading}
+							Opening…
+						{:else}
+							Open With
+						{/if}
+					</Button>
+				{/snippet}
+			</Popover.Trigger>
+			<Popover.Content class="w-52 p-1" align="end" side="top">
+				<button
+					type="button"
+					class="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+					onclick={() => handleOpenWithSlicer('bambu_studio')}
+				>
+					<img
+						src="/images/bambu.png"
+						alt=""
+						class="h-5 w-5 shrink-0 rounded-sm object-contain"
+						width="20"
+						height="20"
+					/>
+					Bambu Studio
+				</button>
+				<button
+					type="button"
+					class="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+					onclick={() => handleOpenWithSlicer('orca_slicer')}
+				>
+					<img
+						src="/images/orca.png"
+						alt=""
+						class="h-5 w-5 shrink-0 rounded-sm object-contain"
+						width="20"
+						height="20"
+					/>
+					Orca Slicer
+				</button>
+			</Popover.Content>
+		</Popover.Root>
 	{/if}
 </div>

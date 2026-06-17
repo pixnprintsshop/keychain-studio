@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
     import type { Session, User } from "@supabase/supabase-js";
     import { onDestroy, onMount } from "svelte";
     import * as THREE from "three";
@@ -131,7 +132,7 @@
     let rafId = 0;
     let ro: ResizeObserver | null = null;
     let didInitFrame = false;
-    let openBambuStudioLoading = $state(false);
+    let openWithSlicerLoading = $state(false);
     let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
 
     // Loaded geometries (cached)
@@ -430,10 +431,10 @@
         onShowThankYou();
     }
 
-    async function openWithBambuStudio() {
+    async function openWithSlicer(slicer: OpenWithSlicerId) {
         if (!group || !scene) return;
         if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
-        openBambuStudioLoading = true;
+        openWithSlicerLoading = true;
         await tickThenYieldToPaint();
         try {
             rebuildMeshes();
@@ -501,11 +502,11 @@
                 designName: "Floral Initial",
                 format: "bambu_studio"
             });
-            window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+            openInSlicer(publicUrl, slicer);
         } catch (err) {
             console.error('Open with Bambu Studio failed:', err);
         } finally {
-            openBambuStudioLoading = false;
+            openWithSlicerLoading = false;
         }
     }
 
@@ -860,8 +861,8 @@
                         downloadSnapshot(renderer, scene, camera, "flower")}
                     onExport={() => exportSTL()}
                     onExport3MF={() => export3MF()}
-                    onOpenWithBambuStudio={() => openWithBambuStudio()}
-                    openBambuStudioLoading={openBambuStudioLoading}
+                    onOpenWithSlicer={openWithSlicer}
+                    openWithSlicerLoading={openWithSlicerLoading}
                     exportDisabled={false}
                     exportTitle={getExportTitle(user, subscriptionStatus, "Export STL or 3MF")}
                     showLockIcon={showExportLockIcon(user, subscriptionStatus)} />

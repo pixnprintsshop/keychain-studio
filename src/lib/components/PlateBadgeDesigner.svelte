@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
 	/* eslint-disable svelte/prefer-svelte-reactivity, svelte/no-dom-manipulating -- Konva paths and Three.js canvas (same pattern as Canvas Studio) */
 	import type { Session, User } from '@supabase/supabase-js';
 	import ClipperLib from 'clipper-lib';
@@ -1447,7 +1448,7 @@
 	/** Bumps on each 3D rebuild so stale OpenSCAD results are discarded. */
 	let plateRebuildGeneration = 0;
 	let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
-	let openBambuStudioLoading = $state(false);
+	let openWithSlicerLoading = $state(false);
 	let exportLoading = $state(false);
 	let threeSelectionOutline: LineSegments2 | null = null;
 
@@ -2290,10 +2291,10 @@
 		}
 	}
 
-	async function openWithBambuStudio() {
+	async function openWithSlicer(slicer: OpenWithSlicerId) {
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin)))
 			return;
-		openBambuStudioLoading = true;
+		openWithSlicerLoading = true;
 		await tickThenYieldToPaint();
 		try {
 			const exportGroup = await buildExportGroup();
@@ -2307,11 +2308,11 @@
 				designName: 'Motorcycle Plate Bar',
 				format: 'bambu_studio'
 			});
-			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+			openInSlicer(publicUrl, slicer);
 		} catch (err) {
 			console.error('Plate badge: open with Bambu Studio failed', err);
 		} finally {
-			openBambuStudioLoading = false;
+			openWithSlicerLoading = false;
 		}
 	}
 
@@ -3203,8 +3204,8 @@
 						onSnapshot={handleSnapshot}
 						onExport={exportSTL}
 						onExport3MF={export3MF}
-						onOpenWithBambuStudio={openWithBambuStudio}
-						{openBambuStudioLoading}
+						onOpenWithSlicer={openWithSlicer}
+						{openWithSlicerLoading}
 						{exportLoading}
 						exportDisabled={false}
 						exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF')}

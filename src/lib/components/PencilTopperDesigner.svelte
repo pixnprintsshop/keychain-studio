@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
 	import type { PaletteColor } from '$lib/colorPalette';
 	import { Button } from '$lib/components/ui/button';
 	import { Slider } from '$lib/components/ui/slider';
@@ -89,7 +90,7 @@
 	let textSize = $state(20);
 	let exportError = $state<string | null>(null);
 	let exportLoading = $state(false);
-	let openBambuStudioLoading = $state(false);
+	let openWithSlicerLoading = $state(false);
 	const CLIPPER_SCALE = 1000;
 	/** Scene floor grid size (same units as preview); hole length matches so the straw hole spans the grid. */
 	const BED_GRID_SIZE = 250;
@@ -787,10 +788,10 @@ difference() {
 		}
 	}
 
-	async function openWithBambuStudio() {
+	async function openWithSlicer(slicer: OpenWithSlicerId) {
 		if (!textContent?.trim()) return;
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
-		openBambuStudioLoading = true;
+		openWithSlicerLoading = true;
 		await tickThenYieldToPaint();
 		try {
 			const baseGeo = await buildOpenScadBaseGeometry();
@@ -829,11 +830,11 @@ difference() {
 				designName: "Pencil Name Sleeve",
 				format: "bambu_studio"
 			});
-			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+			openInSlicer(publicUrl, slicer);
 		} catch (err) {
 			console.error('Open with Bambu Studio failed:', err);
 		} finally {
-			openBambuStudioLoading = false;
+			openWithSlicerLoading = false;
 		}
 	}
 
@@ -1182,8 +1183,8 @@ difference() {
 					onExport={() => exportStl()}
 					onExport3MF={() =>
 						export3MF()}
-					onOpenWithBambuStudio={() => openWithBambuStudio()}
-					openBambuStudioLoading={openBambuStudioLoading}
+					onOpenWithSlicer={openWithSlicer}
+					openWithSlicerLoading={openWithSlicerLoading}
 					exportDisabled={!textContent?.trim() || exportLoading}
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF (multipart) for 3D print')}
 					{exportLoading}

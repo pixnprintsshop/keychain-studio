@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openInSlicer, type OpenWithSlicerId } from '$lib/openInSlicer';
 	/* eslint-disable @typescript-eslint/no-explicit-any -- Clipper PolyTree nodes are untyped */
 	import type { Session, User } from '@supabase/supabase-js';
 	import ClipperLib from 'clipper-lib';
@@ -191,7 +192,7 @@
 	let sceneReady = $state(false);
 	/** Plain `let` (not `$state`): rebuild `$effect` touches this; reactive `$state` would infinite-loop with `rebuildMeshes()`. */
 	let didInitFrame = false;
-	let openBambuStudioLoading = $state(false);
+	let openWithSlicerLoading = $state(false);
 	/** STL / 3MF (and Bambu pre-upload) in progress — keeps toolbar responsive while WASM runs in a worker. */
 	let exportLoading = $state(false);
 	let modelAabbMm = $state<{ x: number; y: number; z: number } | null>(null);
@@ -862,10 +863,10 @@
 		}
 	}
 
-	async function openWithBambuStudio() {
+	async function openWithSlicer(slicer: OpenWithSlicerId) {
 		if (!group || !scene) return;
 		if (!(await ensureExportAccess(user, subscriptionStatus, onShowPricing, onRequestLogin))) return;
-		openBambuStudioLoading = true;
+		openWithSlicerLoading = true;
 		exportLoading = true;
 		await tickThenYieldToPaint();
 		let exportRoot: THREE.Scene | null = null;
@@ -885,12 +886,12 @@
 				designName: 'Engrave Name Plate',
 				format: 'bambu_studio'
 			});
-			window.location.href = `bambustudioopen://${encodeURIComponent(publicUrl)}`;
+			openInSlicer(publicUrl, slicer);
 		} catch (err) {
 			console.error('Open with Bambu Studio failed:', err);
 		} finally {
 			if (exportRoot) disposeObject3D(exportRoot);
-			openBambuStudioLoading = false;
+			openWithSlicerLoading = false;
 			exportLoading = false;
 		}
 	}
@@ -1416,10 +1417,9 @@
 					onExport={() => exportSTL()}
 					onExport3MF={() =>
 						export3MF()}
-					onOpenWithBambuStudio={() =>
-						openWithBambuStudio()}
+					onOpenWithSlicer={openWithSlicer}
 					exportLoading={exportLoading}
-					{openBambuStudioLoading}
+					{openWithSlicerLoading}
 					exportDisabled={!text?.trim()}
 					exportTitle={getExportTitle(user, subscriptionStatus, 'Export STL or 3MF')}
 					showLockIcon={showExportLockIcon(user, subscriptionStatus)}
