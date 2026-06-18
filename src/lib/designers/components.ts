@@ -48,7 +48,8 @@ const LOADERS: Record<DesignerId, () => Promise<DesignerModule>> = {
 	spotifyCode: () => import('$lib/components/SpotifyKeychainDesigner.svelte'),
 	qrCodeMaker: () => import('$lib/components/QrCodeMakerDesigner.svelte'),
 	addressNumberSign: () => import('$lib/components/HouseNumberPlaqueDesigner.svelte'),
-	doorNamePlaque: () => import('$lib/components/RoomSignDesigner.svelte')
+	doorNamePlaque: () => import('$lib/components/RoomSignDesigner.svelte'),
+	textBlocks: () => import('$lib/components/TextBlocksDesigner.svelte')
 };
 
 const componentCache = new Map<DesignerId, Promise<DesignerComponent>>();

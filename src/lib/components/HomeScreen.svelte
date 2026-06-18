@@ -201,6 +201,7 @@
 		| 'motorcyclePlateBar'
 		| 'addressNumberSign'
 		| 'doorNamePlaque'
+		| 'textBlocks'
 
 	interface DesignerItem {
 		id: StyleName;
@@ -279,6 +280,12 @@
 			imageSrc: '/images/articulated-keychain.png',
 			imageAlt: 'Articulated Keychain preview'
 		},
+		// {
+		// 	id: 'textBlocks',
+		// 	description: 'Stacked blocks with a letter on top and an inverted letter on the bottom of each.',
+		// 	imageSrc: '/images/text-only.png',
+		// 	imageAlt: 'Text Blocks preview'
+		// },
 		{
 			id: 'multicolorWhistle',
 			description: 'Working whistle in up to three colors, with your name on top.',

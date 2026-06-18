@@ -32,7 +32,8 @@ export type DesignerId =
 	| 'spotifyCode'
 	| 'qrCodeMaker'
 	| 'addressNumberSign'
-	| 'doorNamePlaque';
+	| 'doorNamePlaque'
+	| 'textBlocks';
 
 export const DESIGNER_IDS: readonly DesignerId[] = [
 	'standaloneName',
@@ -66,7 +67,8 @@ export const DESIGNER_IDS: readonly DesignerId[] = [
 	'spotifyCode',
 	'qrCodeMaker',
 	'addressNumberSign',
-	'doorNamePlaque'
+	'doorNamePlaque',
+	'textBlocks'
 ] as const;
 
 export function isDesignerId(value: string): value is DesignerId {

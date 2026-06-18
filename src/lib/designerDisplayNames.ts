@@ -34,7 +34,8 @@ const DESIGNER_DISPLAY_NAMES: Record<DesignerId, string> = {
 	freeformDesignCanvas: 'Freeform Design Canvas',
 	motorcyclePlateBar: 'Motorcycle Plate Bar',
 	addressNumberSign: 'Address Number Sign',
-	doorNamePlaque: 'Door Name Plaque'
+	doorNamePlaque: 'Door Name Plaque',
+	textBlocks: 'Text Blocks'
 };
 
 const DISPLAY_NAME_TO_ID = Object.fromEntries(
