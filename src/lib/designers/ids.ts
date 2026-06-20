@@ -3,6 +3,7 @@
 export type DesignerId =
 	| 'standaloneName'
 	| 'layeredMonogram'
+	| 'letterRail'
 	| 'monogramInsert'
 	| 'floralInitial'
 	| 'classicNameTag'
@@ -38,6 +39,7 @@ export type DesignerId =
 export const DESIGNER_IDS: readonly DesignerId[] = [
 	'standaloneName',
 	'layeredMonogram',
+	'letterRail',
 	'monogramInsert',
 	'floralInitial',
 	'classicNameTag',
@@ -71,12 +73,18 @@ export const DESIGNER_IDS: readonly DesignerId[] = [
 	'textBlocks'
 ] as const;
 
+export const LEGACY_DESIGNER_ID_ALIASES = {
+	pathLayeredMonogram: 'letterRail'
+} as const satisfies Partial<Record<string, DesignerId>>;
+
 export function isDesignerId(value: string): value is DesignerId {
 	return (DESIGNER_IDS as readonly string[]).includes(value);
 }
 
 export function resolveDesignerId(value: string): DesignerId | null {
-	return isDesignerId(value) ? value : null;
+	if (isDesignerId(value)) return value;
+	const mapped = LEGACY_DESIGNER_ID_ALIASES[value as keyof typeof LEGACY_DESIGNER_ID_ALIASES];
+	return mapped ?? null;
 }
 
 export function designerPath(id: DesignerId): string {

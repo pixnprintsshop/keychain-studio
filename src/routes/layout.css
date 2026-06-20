@@ -296,6 +296,20 @@
 	font-style: normal;
 }
 
+@font-face {
+	font-family: 'Qilka';
+	src: url('/fonts/Qilka-Bold.otf') format('opentype');
+	font-weight: 700;
+	font-style: normal;
+}
+
+@font-face {
+	font-family: 'Rounds Black';
+	src: url('/fonts/Rounds-Black.otf') format('opentype');
+	font-weight: 900;
+	font-style: normal;
+}
+
 @layer base {
 	* {
 		@apply border-border outline-ring/50;

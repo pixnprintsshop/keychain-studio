@@ -171,6 +171,7 @@
 	type StyleName =
 		| 'standaloneName'
 		| 'layeredMonogram'
+		| 'letterRail'
 		| 'monogramInsert'
 		| 'floralInitial'
 		| 'classicNameTag'
@@ -415,6 +416,12 @@
 			description: 'Big initial with your full name tucked alongside it.',
 			imageSrc: '/images/text+initial.png',
 			imageAlt: 'Layered Monogram preview'
+		},
+		{
+			id: 'letterRail',
+			description: 'Big initial with your name on the letter — tuned placement per A–Z.',
+			imageSrc: '/images/letter-rail.png',
+			imageAlt: 'Letter Rail preview'
 		},
 		{
 			id: 'monogramInsert',

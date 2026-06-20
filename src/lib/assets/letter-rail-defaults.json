@@ -1,0 +1,1189 @@
+{
+	"nameText": "Name",
+	"initialChar": "N",
+	"initialSize": 45,
+	"nameSize": 6,
+	"overallScale": 1,
+	"initialDepth": 2,
+	"nameDepth": 1.2,
+	"outlineOffsetPx": 7,
+	"namePlacementByInitial": {
+		"A": {
+			"hole": {
+				"offsetX": 12.6,
+				"offsetY": 21,
+				"rotationDeg": 68.2,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 42,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 13.6,
+				"offsetY": 24,
+				"rotationDeg": 68,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 48,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"B": {
+			"hole": {
+				"offsetX": 9.6,
+				"offsetY": 20,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 37.4,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 9.6,
+				"offsetY": 24,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 45,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"C": {
+			"hole": {
+				"offsetX": 24,
+				"offsetY": 24,
+				"rotationDeg": 90.2,
+				"curve": 43.6,
+				"charSpacing": 0.5,
+				"boxWidth": 48.6,
+				"boxHeight": 38.6,
+				"boxJustify": "center",
+				"boxAlign": "top"
+			},
+			"keyring": {
+				"offsetX": 24,
+				"offsetY": 24,
+				"rotationDeg": 90.2,
+				"curve": 43.6,
+				"charSpacing": 0.5,
+				"boxWidth": 48.6,
+				"boxHeight": 38.6,
+				"boxJustify": "center",
+				"boxAlign": "top"
+			}
+		},
+		"D": {
+			"hole": {
+				"offsetX": 9.2,
+				"offsetY": 20.4,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 39,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 9.2,
+				"offsetY": 24,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 45.6,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"E": {
+			"hole": {
+				"offsetX": 9.6,
+				"offsetY": 19.6,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 37.6,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 9.6,
+				"offsetY": 24,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 45.4,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"F": {
+			"hole": {
+				"offsetX": 9.4,
+				"offsetY": 19.8,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 36.8,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 9.4,
+				"offsetY": 24,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 45,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"G": {
+			"hole": {
+				"offsetX": 21.4,
+				"offsetY": 23.6,
+				"rotationDeg": 90,
+				"curve": 42.8,
+				"charSpacing": 0.5,
+				"boxWidth": 48,
+				"boxHeight": 32.6,
+				"boxJustify": "center",
+				"boxAlign": "top"
+			},
+			"keyring": {
+				"offsetX": 21.4,
+				"offsetY": 23.6,
+				"rotationDeg": 90,
+				"curve": 42.8,
+				"charSpacing": 0.5,
+				"boxWidth": 48,
+				"boxHeight": 32.6,
+				"boxJustify": "center",
+				"boxAlign": "top"
+			}
+		},
+		"H": {
+			"hole": {
+				"offsetX": 9.4,
+				"offsetY": 20.6,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 37.6,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 9.4,
+				"offsetY": 24.2,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 44.6,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"I": {
+			"hole": {
+				"offsetX": 9,
+				"offsetY": 21.4,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 39.4,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 9,
+				"offsetY": 24,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 45.6,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"J": {
+			"hole": {
+				"offsetX": 24.6,
+				"offsetY": 23,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 32.4,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 24.6,
+				"offsetY": 27,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 40.6,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"K": {
+			"hole": {
+				"offsetX": 9.4,
+				"offsetY": 20.4,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 39,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 9.4,
+				"offsetY": 24,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 45.8,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"L": {
+			"hole": {
+				"offsetX": 9,
+				"offsetY": 20.2,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 38.6,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 9,
+				"offsetY": 24.4,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 45.2,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"M": {
+			"hole": {
+				"offsetX": 9.2,
+				"offsetY": 20.8,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 39,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 9.2,
+				"offsetY": 24,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 45.4,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"N": {
+			"hole": {
+				"offsetX": 9,
+				"offsetY": 20.2,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 38,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 9,
+				"offsetY": 24,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 45.6,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"O": {
+			"hole": {
+				"offsetX": 24.8,
+				"offsetY": 23.2,
+				"rotationDeg": 0,
+				"curve": -28.6,
+				"charSpacing": 2.4,
+				"boxWidth": 48,
+				"boxHeight": 40,
+				"boxJustify": "center",
+				"boxAlign": "bottom"
+			},
+			"keyring": {
+				"offsetX": 24.8,
+				"offsetY": 23.2,
+				"rotationDeg": 0,
+				"curve": -28.6,
+				"charSpacing": 2.4,
+				"boxWidth": 48,
+				"boxHeight": 40,
+				"boxJustify": "center",
+				"boxAlign": "bottom"
+			}
+		},
+		"P": {
+			"hole": {
+				"offsetX": 9.4,
+				"offsetY": 20.4,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 39,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 9.4,
+				"offsetY": 23.6,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 45.6,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"Q": {
+			"hole": {
+				"offsetX": 25.4,
+				"offsetY": 23.6,
+				"rotationDeg": 0,
+				"curve": -29.6,
+				"charSpacing": 2,
+				"boxWidth": 48,
+				"boxHeight": 40,
+				"boxJustify": "center",
+				"boxAlign": "bottom"
+			},
+			"keyring": {
+				"offsetX": 25.4,
+				"offsetY": 23.6,
+				"rotationDeg": 0,
+				"curve": -29.6,
+				"charSpacing": 2,
+				"boxWidth": 48,
+				"boxHeight": 40,
+				"boxJustify": "center",
+				"boxAlign": "bottom"
+			}
+		},
+		"R": {
+			"hole": {
+				"offsetX": 9.6,
+				"offsetY": 20,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 38.4,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 9.6,
+				"offsetY": 24.2,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 45.8,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"S": {
+			"hole": {
+				"offsetX": 22,
+				"offsetY": 13.6,
+				"rotationDeg": 0,
+				"curve": -25.8,
+				"charSpacing": 1.1,
+				"boxWidth": 48,
+				"boxHeight": 21.2,
+				"boxJustify": "center",
+				"boxAlign": "bottom"
+			},
+			"keyring": {
+				"offsetX": 22,
+				"offsetY": 13.6,
+				"rotationDeg": 0,
+				"curve": -25.8,
+				"charSpacing": 1.1,
+				"boxWidth": 48,
+				"boxHeight": 21.2,
+				"boxJustify": "center",
+				"boxAlign": "bottom"
+			}
+		},
+		"T": {
+			"hole": {
+				"offsetX": 20,
+				"offsetY": 24,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 44.8,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 20,
+				"offsetY": 24,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 44.8,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"U": {
+			"hole": {
+				"offsetX": 29.8,
+				"offsetY": 26.8,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 38.8,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 29.8,
+				"offsetY": 26.8,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 38.8,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"V": {
+			"hole": {
+				"offsetX": 28,
+				"offsetY": 23.6,
+				"rotationDeg": 67.6,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 48,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 28,
+				"offsetY": 23.6,
+				"rotationDeg": 67.6,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 48,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"W": {
+			"hole": {
+				"offsetX": 50.2,
+				"offsetY": 24,
+				"rotationDeg": 68,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 47.2,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 50.2,
+				"offsetY": 24,
+				"rotationDeg": 68,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 47.2,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"X": {
+			"hole": {
+				"offsetX": 21.6,
+				"offsetY": 24,
+				"rotationDeg": 52.2,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 54.6,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 21.6,
+				"offsetY": 24,
+				"rotationDeg": 52,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 54.6,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"Y": {
+			"hole": {
+				"offsetX": 20.2,
+				"offsetY": 17,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 32.6,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 20.2,
+				"offsetY": 17,
+				"rotationDeg": 90,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 32.6,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		},
+		"Z": {
+			"hole": {
+				"offsetX": 21,
+				"offsetY": 24.4,
+				"rotationDeg": 56,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 50,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			},
+			"keyring": {
+				"offsetX": 21,
+				"offsetY": 24.4,
+				"rotationDeg": 56,
+				"curve": 0,
+				"charSpacing": 0.5,
+				"boxWidth": 50,
+				"boxHeight": 14,
+				"boxJustify": "left",
+				"boxAlign": "center"
+			}
+		}
+	},
+	"mountingByInitial": {
+		"A": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 5,
+				"offsetX": -0.4,
+				"offsetY": 20.4
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 3.8,
+				"offsetY": 7.4
+			}
+		},
+		"B": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": -13.4,
+				"offsetY": 19
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 3.2,
+				"offsetY": 9
+			}
+		},
+		"C": {
+			"mode": "hole",
+			"hole": {
+				"diameter": 6,
+				"offsetX": 12.8,
+				"offsetY": 14.4
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 10.8,
+				"offsetY": 11
+			}
+		},
+		"D": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": -12.6,
+				"offsetY": 19.2
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 3.6,
+				"offsetY": 10.2
+			}
+		},
+		"E": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": -11.6,
+				"offsetY": 17.8
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 4.4,
+				"offsetY": 9.6
+			}
+		},
+		"F": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": -11.8,
+				"offsetY": 18.2
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 2,
+				"offsetY": 10.4
+			}
+		},
+		"G": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": 14.4,
+				"offsetY": 13
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 11.6,
+				"offsetY": 11.4
+			}
+		},
+		"H": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": -12.2,
+				"offsetY": 19.6
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 3.6,
+				"offsetY": 8.4
+			}
+		},
+		"I": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": 0,
+				"offsetY": 18.8
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 1.4,
+				"offsetY": 8.8
+			}
+		},
+		"J": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": 8.6,
+				"offsetY": 19
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 4,
+				"offsetY": 10.2
+			}
+		},
+		"K": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": -10.4,
+				"offsetY": 19.4
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 4.2,
+				"offsetY": 10
+			}
+		},
+		"L": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": -11.8,
+				"offsetY": 19
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 2.8,
+				"offsetY": 9.4
+			}
+		},
+		"M": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": -17,
+				"offsetY": 19.6
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 4,
+				"offsetY": 9.6
+			}
+		},
+		"N": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": -12.6,
+				"offsetY": 19
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 2.8,
+				"offsetY": 9.6
+			}
+		},
+		"O": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": 0,
+				"offsetY": 19.6
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 12,
+				"offsetY": 10.4
+			}
+		},
+		"P": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": -12.8,
+				"offsetY": 19.6
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 3.2,
+				"offsetY": 10.2
+			}
+		},
+		"Q": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": 0,
+				"offsetY": 21
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 11,
+				"offsetY": 11
+			}
+		},
+		"R": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": -13.2,
+				"offsetY": 18.8
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 2,
+				"offsetY": 9.4
+			}
+		},
+		"S": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": 9,
+				"offsetY": 13.6
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 10,
+				"offsetY": 10.2
+			}
+		},
+		"T": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": -14.6,
+				"offsetY": 17.6
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 4.8,
+				"offsetY": 11
+			}
+		},
+		"U": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": -10.6,
+				"offsetY": 18.4
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 3,
+				"offsetY": 10
+			}
+		},
+		"V": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": -14.6,
+				"offsetY": 18.4
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 3.2,
+				"offsetY": 10
+			}
+		},
+		"W": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": -25.6,
+				"offsetY": 18.6
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 1.8,
+				"offsetY": 10
+			}
+		},
+		"X": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": -14.4,
+				"offsetY": 18.6
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 3,
+				"offsetY": 11
+			}
+		},
+		"Y": {
+			"mode": "keyring",
+			"hole": {
+				"diameter": 6,
+				"offsetX": -14.6,
+				"offsetY": 18.8
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 3.8,
+				"offsetY": 10.2
+			}
+		},
+		"Z": {
+			"mode": "hole",
+			"hole": {
+				"diameter": 6,
+				"offsetX": -12.4,
+				"offsetY": 17.2
+			},
+			"keyring": {
+				"outerSize": 8,
+				"holeSize": 4,
+				"depth": 4,
+				"offsetX": 4,
+				"offsetY": 9.8
+			}
+		}
+	},
+	"outlineColor": "#ffffff",
+	"initialColor": "#000000",
+	"nameColor": "#ffffff",
+	"holeByInitial": {
+		"A": {
+			"enabled": false,
+			"diameter": 5,
+			"offsetX": -0.4,
+			"offsetY": 20.4
+		},
+		"B": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": -13.4,
+			"offsetY": 19
+		},
+		"C": {
+			"enabled": true,
+			"diameter": 6,
+			"offsetX": 12.8,
+			"offsetY": 14.4
+		},
+		"D": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": -12.6,
+			"offsetY": 19.2
+		},
+		"E": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": -11.6,
+			"offsetY": 17.8
+		},
+		"F": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": -11.8,
+			"offsetY": 18.2
+		},
+		"G": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": 14.4,
+			"offsetY": 13
+		},
+		"H": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": -12.2,
+			"offsetY": 19.6
+		},
+		"I": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": 0,
+			"offsetY": 18.8
+		},
+		"J": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": 8.6,
+			"offsetY": 19
+		},
+		"K": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": -10.4,
+			"offsetY": 19.4
+		},
+		"L": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": -11.8,
+			"offsetY": 19
+		},
+		"M": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": -17,
+			"offsetY": 19.6
+		},
+		"N": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": -12.6,
+			"offsetY": 19
+		},
+		"O": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": 0,
+			"offsetY": 19.6
+		},
+		"P": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": -12.8,
+			"offsetY": 19.6
+		},
+		"Q": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": 0,
+			"offsetY": 21
+		},
+		"R": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": -13.2,
+			"offsetY": 18.8
+		},
+		"S": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": 9,
+			"offsetY": 13.6
+		},
+		"T": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": -14.6,
+			"offsetY": 17.6
+		},
+		"U": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": -10.6,
+			"offsetY": 18.4
+		},
+		"V": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": -14.6,
+			"offsetY": 18.4
+		},
+		"W": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": -25.6,
+			"offsetY": 18.6
+		},
+		"X": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": -14.4,
+			"offsetY": 18.6
+		},
+		"Y": {
+			"enabled": false,
+			"diameter": 6,
+			"offsetX": -14.6,
+			"offsetY": 18.8
+		},
+		"Z": {
+			"enabled": true,
+			"diameter": 6,
+			"offsetX": -12.4,
+			"offsetY": 17.2
+		}
+	}
+}

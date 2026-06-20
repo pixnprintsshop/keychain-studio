@@ -25,6 +25,8 @@ import lobsterTwoJson from './assets/fonts/Lobster Two_Regular.json';
 import roadsideSansJson from './assets/fonts/Roadside Sans_Regular.json';
 import trainOneJson from './assets/fonts/Train One_Regular.json';
 import daffiysJson from './assets/fonts/Daffiys_Regular.json';
+import qilkaBoldJson from './assets/fonts/Qilka_Bold.json';
+import roundsBlackJson from './assets/fonts/Rounds Black_Regular.json';
 import varsityRelaxaSlabSerifJson from './assets/fonts/Varsity Relaxa Slab Serif_Regular.json';
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
@@ -206,6 +208,18 @@ export const FONT_OPTIONS: FontOption[] = [
 		label: 'Varsity Relaxa Slab (Regular)',
 		json: varsityRelaxaSlabSerifJson,
 		fontFamily: 'Varsity Relaxa Slab Serif'
+	},
+	{
+		key: 'Qilka_Bold',
+		label: 'Qilka (Bold)',
+		json: qilkaBoldJson,
+		fontFamily: 'Qilka'
+	},
+	{
+		key: 'Rounds Black_Regular',
+		label: 'Rounds Black (Regular)',
+		json: roundsBlackJson,
+		fontFamily: 'Rounds Black'
 	}
 ];
 
@@ -437,6 +451,37 @@ export function frameCameraToObject(box: any, camera: any, controls: any) {
 	camera.far = Math.max(2000, dist * 20);
 	camera.updateProjectionMatrix();
 	camera.lookAt(center);
+	controls.target.copy(center);
+	controls.update();
+}
+
+/** Straight-down orthographic view (Z-up) for 2D alignment checks. */
+export function frameOrthographicTopView(
+	box: THREE.Box3,
+	camera: THREE.OrthographicCamera,
+	controls: { target: THREE.Vector3; update: () => void } | null,
+	aspect: number,
+	padding = 1.25
+) {
+	if (!camera || !controls) return;
+	const center = new THREE.Vector3();
+	box.getCenter(center);
+	const size = new THREE.Vector3();
+	box.getSize(size);
+	const halfSpan = (Math.max(size.x, size.y, 0.001) * padding) / 2;
+	const safeAspect = Math.max(aspect, 0.01);
+	const halfW = halfSpan * safeAspect;
+	const halfH = halfSpan;
+	camera.left = -halfW;
+	camera.right = halfW;
+	camera.top = halfH;
+	camera.bottom = -halfH;
+	camera.near = 0.1;
+	camera.far = Math.max(500, size.z + 200);
+	camera.position.set(center.x, center.y, center.z + Math.max(80, size.z + 40));
+	camera.up.set(0, 0, 1);
+	camera.lookAt(center);
+	camera.updateProjectionMatrix();
 	controls.target.copy(center);
 	controls.update();
 }
