@@ -47,6 +47,7 @@
 	import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 	import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 	import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+	import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
 	import ColorPalettePicker from './ColorPalettePicker.svelte';
 	import DesignerExportToolbar from './DesignerExportToolbar.svelte';
 	import DesignerModelDimensionsHud from './DesignerModelDimensionsHud.svelte';
@@ -84,12 +85,18 @@
 	const TEXT_BASE_EMBED = 0.2;
 	/** Match BasicName: sink border slightly so its bottom face is not coplanar with the base top face. */
 	const BORDER_BASE_EMBED = 0.05;
-	/** Preview only: show back text below the tag so it's visible (export stays embedded inside base). */
-	const BACK_TEXT_PREVIEW_GAP_MM = 0.005;
+	/** Preview only: clearance below base underside before back text starts (export stays embedded). */
+	const BACK_TEXT_PREVIEW_CLEARANCE_MM = 0.15;
 	/** Back inlay thickness (fixed). */
 	const BACK_TEXT_DEPTH_MM = 0.4;
 	const WELD_TOL_MM = 1e-3;
 	const TOP_LOOP_SNAP_MM = 1e-4;
+	/** Export: inlay starts on tag underside (tiny snap avoids coplanar export slivers). */
+	const BACK_TEXT_EXPORT_Z = TOP_LOOP_SNAP_MM;
+	const BACK_POCKET_GROW_MM = 0.12;
+	const BACK_POCKET_EXTRA_Z = 0.12;
+	const BACK_POCKET_SUBTRACT_EPS = 0.05;
+	const BACK_POCKET_SCALE_EPS = 1.002;
 	/** Vertical gap between stacked layers so faces do not touch. */
 	const LAYER_GAP = 0.001;
 	const CLIPPER_SCALE = 1000;
@@ -667,22 +674,33 @@
 			controls.enablePan = !isBackView;
 			controls.enableZoom = !isBackView;
 		}
-		if (bottomLight) bottomLight.visible = isBackView;
-		if (keyLight) keyLight.intensity = isBackView ? 0.55 : 2.2;
+		if (bottomLight) {
+			bottomLight.visible = isBackView;
+			bottomLight.intensity = isBackView ? 0.85 : 2.4;
+		}
+		if (keyLight) keyLight.intensity = isBackView ? 0.15 : 2.2;
 		if (rimLight) rimLight.visible = !isBackView;
-		if (fillLight) fillLight.visible = !isBackView;
-		if (hemiLight) hemiLight.intensity = isBackView ? 0.12 : 0.25;
+		if (fillLight) {
+			fillLight.visible = true;
+			fillLight.intensity = isBackView ? 0.3 : 0.45;
+		}
+		if (hemiLight) hemiLight.intensity = isBackView ? 0.42 : 0.25;
+		if (renderer) renderer.toneMappingExposure = isBackView ? 0.92 : 1.05;
 		if (!camera || !controls) return;
 		const center = new THREE.Vector3();
 		box.getCenter(center);
 		if (isBackView) {
 			if (bottomLight) {
-				bottomLight.position.set(center.x, center.y, center.z - 140);
+				bottomLight.position.set(center.x + 35, center.y - 25, center.z - 140);
 				bottomLight.target.position.copy(center);
 				bottomLight.target.updateWorldMatrix(true, true);
 			}
+			if (fillLight) {
+				fillLight.position.set(center.x - 50, center.y + 40, center.z + 90);
+			}
 			frameCameraToBottomView(box, camera, controls);
 		} else if (!didInitFrame || wasBackPreviewView) {
+			if (fillLight) fillLight.position.set(40, 120, 60);
 			camera.up.set(0, 0, 1);
 			frameCameraToObject(box, camera, controls);
 			if (!didInitFrame) didInitFrame = true;
@@ -999,6 +1017,45 @@
 		return shapesOut;
 	}
 
+	function shapeToClipperPaths(
+		shape: THREE.Shape,
+		shapeDivisions = 18
+	): { X: number; Y: number }[][] {
+		const ensureClipperCW = (path: { X: number; Y: number }[], clockwise: boolean) => {
+			const isCW = ClipperLib.Clipper.Orientation(path);
+			if (isCW !== clockwise) path.reverse();
+		};
+		const toPath = (pts: THREE.Vector2[]) => {
+			const out: { X: number; Y: number }[] = [];
+			for (const p of pts) {
+				out.push({
+					X: Math.round(p.x * CLIPPER_SCALE),
+					Y: Math.round(p.y * CLIPPER_SCALE)
+				});
+			}
+			if (out.length > 2) {
+				const a = out[0];
+				const b = out[out.length - 1];
+				if (a.X === b.X && a.Y === b.Y) out.pop();
+			}
+			return out;
+		};
+		const paths: { X: number; Y: number }[][] = [];
+		const outer = toPath(shape.getPoints(shapeDivisions));
+		if (outer.length >= 3) {
+			ensureClipperCW(outer, true);
+			paths.push(outer);
+		}
+		for (const hole of shape.holes ?? []) {
+			const holePath = toPath(hole.getPoints(shapeDivisions));
+			if (holePath.length >= 3) {
+				ensureClipperCW(holePath, false);
+				paths.push(holePath);
+			}
+		}
+		return paths;
+	}
+
 	function buildUnionOffsetTree(paths: any[], offsetWorld: number) {
 		const tree = new ClipperLib.PolyTree();
 		if (offsetWorld > 0) {
@@ -1124,6 +1181,199 @@
 		if (welded.attributes.uv) welded.deleteAttribute('uv');
 		welded.computeVertexNormals();
 		welded.computeBoundingBox();
+		return welded;
+	}
+
+	function toNonIndexedGeometry(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+		if (!geo.index) return geo;
+		const nonIndexed = geo.toNonIndexed();
+		geo.dispose();
+		return nonIndexed;
+	}
+
+	function prepareGeometryForCsg(geo: THREE.BufferGeometry) {
+		geo.clearGroups();
+		geo.setDrawRange(0, Infinity);
+		if (geo.attributes.uv) geo.deleteAttribute('uv');
+		BufferGeometryUtils.mergeVertices(geo, WELD_TOL_MM);
+		geo.computeVertexNormals();
+	}
+
+	function mirrorClipperPathsX(paths: { X: number; Y: number }[][]): { X: number; Y: number }[][] {
+		return paths.map((path) => {
+			const mirrored = path.map((pt) => ({ X: -pt.X, Y: pt.Y }));
+			mirrored.reverse();
+			return mirrored;
+		});
+	}
+
+	function translateClipperPaths(
+		paths: { X: number; Y: number }[][],
+		dxMm: number,
+		dyMm: number
+	): { X: number; Y: number }[][] {
+		const dx = Math.round(dxMm * CLIPPER_SCALE);
+		const dy = Math.round(dyMm * CLIPPER_SCALE);
+		return paths.map((path) => path.map((pt) => ({ X: pt.X + dx, Y: pt.Y + dy })));
+	}
+
+	function buildBackTextExportBundle(): {
+		inlays: { geo: THREE.BufferGeometry; color: string }[];
+		pocketGeo: THREE.BufferGeometry | null;
+	} | null {
+		const maxTextWidth = Math.max(1, (basePlanSize?.x ?? 100) * TEXT_MAX_WIDTH_RATIO);
+		type Layout = {
+			geo: THREE.BufferGeometry;
+			height: number;
+			color: string;
+			centeredPaths: { X: number; Y: number }[][];
+			yCenter: number;
+		};
+		const layouts: Layout[] = [];
+
+		for (const line of backLines) {
+			const content = (line.content ?? '').trim();
+			if (!content) continue;
+			const font = getFont(line.fontKey);
+			if (!font) continue;
+			let shapes: THREE.Shape[];
+			try {
+				shapes = font.generateShapes(content, Math.max(1, line.size));
+			} catch (error) {
+				console.error('IdNameTagV2 back export generateShapes failed:', content, error);
+				continue;
+			}
+			if (!shapes || shapes.length === 0) continue;
+
+			let clipperPaths: { X: number; Y: number }[][] = [];
+			for (const shape of shapes) {
+				clipperPaths.push(...shapeToClipperPaths(shape));
+			}
+
+			const geo = new THREE.ExtrudeGeometry(shapes, {
+				depth: BACK_TEXT_DEPTH_MM,
+				bevelEnabled: false,
+				curveSegments: 8,
+				steps: 1
+			});
+			centerGeometryXY(geo);
+			bottomAlignGeometry(geo);
+			geo.computeBoundingBox();
+			let bb = geo.boundingBox;
+			if (!bb) {
+				geo.dispose();
+				continue;
+			}
+			const width = Math.max(0.001, bb.max.x - bb.min.x);
+			let fitScale = 1;
+			if (width > maxTextWidth) {
+				fitScale = maxTextWidth / width;
+				geo.scale(fitScale, fitScale, 1);
+				bottomAlignGeometry(geo);
+				bb = geo.boundingBox;
+			}
+			if (!bb) {
+				geo.dispose();
+				continue;
+			}
+			const cx = (bb.min.x + bb.max.x) / 2;
+			const cy = (bb.min.y + bb.max.y) / 2;
+			const centeredPaths = clipperPaths.map((path) =>
+				path.map((pt) => ({
+					X: Math.round((pt.X / CLIPPER_SCALE - cx) * fitScale * CLIPPER_SCALE),
+					Y: Math.round((pt.Y / CLIPPER_SCALE - cy) * fitScale * CLIPPER_SCALE)
+				}))
+			);
+			layouts.push({
+				geo,
+				height: Math.max(0.001, bb.max.y - bb.min.y),
+				color: line.color,
+				centeredPaths,
+				yCenter: 0
+			});
+		}
+
+		if (layouts.length === 0) return null;
+
+		const gap = Math.max(0, backLineSpacing);
+		const totalHeight =
+			layouts.reduce((acc, entry) => acc + entry.height, 0) +
+			Math.max(0, layouts.length - 1) * gap;
+		let yCursor = totalHeight / 2;
+		for (const entry of layouts) {
+			entry.yCenter = yCursor - entry.height / 2;
+			yCursor -= entry.height + gap;
+		}
+
+		const inlays: { geo: THREE.BufferGeometry; color: string }[] = [];
+		const allPocketPaths: { X: number; Y: number }[][] = [];
+		for (const entry of layouts) {
+			const positionedPaths = translateClipperPaths(
+				mirrorClipperPathsX(entry.centeredPaths),
+				0,
+				textCenterY + entry.yCenter
+			);
+			allPocketPaths.push(...positionedPaths);
+
+			const inlayGeo = mirrorGeometryX(entry.geo.clone());
+			inlayGeo.translate(0, textCenterY + entry.yCenter, BACK_TEXT_EXPORT_Z);
+			inlays.push({ geo: inlayGeo, color: entry.color });
+		}
+
+		const pocketTree = buildUnionOffsetTree(allPocketPaths, BACK_POCKET_GROW_MM);
+		const toVec2 = (pt: { X: number; Y: number }) =>
+			new THREE.Vector2(pt.X / CLIPPER_SCALE, pt.Y / CLIPPER_SCALE);
+		const pocketShapes = polyTreeToThreeShapes(pocketTree, toVec2);
+		if (pocketShapes.length === 0) return { inlays, pocketGeo: null };
+
+		const pocketDepth = BACK_TEXT_DEPTH_MM + BACK_POCKET_EXTRA_Z + BACK_POCKET_SUBTRACT_EPS;
+		const pocketGeo = new THREE.ExtrudeGeometry(pocketShapes, {
+			depth: pocketDepth,
+			bevelEnabled: false,
+			curveSegments: 8,
+			steps: 1
+		});
+		bottomAlignGeometry(pocketGeo, -BACK_POCKET_SUBTRACT_EPS);
+		return { inlays, pocketGeo };
+	}
+
+	function subtractBackPocketFromBase(
+		baseGeo: THREE.BufferGeometry,
+		pocketGeo: THREE.BufferGeometry
+	): THREE.BufferGeometry | null {
+		let baseForCsg = toNonIndexedGeometry(baseGeo.clone());
+		let pocketForCsg = toNonIndexedGeometry(pocketGeo.clone());
+		prepareGeometryForCsg(baseForCsg);
+		prepareGeometryForCsg(pocketForCsg);
+
+		const dummyMat = new THREE.MeshBasicMaterial({ color: 0x808080 });
+		const cutoutBrush = new Brush(pocketForCsg, dummyMat);
+		cutoutBrush.scale.set(BACK_POCKET_SCALE_EPS, BACK_POCKET_SCALE_EPS, BACK_POCKET_SCALE_EPS);
+		cutoutBrush.updateMatrixWorld(true);
+		const baseBrush = new Brush(baseForCsg, dummyMat);
+		baseBrush.updateMatrixWorld(true);
+		const resultBase = new Brush(new THREE.BufferGeometry(), dummyMat);
+		const evaluator = new Evaluator();
+		evaluator.useGroups = false;
+		try {
+			evaluator.evaluate(baseBrush, cutoutBrush, SUBTRACTION, resultBase);
+		} catch (error) {
+			console.error('IdNameTagV2 back pocket CSG failed:', error);
+			baseBrush.geometry.dispose();
+			cutoutBrush.geometry.dispose();
+			resultBase.geometry.dispose();
+			baseForCsg.dispose();
+			pocketForCsg.dispose();
+			dummyMat.dispose();
+			return null;
+		}
+		baseBrush.geometry.dispose();
+		cutoutBrush.geometry.dispose();
+		baseForCsg.dispose();
+		pocketForCsg.dispose();
+		dummyMat.dispose();
+		const welded = BufferGeometryUtils.mergeVertices(resultBase.geometry.clone(), WELD_TOL_MM);
+		resultBase.geometry.dispose();
 		return welded;
 	}
 
@@ -1542,18 +1792,19 @@
 						backGeo,
 						new THREE.MeshStandardMaterial({
 							color: entry.color,
-							roughness: 0.35,
-							metalness: 0.1
+							roughness: 0.78,
+							metalness: 0.02
 						})
 					);
 					textMesh.name = 'text-back';
 					textMesh.castShadow = true;
 					textMesh.receiveShadow = true;
-					// Preview: show below the tag (export embeds inside base at z≈0.02).
+					// Preview: float back text fully below the base underside to avoid z-fighting.
+					// Export embeds inside base at backInlayZ (see buildExportGroup).
 					textMesh.position.set(
 						0,
 						textCenterY + yCenter,
-						-(BACK_TEXT_PREVIEW_GAP_MM)
+						-(BACK_TEXT_PREVIEW_CLEARANCE_MM + BACK_TEXT_DEPTH_MM)
 					);
 					group.add(textMesh);
 				}
@@ -1588,45 +1839,58 @@
 		if (!baseSourceGeometry || !borderSourceGeometry) throw new Error('Model geometry not ready');
 		if (!group) throw new Error('Preview scene not ready');
 
-		rebuildMeshes();
-		group.updateWorldMatrix(true, true);
-
 		const exportGroup = new THREE.Group();
 		const baseDepthSafe = Math.max(0.1, baseDepth);
 		const borderDepthSafe = Math.max(0.1, borderDepth);
 		const borderZ = baseDepthSafe - BORDER_BASE_EMBED;
-		const backInlayZ = -0.005; // lift inlay so it doesn't share the z=0 underside plane
 
 		const baseGeo = buildExportSolidGeometry(baseSourceGeometry, baseDepthSafe);
+		let exportBaseGeo: THREE.BufferGeometry = baseGeo;
 
-		// Back inlay meshes (embedded inside base; per-line colors for multi-material 3MF).
-		const backLineEntries = backPrintEnabled ? buildBackTextLineEntries() : [];
-		if (backLineEntries.length > 0) {
-			const gap = Math.max(0, backLineSpacing);
-			const totalHeight =
-				backLineEntries.reduce((acc, entry) => acc + entry.height, 0) +
-				Math.max(0, backLineEntries.length - 1) * gap;
-			let yCursor = totalHeight / 2;
-
+		// Back inlay + clipper pocket CSG (preview stays floated below the tag).
+		const backExport = backPrintEnabled ? buildBackTextExportBundle() : null;
+		if (backExport) {
 			let backLineIndex = 0;
-			for (const entry of backLineEntries) {
-				const yCenter = yCursor - entry.height / 2;
-				yCursor -= entry.height + gap;
-
-				const baseLine = mirrorGeometryX(entry.geo.clone());
-				baseLine.translate(0, textCenterY + yCenter, backInlayZ);
+			const backLineCount = backExport.inlays.length;
+			for (const inlay of backExport.inlays) {
 				const inlayMesh = new THREE.Mesh(
-					cleanExportGeometry(baseLine),
-					new THREE.MeshBasicMaterial({ color: new THREE.Color(entry.color) })
+					cleanExportGeometry(inlay.geo),
+					new THREE.MeshBasicMaterial({ color: new THREE.Color(inlay.color) })
 				);
-				const count = backLineEntries.length;
-				inlayMesh.name = count > 1 ? `text-back-${backLineIndex}` : 'text-back';
+				inlayMesh.name =
+					backLineCount > 1 ? `text-back-${backLineIndex}` : 'text-back';
 				exportGroup.add(inlayMesh);
 				backLineIndex++;
 			}
+
+			if (backExport.pocketGeo) {
+				const pocketedBase = subtractBackPocketFromBase(baseGeo, backExport.pocketGeo);
+				backExport.pocketGeo.dispose();
+				if (pocketedBase) {
+					exportBaseGeo = pocketedBase;
+				} else {
+					// Fallback: keep inlay visible in slicers even if pocket CSG fails.
+					for (const child of exportGroup.children) {
+						const mesh = child as THREE.Mesh;
+						if (!mesh.name.startsWith('text-back')) continue;
+						const lifted = mesh.geometry.clone();
+						lifted.translate(
+							0,
+							0,
+							-(BACK_TEXT_DEPTH_MM + BACK_TEXT_PREVIEW_CLEARANCE_MM)
+						);
+						mesh.geometry.dispose();
+						mesh.geometry = cleanExportGeometry(lifted);
+					}
+				}
+			}
 		}
 
-		const baseMesh = new THREE.Mesh(baseGeo, new THREE.MeshBasicMaterial({ color: baseColor }));
+		const baseMesh = new THREE.Mesh(
+			cleanExportGeometry(exportBaseGeo),
+			new THREE.MeshBasicMaterial({ color: baseColor })
+		);
+		if (exportBaseGeo !== baseGeo) baseGeo.dispose();
 		baseMesh.name = 'base';
 		exportGroup.add(baseMesh);
 
