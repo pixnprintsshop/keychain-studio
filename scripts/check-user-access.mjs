@@ -29,9 +29,23 @@ import {
 	subscriptionRowGrantsAccess
 } from './lib/subscription-access.mjs';
 
+/** Keep in sync with src/lib/comingSoonDesigners.ts */
+const COMING_SOON_DESIGNER_IDS = ['letterRail', 'monogramInsert'];
+
+function comingSoonEarlyAccessFeatureKey(id) {
+	return `comingSoon_${id}`;
+}
+
 loadEnv();
 
 const TRIAL_MAX_ACCOUNTS_PER_FINGERPRINT = 2;
+
+/** Keep in sync with src/lib/exclusiveDesigners.ts */
+const EXCLUSIVE_DESIGNER_IDS = ['textBlocks'];
+
+function exclusiveDesignerFeatureKey(id) {
+	return `designer_${id}`;
+}
 
 function usage() {
 	console.error(`Usage: pnpm check-user <email> [--json] [--designer <designerId>]
@@ -363,6 +377,11 @@ async function main() {
 		lines.push(`  Ends at:        ${formatDate(report.subscription.ends_at)}`);
 		lines.push(`  Renews at:      ${formatDate(report.subscription.renews_at)}`);
 		lines.push(`  Grants access:  ${report.subscription.grants_access ? 'yes' : 'no'}`);
+		if (subscriptionStatus.cancelledPendingEnd) {
+			lines.push(
+				`  Note:           Cancelled — access until end of paid period (${formatDate(report.subscription.ends_at)})`
+			);
+		}
 	} else {
 		lines.push('  No subscription row');
 	}
@@ -445,9 +464,28 @@ async function main() {
 	}
 
 	lines.push('');
+	lines.push('EXCLUSIVE DESIGNERS');
+	for (const id of EXCLUSIVE_DESIGNER_IDS) {
+		const key = exclusiveDesignerFeatureKey(id);
+		const granted = featureRows.some((row) => row.feature_key === key && row.enabled);
+		lines.push(`  ${id}: ${granted ? 'unlocked' : 'locked'} (${key})`);
+	}
+
+	lines.push('');
+	lines.push('COMING SOON (early access)');
+	for (const id of COMING_SOON_DESIGNER_IDS) {
+		const key = comingSoonEarlyAccessFeatureKey(id);
+		const granted = featureRows.some((row) => row.feature_key === key && row.enabled);
+		lines.push(`  ${id}: ${granted ? 'early access' : 'locked'} (${key})`);
+	}
+
+	lines.push('');
 	lines.push('EXPORT (same rules as Print Studio)');
 	lines.push(`  Unlimited paid:  ${subscriptionStatus.isActive && !subscriptionStatus.onTrial ? 'yes' : 'no'}`);
 	lines.push(`  LS on trial:     ${subscriptionStatus.onTrial ? 'yes' : 'no'}`);
+	if (subscriptionStatus.cancelledPendingEnd) {
+		lines.push(`  Cancelled:       yes (access until ${formatDate(subscriptionStatus.endsAt)})`);
+	}
 	if (subscriptionStatus.isActive && !subscriptionStatus.onTrial) {
 		lines.push(`  Source:            ${subscriptionStatus.source}${subscriptionStatus.plan ? ` (${subscriptionStatus.plan})` : ''}`);
 	}

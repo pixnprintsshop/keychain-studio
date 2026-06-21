@@ -90,10 +90,17 @@ export function simulateExportAccess({
 	designerId
 }) {
 	if (hasUnlimitedExportAccess(subscriptionStatus)) {
+		const plan = subscriptionStatus.plan ? ` · ${subscriptionStatus.plan}` : '';
+		const until =
+			subscriptionStatus.cancelledPendingEnd && subscriptionStatus.endsAt
+				? ` until ${new Date(subscriptionStatus.endsAt).toISOString().slice(0, 10)}`
+				: '';
 		return {
 			allowed: true,
-			reason: 'paid',
-			message: `Paid access (${subscriptionStatus.source}${subscriptionStatus.plan ? ` · ${subscriptionStatus.plan}` : ''})`
+			reason: subscriptionStatus.cancelledPendingEnd ? 'cancelled_pending_end' : 'paid',
+			message: subscriptionStatus.cancelledPendingEnd
+				? `Cancelled — paid access continues${until} (${subscriptionStatus.source}${plan})`
+				: `Paid access (${subscriptionStatus.source}${plan})`
 		};
 	}
 	if (!hasUser) {

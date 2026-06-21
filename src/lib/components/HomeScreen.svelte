@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { capture } from '$lib/analytics';
-	import { COMING_SOON_DESIGNER_IDS } from '$lib/comingSoonDesigners';
+	import { COMING_SOON_DESIGNER_IDS, canAccessComingSoonDesigner } from '$lib/comingSoonDesigners';
 	import {
 		isComingSoonInterestRecorded,
 		markComingSoonInterestRecorded,
@@ -13,6 +13,10 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { isDesignerId } from '$lib/designers/ids';
 	import { getDesignerDisplayName } from '$lib/designerDisplayNames';
+	import {
+		canAccessExclusiveDesigner,
+		isExclusiveDesigner
+	} from '$lib/exclusiveDesigners';
 	import {
 		getDialogBlockingRevision,
 		isAnyDialogBlocking,
@@ -36,6 +40,7 @@
 		isSubscriberOnlyDesigner,
 		type SubscriptionStatus
 	} from '$lib/subscription';
+	import { userFeatureFlags } from '$lib/userFeatureFlags.svelte';
 	import { getFont } from '$lib/utils-3d';
 	import type { User } from '@supabase/supabase-js';
 	import { onMount } from 'svelte';
@@ -150,7 +155,8 @@
 		return (
 			communityInviteDialogOpen ||
 			pendingBetaDesigner !== null ||
-			pendingSubscriberDesigner !== null
+			pendingSubscriberDesigner !== null ||
+			pendingExclusiveDesigner !== null
 		);
 	}
 
@@ -273,6 +279,7 @@
 	);
 	let pendingBetaDesigner: StyleName | null = $state(null);
 	let pendingSubscriberDesigner: StyleName | null = $state(null);
+	let pendingExclusiveDesigner: StyleName | null = $state(null);
 
 	const DESIGNER_CATALOG: DesignerCatalogItem[] = [
 		{
@@ -281,12 +288,12 @@
 			imageSrc: '/images/articulated-keychain.png',
 			imageAlt: 'Articulated Keychain preview'
 		},
-		// {
-		// 	id: 'textBlocks',
-		// 	description: 'Stacked blocks with a letter on top and an inverted letter on the bottom of each.',
-		// 	imageSrc: '/images/text-only.png',
-		// 	imageAlt: 'Text Blocks preview'
-		// },
+		{
+			id: 'textBlocks',
+			description: 'Personalize back-to-back stacked blocks with custom letters on each side—fun, bold, and versatile.',
+			imageSrc: '/images/text-blocks.png',
+			imageAlt: 'Text Blocks preview'
+		},
 		{
 			id: 'multicolorWhistle',
 			description: 'Working whistle in up to three colors, with your name on top.',
@@ -566,6 +573,28 @@
 		return isSubscriberOnlyDesignerStyle(style) && !hasAccess;
 	}
 
+	function canAccessExclusive(style: StyleName): boolean {
+		void userFeatureFlags.loaded;
+		return canAccessExclusiveDesigner(style, (key) => userFeatureFlags.has(key));
+	}
+
+	function isExclusiveLocked(style: StyleName): boolean {
+		return isExclusiveDesigner(style) && !canAccessExclusive(style);
+	}
+
+	function canAccessComingSoonEarly(style: StyleName): boolean {
+		void userFeatureFlags.loaded;
+		return canAccessComingSoonDesigner(style, (key) => userFeatureFlags.has(key));
+	}
+
+	function isComingSoonLocked(style: StyleName): boolean {
+		return isComingSoonDesigner(style) && !canAccessComingSoonEarly(style);
+	}
+
+	function hasComingSoonEarlyAccess(style: StyleName): boolean {
+		return isComingSoonDesigner(style) && canAccessComingSoonEarly(style);
+	}
+
 	function isNewDesigner(style: StyleName): boolean {
 		return NEW_DESIGNERS.has(style);
 	}
@@ -628,7 +657,7 @@
 	}
 
 	function handleCardClick(designer: DesignerItem) {
-		if (isComingSoonDesigner(designer.id)) return;
+		if (isComingSoonLocked(designer.id)) return;
 		if (isUnderMaintenance(designer.id)) return;
 		if (isAnyDialogBlocking()) return;
 		if (isSubscriberLocked(designer.id)) {
@@ -637,6 +666,14 @@
 				return;
 			}
 			pendingSubscriberDesigner = designer.id;
+			return;
+		}
+		if (isExclusiveLocked(designer.id)) {
+			if (!user) {
+				onRequestLogin?.();
+				return;
+			}
+			pendingExclusiveDesigner = designer.id;
 			return;
 		}
 		if (isBetaDesigner(designer.id)) {
@@ -659,6 +696,10 @@
 
 	function dismissSubscriberDialog() {
 		pendingSubscriberDesigner = null;
+	}
+
+	function dismissExclusiveDialog() {
+		pendingExclusiveDesigner = null;
 	}
 
 	function confirmSubscriberAccess() {
@@ -770,6 +811,37 @@
 			</Dialog.Content>
 		</Dialog.Root>
 
+		<Dialog.Root
+			open={pendingExclusiveDesigner !== null}
+			onOpenChange={(open) => {
+				if (!open) pendingExclusiveDesigner = null;
+			}}
+		>
+			<Dialog.Content
+				showCloseButton={false}
+				class="max-w-md rounded-2xl border-slate-200 shadow-xl"
+			>
+				<Dialog.Header>
+					<Dialog.Title class="text-lg font-semibold text-slate-900">Invite only</Dialog.Title>
+					<Dialog.Description class="mt-2 text-sm text-slate-600">
+						{pendingExclusiveDesigner
+							? (DESIGNERS.find((d) => d.id === pendingExclusiveDesigner)?.title ??
+								'This designer')
+							: 'This designer'} is exclusive and not available on your account yet. Contact us if
+						you believe you should have access.
+					</Dialog.Description>
+				</Dialog.Header>
+				<div class="mt-6 flex justify-end gap-3">
+					<Dialog.Close
+						class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:ring-2 focus:ring-indigo-500/50 focus:outline-none"
+						onclick={dismissExclusiveDialog}
+					>
+						OK
+					</Dialog.Close>
+				</div>
+			</Dialog.Content>
+		</Dialog.Root>
+
 		{#if DESIGNERS_UNDER_MAINTENANCE.size > 0}
 			<div
 				class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 sm:mb-6 sm:px-4 sm:py-3"
@@ -872,28 +944,59 @@
 						designer.id
 					)
 						? 'cursor-not-allowed border-slate-200 opacity-60'
-						: isComingSoonDesigner(designer.id)
+						: isComingSoonLocked(designer.id)
 							? 'cursor-not-allowed border-slate-200'
+							: hasComingSoonEarlyAccess(designer.id)
+								? 'cursor-pointer border-sky-300 ring-2 ring-sky-200/70 hover:-translate-y-1 hover:border-sky-400 hover:shadow-lg'
 							: isSubscriberLocked(designer.id)
 								? 'cursor-not-allowed border-slate-200 opacity-75'
-								: isNewDesigner(designer.id)
+								: isExclusiveLocked(designer.id)
+									? 'cursor-not-allowed border-slate-200 opacity-75'
+									: isNewDesigner(designer.id)
 								? 'cursor-pointer border-emerald-300 ring-2 ring-emerald-200/70 hover:-translate-y-1 hover:border-emerald-400 hover:shadow-lg'
 								: isUpdatedDesigner(designer.id)
 									? 'cursor-pointer border-indigo-300 ring-2 ring-indigo-200/70 hover:-translate-y-1 hover:border-indigo-400 hover:shadow-lg'
 									: 'cursor-pointer border-slate-200 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-lg'}"
 					onclick={() => handleCardClick(designer)}
 				>
-					{#if isComingSoonDesigner(designer.id)}
+					{#if isComingSoonLocked(designer.id)}
 						<span
 							class="pointer-events-none absolute top-2 right-2 z-20 rounded bg-slate-900/80 px-1.5 py-0.5 text-[10px] font-medium text-white sm:top-3 sm:right-3 sm:rounded-md sm:px-2 sm:text-xs"
 							>Coming soon</span
 						>
-
+					{/if}
+					{#if hasComingSoonEarlyAccess(designer.id)}
+						<span
+							class="pointer-events-none absolute top-2 right-2 z-20 rounded bg-sky-700/90 px-1.5 py-0.5 text-[10px] font-medium text-white sm:top-3 sm:right-3 sm:rounded-md sm:px-2 sm:text-xs"
+							>Early access</span
+						>
 					{/if}
 					{#if isSubscriberLocked(designer.id)}
 						<span
 							class="pointer-events-none absolute top-2 right-2 z-20 inline-flex items-center gap-0.5 rounded bg-emerald-900/85 px-1.5 py-0.5 text-[10px] font-medium text-white sm:top-3 sm:right-3 sm:rounded-md sm:px-2 sm:text-xs"
 							>Subscribe</span
+						>
+					{/if}
+					{#if isExclusiveDesigner(designer.id)}
+						<span
+							class="pointer-events-none absolute top-2 right-2 z-20 rounded bg-violet-900/85 px-1.5 py-0.5 text-[10px] font-medium text-white sm:top-3 sm:right-3 sm:rounded-md sm:px-2 sm:text-xs {isSubscriberLocked(
+								designer.id
+							) || isComingSoonDesigner(designer.id)
+								? 'top-8 sm:top-10'
+								: ''}"
+							>Exclusive</span
+						>
+					{/if}
+					{#if isExclusiveLocked(designer.id)}
+						<span
+							class="pointer-events-none absolute top-2 right-2 z-20 rounded bg-amber-900/85 px-1.5 py-0.5 text-[10px] font-medium text-white sm:top-3 sm:right-3 sm:rounded-md sm:px-2 sm:text-xs {isExclusiveDesigner(
+								designer.id
+							)
+								? 'top-8 sm:top-10'
+								: isSubscriberLocked(designer.id) || isComingSoonDesigner(designer.id)
+									? 'top-8 sm:top-10'
+									: ''}"
+							>Invite only</span
 						>
 					{/if}
 					{#if isUnderMaintenance(designer.id)}
@@ -990,7 +1093,7 @@
 					{/if}
 					<div class="relative">
 						<div
-							class="aspect-4/3 w-full overflow-hidden rounded-t-xl bg-slate-100 sm:rounded-t-2xl {isComingSoonDesigner(
+							class="aspect-4/3 w-full overflow-hidden rounded-t-xl bg-slate-100 sm:rounded-t-2xl {isComingSoonLocked(
 								designer.id
 							)
 								? 'opacity-60'
@@ -1000,7 +1103,7 @@
 								src={designer.imageSrc}
 								alt={designer.imageAlt}
 								class="h-full w-full object-cover transition {isUnderMaintenance(designer.id) ||
-								isComingSoonDesigner(designer.id)
+								isComingSoonLocked(designer.id)
 									? ''
 									: 'group-hover:scale-105'}"
 							/>
@@ -1050,7 +1153,7 @@
 								/>
 							</svg>
 						</Button>
-						{#if isComingSoonDesigner(designer.id)}
+						{#if isComingSoonLocked(designer.id)}
 							<Button
 								variant="ghost"
 								size="icon"
@@ -1127,7 +1230,7 @@
 						{/if}
 					</div>
 					<div
-						class="p-2.5 sm:p-5 {isComingSoonDesigner(designer.id) ? 'pointer-events-none opacity-60' : ''}"
+						class="p-2.5 sm:p-5 {isComingSoonLocked(designer.id) ? 'pointer-events-none opacity-60' : ''}"
 					>
 						<h2 class="text-sm font-semibold text-slate-900 sm:text-lg">
 							{designer.title}
