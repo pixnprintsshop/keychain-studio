@@ -124,17 +124,28 @@ async function getFingerprintSummary(admin, userId) {
 			continue;
 		}
 
-		const distinctUsers = new Set(linked?.map((r) => r.user_id) ?? []);
+		const sorted = [...(linked ?? [])].sort((a, b) => {
+			const t = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+			if (t !== 0) return t;
+			return String(a.user_id).localeCompare(String(b.user_id));
+		});
+		const distinctUsers = new Set(sorted.map((r) => r.user_id));
+		const slotIdx = sorted.findIndex((r) => r.user_id === userId);
+		const slot = slotIdx >= 0 ? slotIdx + 1 : null;
+		const userAllowedOnHash =
+			slot === null ? true : slot <= TRIAL_MAX_ACCOUNTS_PER_FINGERPRINT;
 		hashDetails.push({
 			hashPrefix: hash.slice(0, 12) + '…',
 			linkedAccounts: distinctUsers.size,
 			maxAccounts: TRIAL_MAX_ACCOUNTS_PER_FINGERPRINT,
-			emails: linked?.map((r) => r.email).filter(Boolean) ?? []
+			userSlot: slot,
+			userAllowedOnHash,
+			emails: sorted.map((r) => r.email).filter(Boolean) ?? []
 		});
 	}
 
 	const fingerprintAllowed = hashDetails.every(
-		(h) => h.error || (h.linkedAccounts ?? 0) <= TRIAL_MAX_ACCOUNTS_PER_FINGERPRINT
+		(h) => h.error || h.userAllowedOnHash !== false
 	);
 
 	return {
@@ -416,8 +427,11 @@ async function main() {
 			if (h.error) {
 				lines.push(`  Fingerprint:     ${h.hash} — ${h.error}`);
 			} else {
+				const slotLabel =
+					h.userSlot != null ? `, this user slot ${h.userSlot}` : '';
+				const capLabel = h.userAllowedOnHash === false ? ' — BLOCKED (over cap)' : '';
 				lines.push(
-					`  Fingerprint:     ${h.hashPrefix} — ${h.linkedAccounts}/${h.maxAccounts} account(s) on device`
+					`  Fingerprint:     ${h.hashPrefix} — ${h.linkedAccounts}/${h.maxAccounts} account(s) on device${slotLabel}${capLabel}`
 				);
 				if (h.emails?.length) lines.push(`                   emails: ${h.emails.join(', ')}`);
 			}
