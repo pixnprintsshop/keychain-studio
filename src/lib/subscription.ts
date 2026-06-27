@@ -8,6 +8,7 @@ import {
 	subscriptionTrial,
 	tryConsumeSubscriptionTrialExport
 } from './subscriptionTrial.svelte';
+import { ensureUserBlockLoaded, requestAccountBlockedDialog, userBlock } from './userBlock.svelte';
 import { supabase } from './supabase';
 
 const LICENSE_CACHE_KEY_PREFIX = 'pixnprints-license-';
@@ -166,6 +167,7 @@ export function showExportLockIcon(
 	subscriptionStatus: SubscriptionStatus | null
 ): boolean {
 	if (!user) return true;
+	if (userBlock.blocked) return true;
 	if (hasUnlimitedExportAccess(subscriptionStatus)) return false;
 	if (subscriptionStatus?.onTrial) return !subscriptionTrial.hasCredits;
 	return true;
@@ -177,6 +179,8 @@ export function getExportTitle(
 	subscriptionStatus: SubscriptionStatus | null,
 	activeTitle: string = 'Export STL or 3MF'
 ): string {
+	if (userBlock.blocked) return 'Account restricted';
+	if (freeTrial.fingerprintBlocked) return getFingerprintBlockedMessage();
 	if (hasUnlimitedExportAccess(subscriptionStatus)) return activeTitle;
 	if (subscriptionStatus?.licenseExpired) return 'License expired';
 	if (!user) return 'Sign in to start free trial';
@@ -213,6 +217,14 @@ export async function ensureExportAccess(
 	onShowPricing?: () => void,
 	onRequestLogin?: () => void
 ): Promise<boolean> {
+	if (user?.id) {
+		await ensureUserBlockLoaded(user.id);
+		if (userBlock.blocked) {
+			requestAccountBlockedDialog();
+			return false;
+		}
+	}
+
 	if (hasUnlimitedExportAccess(subscriptionStatus)) return true;
 
 	if (!user) {
@@ -234,6 +246,7 @@ export async function ensureExportAccess(
 
 	if (freeTrial.fingerprintBlocked) {
 		onShowPricing?.();
+		requestAccountBlockedDialog();
 		return false;
 	}
 

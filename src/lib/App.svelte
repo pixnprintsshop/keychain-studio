@@ -3,6 +3,7 @@
 	import { navigating, page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import { getSession, getUser, onAuthStateChange, signOut } from '$lib/auth';
+	import AccountBlockedDialog from '$lib/components/AccountBlockedDialog.svelte';
 	import LicenseActivationModal from '$lib/components/LicenseActivationModal.svelte';
 	import LoginModal from '$lib/components/LoginModal.svelte';
 	import MaintenancePage from '$lib/components/MaintenancePage.svelte';
@@ -35,6 +36,7 @@
 		subscriptionTrial
 	} from '$lib/subscriptionTrial.svelte';
 	import { loadUserFeatureFlagsForUser } from '$lib/userFeatureFlags.svelte';
+	import { loadUserBlockForUser, userBlock } from '$lib/userBlock.svelte';
 	import { favoriteDesigners, loadFavoriteDesigners } from '$lib/favoriteDesigners.svelte';
 	import { loadExportStats } from '$lib/exportStats.svelte';
 	import {
@@ -46,6 +48,7 @@
 		setDialogBlocking,
 		setPendingRatingPrompt
 	} from '$lib/dialogCoordinator.svelte';
+	import { notifyBlockedVisit } from '$lib/blockedVisitNotify';
 	import { notifyVisit } from '$lib/visitNotify';
 	import {
 		fetchUserPalette,
@@ -153,7 +156,7 @@
 		if (!favoriteDesigners.loaded) return false;
 		const uid = user?.id;
 		if (!uid) return true;
-		return subscriptionBootstrapComplete && freeTrial.loaded;
+		return subscriptionBootstrapComplete && freeTrial.loaded && userBlock.loaded;
 	});
 
 	const effectivePalette = $derived(getEffectivePalette(user, userPalette));
@@ -272,6 +275,25 @@
 	// Per-user feature flags (admin-granted).
 	$effect(() => {
 		void loadUserFeatureFlagsForUser(user?.id ?? null);
+	});
+
+	// Admin-flagged account restrictions.
+	$effect(() => {
+		void loadUserBlockForUser(user?.id ?? null);
+	});
+
+	// Telegram alert when a blocked/restricted user opens the app (once per session).
+	$effect(() => {
+		const uid = user?.id;
+		if (!uid || !userBlock.loaded || !userBlock.blocked) return;
+		void notifyBlockedVisit({
+			email: user?.email,
+			userId: uid,
+			blockKind: userBlock.blockKind,
+			reason: userBlock.reason,
+			subscriptionStatus,
+			view: page.url.pathname
+		});
 	});
 
 	// Per-designer LS subscription trial credits when on a designer route.
@@ -413,6 +435,9 @@
 	});
 	$effect(() => {
 		setDialogBlocking('supportShare', showSupportShareDialog);
+	});
+	$effect(() => {
+		setDialogBlocking('accountBlocked', userBlock.showDialog);
 	});
 
 	// Share-for-credits promo: free-trial users only (after subscription/license check resolves).
@@ -730,6 +755,13 @@
 		onClose={closePromotionDialog}
 		onShare={handleShareCreditsPromoShare}
 		onMessageUs={handleShareCreditsPromoMessage}
+	/>
+
+	<AccountBlockedDialog
+		open={userBlock.showDialog}
+		blockKind={userBlock.blockKind}
+		reason={userBlock.reason}
+		onSignOut={handleSignOut}
 	/>
 
 	<SubscriptionTrialUpgradeDialog

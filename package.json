@@ -14,7 +14,9 @@
 		"format": "prettier --write .",
 		"check-user": "node scripts/check-user-access.mjs",
 		"grant-feature": "node scripts/grant-user-feature.mjs",
-		"activate-license": "node scripts/activate-license.mjs"
+		"activate-license": "node scripts/activate-license.mjs",
+		"block-user": "node scripts/block-user.mjs",
+		"block-fingerprint": "node scripts/block-fingerprint.mjs"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.0.2",

@@ -210,7 +210,8 @@ async function main() {
 		trialResult,
 		subscriptionTrialResult,
 		featureFlagsResult,
-		fingerprintSummary
+		fingerprintSummary,
+		blockedResult
 	] = await Promise.all([
 		admin.from('subscriptions').select('*').eq('user_id', userId).maybeSingle(),
 		admin.rpc('get_user_export_access', { p_user_id: userId }),
@@ -225,7 +226,8 @@ async function main() {
 			.select('designer_id, count, updated_at')
 			.eq('user_id', userId),
 		admin.from('user_feature_flags').select('feature_key, enabled, granted_at, note').eq('user_id', userId),
-		getFingerprintSummary(admin, userId)
+		getFingerprintSummary(admin, userId),
+		admin.from('blocked_users').select('reason, blocked_at, blocked_by').eq('user_id', userId).maybeSingle()
 	]);
 
 	let subscriptionStatus = buildSubscriptionStatus(subResult.data);
@@ -272,20 +274,23 @@ async function main() {
 		subscriptionTrialRemaining: subscriptionTrialForDesigner?.remaining,
 		designerId
 	});
-	const exportButtonTitle = getExportTitleSimulation({
-		subscriptionStatus,
-		hasUser: true,
-		trialRemaining: trial.remaining,
-		fingerprintBlocked: fingerprintSummary.fingerprintAllowed === false,
-		subscriptionTrialRemaining: subscriptionTrialForDesigner?.remaining
-	});
+	const isServiceBlocked = Boolean(blockedResult.data);
+	const exportWorks = !isServiceBlocked && exportSim.allowed;
+	const exportButtonTitle = isServiceBlocked
+		? 'Account restricted'
+		: getExportTitleSimulation({
+				subscriptionStatus,
+				hasUser: true,
+				trialRemaining: trial.remaining,
+				fingerprintBlocked: fingerprintSummary.fingerprintAllowed === false,
+				subscriptionTrialRemaining: subscriptionTrialForDesigner?.remaining
+			});
 
 	const maintenance = isMaintenanceMode();
 	const appUsable = !maintenance;
-	const exportWorks = exportSim.allowed;
 
 	const report = {
-		ok: appUsable && exportWorks,
+		ok: appUsable && exportWorks && !isServiceBlocked,
 		email: user.email,
 		user: {
 			id: userId,
@@ -294,6 +299,13 @@ async function main() {
 			last_sign_in_at: user.last_sign_in_at ?? null,
 			banned: Boolean(user.banned_until && new Date(user.banned_until) > new Date())
 		},
+		blocked: blockedResult.data
+			? {
+					reason: blockedResult.data.reason,
+					blocked_at: blockedResult.data.blocked_at,
+					blocked_by: blockedResult.data.blocked_by
+				}
+			: null,
 		app: {
 			maintenance_mode: maintenance,
 			app_loads: !maintenance,
@@ -349,13 +361,15 @@ async function main() {
 			export_button_title: exportButtonTitle
 		},
 		verdict: {
-			can_use_app: appUsable,
+			can_use_app: appUsable && !isServiceBlocked,
 			can_export: exportWorks,
-			summary: exportWorks
-				? appUsable
-					? `Export allowed — ${exportSim.message}`
-					: 'App in maintenance mode (exports would work if app were open)'
-				: `Export blocked — ${exportSim.message}`
+			summary: isServiceBlocked
+				? 'Account restricted by admin — service blocked'
+				: exportWorks
+					? appUsable
+						? `Export allowed — ${exportSim.message}`
+						: 'App in maintenance mode (exports would work if app were open)'
+					: `Export blocked — ${exportSim.message}`
 		}
 	};
 
@@ -374,6 +388,12 @@ async function main() {
 	lines.push(`  Email confirmed: ${report.user.email_confirmed_at ? 'yes' : 'no'}`);
 	lines.push(`  Last sign-in:    ${formatDate(report.user.last_sign_in_at)}`);
 	if (report.user.banned) lines.push('  ⚠ Banned until future date');
+	if (report.blocked) {
+		lines.push('  ⚠ Service blocked by admin');
+		lines.push(`  Blocked at:      ${formatDate(report.blocked.blocked_at)}`);
+		if (report.blocked.blocked_by) lines.push(`  Blocked by:      ${report.blocked.blocked_by}`);
+		if (report.blocked.reason) lines.push(`  Reason:          ${report.blocked.reason}`);
+	}
 
 	lines.push('');
 	lines.push('APP');
