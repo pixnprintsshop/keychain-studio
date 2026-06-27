@@ -26,6 +26,11 @@
 	import border3StlUrl from '$lib/assets/stl/idnametag/border3.stl?url';
 	import border4StlUrl from '$lib/assets/stl/idnametag/border4.stl?url';
 	import { ensureExportAccess, getExportTitle, showExportLockIcon, type SubscriptionStatus } from '$lib/subscription';
+	import { capture } from '$lib/analytics';
+	import {
+		isLaceBadgeOfferSeen,
+		markLaceBadgeOfferSeen
+	} from '$lib/idNameTagV2LaceBadgeOffer';
 	import { FEATURE_FLAG_KEYS } from '$lib/featureFlags';
 	import { userFeatureFlags } from '$lib/userFeatureFlags.svelte';
 	import { upload3mfToSupabase } from '$lib/upload3mf';
@@ -52,6 +57,7 @@
 	import DesignerExportToolbar from './DesignerExportToolbar.svelte';
 	import DesignerModelDimensionsHud from './DesignerModelDimensionsHud.svelte';
 	import FontSelect from './FontSelect.svelte';
+	import IdNameTagV2LaceBadgeOfferDialog from './IdNameTagV2LaceBadgeOfferDialog.svelte';
 	import { Button } from './ui/button';
 	import { Slider } from './ui/slider';
 
@@ -397,6 +403,7 @@
 
 	type PresetEditorMode = 'create' | 'edit';
 	let presetEditorOpen = $state(false);
+	let laceBadgeOfferOpen = $state(false);
 	let presetEditorMode = $state<PresetEditorMode>('create');
 	let presetEditorId = $state<string | null>(null);
 	let presetEditorLabel = $state('');
@@ -516,6 +523,25 @@
 
 	function onPresetEditorOpenChange(open: boolean) {
 		if (!open) closePresetEditor();
+	}
+
+	function onLaceBadgeOfferOpenChange(open: boolean) {
+		laceBadgeOfferOpen = open;
+		if (!open) markLaceBadgeOfferSeen();
+	}
+
+	function maybeShowLaceBadgeOfferDialog() {
+		if (isLaceBadgeOfferSeen()) return;
+		laceBadgeOfferOpen = true;
+		capture('idnametag_v2_lace_badge_offer_shown');
+	}
+
+	function handleLaceBadgeOfferJoinGroup() {
+		capture('idnametag_v2_lace_badge_offer_messenger_clicked');
+	}
+
+	function handleLaceBadgeOfferDismiss() {
+		capture('idnametag_v2_lace_badge_offer_dismissed');
 	}
 
 	async function commitPresetEditor() {
@@ -2166,6 +2192,10 @@
 		};
 		renderFrame();
 
+		setTimeout(() => {
+			maybeShowLaceBadgeOfferDialog();
+		}, 400);
+
 		return () => {
 			ro?.disconnect();
 			ro = null;
@@ -2995,4 +3025,11 @@
 			</Dialog.Content>
 		</Dialog.Root>
 	{/if}
+
+	<IdNameTagV2LaceBadgeOfferDialog
+		open={laceBadgeOfferOpen}
+		onOpenChange={onLaceBadgeOfferOpenChange}
+		onJoinGroup={handleLaceBadgeOfferJoinGroup}
+		onDismiss={handleLaceBadgeOfferDismiss}
+	/>
 </main>
